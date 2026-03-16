@@ -4,6 +4,14 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v6.8  2026-03-16
+**BUG FIXES — DOT scatter example, turtle recenter on resize**
+- * BUG: "DOT — Sine Wave Scatter" example produced wrong output. Root cause: multi-operator MAKE expressions like `SCRWIDTH / 2 - 10` evaluate right-recursively as `SCRWIDTH / (2 - 10)` due to the known right-recursive binary chain. Fix: rewrote the example using one binary operator per MAKE statement, avoiding the right-recursion trap. Added a comment explaining the pattern.
+- * BUG: Turtle position was not reset after canvas resize. After a window or font-size resize the turtle remained at its previous Logo coordinates. Fix: `resizeCanvas()` now resets `turtle.x/y/angle` to 0 (HOME) after each resize, keeping the turtle predictably at the canvas centre.
+- ~ CHANGE: Changing font size (SMALL/MEDIUM/LARGE in OPTIONS) now calls `resizeCanvas()` via `setTimeout(0)` so the canvas dimensions update to match the new panel width introduced in v6.7.
+
+---
+
 ## v6.7  2026-03-16
 **UI — live line-number indicator, font-scaled left panel**
 - + ADDITION: Live `L:N` line-number indicator in the editor toolbar, left of the `≡` button. Updates on every keystroke (`input` event) and every cursor movement (`selectionchange` listener). Shows the 1-based line number of the current caret position. Implemented inside the editor IIFE using the existing `getCaretOffset()` and `getValue()` functions; no interpreter changes.
