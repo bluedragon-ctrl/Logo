@@ -4,6 +4,14 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v6.6  2026-03-16
+**BUG FIX + GRAPH DRAWING PRIMITIVES — MAKE scoping, DOT, SCRWIDTH/SCRHEIGHT**
+- * BUG: `MAKE :STEP :STEP + 1` (and any MAKE mutation) inside a `REPEAT` body stopped working in v6.5. Root cause: the REPCOUNT feature created a child scope (`Object.create(outerVars)`) for each REPEAT iteration body; `MAKE` wrote to that child scope, which was discarded at the end of the iteration. Fix: added `const REPEAT_SCOPE = Symbol('repeatScope')` to mark REPEAT body scopes. `CMD['MAKE']` now walks the prototype chain through REPEAT-marked scopes to write to the correct defining scope. FOR uses `Object.assign` (flat copy, no prototype chain) so MAKE inside FOR correctly stays local — no change there. Procedure scopes use `Object.create` but are not marked with `REPEAT_SCOPE`, so procedure-local MAKE is also unaffected. Broken examples restored: Spiral, Sunburst, Rainbow Spiral, Comments.
+- + ADDITION: `SCRWIDTH` and `SCRHEIGHT` — read-only bare tokens (like `XCOR`/`YCOR`) that return the current canvas pixel dimensions. Since the Logo origin is at the canvas centre, `SCRWIDTH / 2` is the rightmost x coordinate. Useful for writing programs that scale to any window size.
+- + ADDITION: `DOT` — draw a filled circle dot at the turtle's current position. `DOT x y` draws at (x, y) without moving the turtle. Diameter = current pen width (`SETWIDTH`). Color = current pen color (`SETCOLOR`). Always draws regardless of pen up/down state. Stored as a zero-length trail segment so dots survive canvas resize. New "DOT — Sine Wave Scatter" example added.
+
+---
+
 ## v6.5  2026-03-16
 **ADDITION — `REPCOUNT`**
 - + ADDITION: `REPCOUNT` returns the current iteration index (1-based) inside a `REPEAT` loop. Implemented by injecting `REPCOUNT` as an own property of a child vars scope before each body execution in both `run()` and `runExpr()`, so it is visible inside the body without polluting the enclosing scope. Resolved as a bare token (no colon) via `resolveToken`, like `XCOR`/`YCOR`. Throws `"REPCOUNT used outside a REPEAT loop"` if used outside any REPEAT. New "REPCOUNT — Expanding Spiral" example added.
