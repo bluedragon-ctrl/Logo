@@ -4,6 +4,12 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v6.5  2026-03-16
+**ADDITION — `REPCOUNT`**
+- + ADDITION: `REPCOUNT` returns the current iteration index (1-based) inside a `REPEAT` loop. Implemented by injecting `REPCOUNT` as an own property of a child vars scope before each body execution in both `run()` and `runExpr()`, so it is visible inside the body without polluting the enclosing scope. Resolved as a bare token (no colon) via `resolveToken`, like `XCOR`/`YCOR`. Throws `"REPCOUNT used outside a REPEAT loop"` if used outside any REPEAT. New "REPCOUNT — Expanding Spiral" example added.
+
+---
+
 ## v6.4  2026-03-16
 **BUG FIXES — editor paste, beautify negative literals**
 - * BUG: Copy-paste accumulated extra blank lines. `getValue()` emitted a trailing `\n` from the browser's guard `<div><br></div>`. Paste via `insertText` appended at caret rather than replacing, baking extra empty lines into source. Fix: `getValue()` now trims trailing empty lines before joining.

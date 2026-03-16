@@ -1,5 +1,5 @@
 # Claude Logo — Implementation Specification
-## Version 6.4 — March 2026
+## Version 6.5 — March 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
 

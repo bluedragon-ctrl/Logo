@@ -1,5 +1,5 @@
 # Claude Logo — Language Specification
-## Version 6.4 — March 2026
+## Version 6.5 — March 2026
 
 Claude Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -99,6 +99,7 @@ FD :y + :x         ; forward 52
 | `OUTPUT val` / `OP val` | Return `val` from the current procedure. Must be inside a procedure. |
 | `BREAK` | Exit the innermost enclosing loop (`REPEAT`, `FOR`, or `WHILE`) immediately. Cannot cross a procedure boundary — using `BREAK` outside any loop throws an error. |
 | `WAIT n` | Pause execution for n seconds. n must be ≥ 0; capped at 30 s. |
+| `REPCOUNT` | Current iteration index (1-based) of the innermost `REPEAT` loop. Throws if used outside a `REPEAT`. |
 | `SPEED n` | Set the animation speed from within a program (n = 1–4). 1 = slow animated, 4 = instant. Matches the OPTIONS speed slider. Values outside 1–4 are clamped with a warning. |
 
 ### 2.4 Procedures
@@ -271,7 +272,7 @@ These are documented design decisions, not bugs.
 | **Unary functions take one token** | `SQRT :a + :b` computes `(SQRT :a) + :b`, not `SQRT (:a + :b)`. Assign the inner expression to a variable first. |
 | **Right-recursive binary chain** | `a - b + c` evaluates as `a - (b + c)`. |
 | **FOR vs REPEAT/WHILE scoping** | `MAKE` inside a `FOR` body does not affect outer variables. `MAKE` inside `REPEAT`/`WHILE` does. |
-| **`REPCOUNT` not implemented** | The current iteration index is not exposed inside `REPEAT` bodies. Use `FOR` if you need the index. |
+| **`REPCOUNT` in nested loops** | `REPCOUNT` returns the index of the **innermost** `REPEAT` only. There is no way to access outer loop counts from a nested `REPEAT`. Use `FOR` with a named variable if you need the outer index. |
 | **`LOCAL :var` not implemented** | There is no way to declare a local variable except as a procedure parameter. |
 | **`FILL` / `SAVE` / `LOAD` not implemented** | These UCBLogo commands are not available. |
 
@@ -343,3 +344,4 @@ The source line shown is the most recently executed line, which is where the pro
 | FOR — Colour Spectrum | `FOR`, `SETPOS`, `SETWIDTH`, `HT` |
 | Colour Wheel | Named colours, `LABEL`, `SETHEADING`, six spokes |
 | Deep Recursion — Dragon Curve | Recursive procedures, `SQRT` in expressions, 12 levels deep |
+| REPCOUNT — Expanding Spiral | `REPCOUNT` as distance and turn angle inside `REPEAT` |
