@@ -4,6 +4,65 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v7.2  2026-03-17
+**REFERENCE PANEL — ▸ LOOPS section split from ▸ CONTROL**
+- ~ CHANGE: The ▸ CONTROL reference section split into ▸ LOOPS (REPEAT / REPCOUNT / REPCOUNTMAX / WHILE / FOR / BREAK / CONTINUE) and ▸ CONTROL (IF / IFELSE / STOP / OUTPUT / TO / WAIT / SPEED / comment). Loops were half the entries; grouping them makes the panel easier to scan.
+
+## v7.1  2026-03-17
+**CODE REVIEW FIXES — runStack hardening + CONTINUE + REPCOUNTMAX**
+- * BUG: `depth` guard in `runExpr` was dead code — `evalExpr` always passed `depth=0` so the check `depth > MAX_EXPR_DEPTH` never fired. Deep mutual recursion (`TO BOOM OUTPUT BOOM END / FD BOOM`) would silently consume JS async frames until a crash. Fix: added `MAX_STACK_FRAMES = 10000` guard at the top of `runStack`'s while loop; any Logo recursion deeper than 10 000 frames throws a clean `Stack overflow` error.
+- ~ CHANGE: STOP, OUTPUT, and BREAK in `runStack` replaced double-pass scan (find-then-unwind) with a single index scan + `stack.length = k` truncation. Each of the three handlers is now one scan + one assignment; no repeated `stack.pop()` calls.
+- + ADDITION: `CONTINUE` command — skips to the next iteration of the innermost loop (REPEAT / FOR / WHILE). Mirrors BREAK's scan logic but keeps the loop frame (`stack.length = k + 1`). CONTINUE respects procedure boundaries: it cannot escape a proc.
+- + ADDITION: `REPCOUNTMAX` — the total iteration count of the current REPEAT, available inside the body alongside `REPCOUNT`. Stored as `total` on the isRepeat frame at setup; injected into `bodyVars` each iteration. Exposed via `resolveToken` with the same out-of-loop guard as REPCOUNT.
+- ~ CHANGE: Comment "User procedure call (statement context)" corrected to remove "statement context" — `runStack` handles proc calls from any context (top-level and expression-context via `runExpr`).
+- ~ CHANGE: Stale comment "same fix as runExpr FOR" removed from FOR eps line — there is only one FOR implementation now.
+- ~ CHANGE: CMD dispatch table comment updated to list CONTINUE and to say "runStack()" instead of "run() and runExpr()".
+- - REMOVAL: `MAX_EXPR_DEPTH` constant is now unused (kept declared with a comment for reference). The `depth` parameter to `runExpr` is retained in the signature for caller compatibility but is not checked.
+
+## v7.0  2026-03-17
+**UNIFIED TRAMPOLINE — interpreter refactor**
+- ~ CHANGE: All Logo control-flow (REPEAT, WHILE, FOR, IF, IFELSE, STOP, BREAK, OUTPUT, user proc calls) now lives in a single `runStack(stack, rctx)` function. Both `run()` (top-level statements) and `runExpr()` (expression-context proc calls) are thin wrappers over `runStack`. The previous design duplicated every loop construct in two places; adding a new loop construct now requires touching only `runStack`.
+- - REMOVAL: `runExpr()` recursive self-calls for loop bodies, IF/IFELSE bodies, and nested proc calls — all handled by the trampoline. `runExpr()` is now ~10 lines.
+- - REMOVAL: `BREAK_SIGNAL` sentinel object and all associated throw/catch plumbing. BREAK is handled entirely via stack unwinding inside `runStack`; BREAK at a proc boundary throws a plain `Error` directly.
+- ~ CHANGE: `STOP` inside an expression-context proc (called as a value from `evalExpr`) now sets `boundary.stopFired` on the proc frame instead of throwing `STOP_SIGNAL` through the JS call stack. `runExpr()` reads this flag and re-throws `STOP_SIGNAL` after `runStack` returns — same observable behaviour, cleaner mechanism.
+- ~ CHANGE: The interpreter architecture comment block updated from "v2.6 TRAMPOLINE" to "v3.0 UNIFIED TRAMPOLINE" with revised frame-shape and flow-control documentation.
+
+## v6.9  2026-03-17
+**STABILISATION — code-review items 1–12**
+- * BUG: CS (CLEARSCREEN) did not clear `labelStore`. LABEL text survived a CS and was replayed by `rebuildTrailCanvas()` onto the freshly cleared canvas. Fix: CS now clears `labelStore` and resets `labelCapWarned`, matching the documented behaviour (trail + labels + dots cleared; variables/procs/console preserved). Distinct from CLR which resets everything.
+- * BUG: `resizeCanvas()` (v6.8) reset `turtle.x/y/angle` unconditionally, corrupting turtle position during active animations when the window was resized mid-run. Fix: position reset is now guarded by `if(!activeRctx)`.
+- * BUG: Infix `MOD` (e.g. `10 MOD 0`) produced silent `NaN` — JavaScript `x % 0 === NaN` — which propagated undetected through downstream arithmetic. The prefix form `MOD 10 0` already threw correctly. Fix: added zero-divisor check to the binary operator chain, consistent with the `/` guard on the line above.
+- * BUG: FOR loops with fractional steps accumulated IEEE-754 rounding error. `FOR :i 0 1 0.1` could fire one iteration too many or too few near the end value. Fix: epsilon tolerance (`Math.abs(step) * 1e-9`) stored in the loop frame and applied to the active check in both `run()` (trampoline) and `runExpr()` (recursive path).
+- * BUG: SETCOLOR out-of-range warning had a false negative for small negative inputs. `SETCOLOR -0.4 0 0` rounded to 0, so the comparison `clamped !== Math.round(original)` evaluated `0 !== 0 = false` and no warning fired. Fix: compare against the raw input value.
+- ~ CHANGE: `extractBlock` unclosed-bracket error now says "a [ was opened but never closed (check loop bodies and IF branches)" instead of the terse "Missing ]".
+- ~ CHANGE: `btn-run` onclick now has an explicit `if(activeRctx) return;` guard. Belt-and-suspenders: button is already `disabled` by `setRunning`, but the intent is now explicit.
+- ~ CHANGE: CLAUDE.md updated — CS vs CLR reset-scope table; SPEED command note (mid-run `SPEED n` writes `rctx.speed` directly); `resolveToken` registry pattern documented as future work; no-string-type added to Known Limitations; current version corrected.
+
+---
+
+## v6.8  2026-03-16
+**BUG FIXES — DOT scatter example, turtle recenter on resize**
+- * BUG: "DOT — Sine Wave Scatter" example produced wrong output. Root cause: multi-operator MAKE expressions like `SCRWIDTH / 2 - 10` evaluate right-recursively as `SCRWIDTH / (2 - 10)` due to the known right-recursive binary chain. Fix: rewrote the example using one binary operator per MAKE statement, avoiding the right-recursion trap. Added a comment explaining the pattern.
+- * BUG: Turtle position was not reset after canvas resize. After a window or font-size resize the turtle remained at its previous Logo coordinates. Fix: `resizeCanvas()` now resets `turtle.x/y/angle` to 0 (HOME) after each resize, keeping the turtle predictably at the canvas centre.
+- ~ CHANGE: Changing font size (SMALL/MEDIUM/LARGE in OPTIONS) now calls `resizeCanvas()` via `setTimeout(0)` so the canvas dimensions update to match the new panel width introduced in v6.7.
+
+---
+
+## v6.7  2026-03-16
+**UI — live line-number indicator, font-scaled left panel**
+- + ADDITION: Live `L:N` line-number indicator in the editor toolbar, left of the `≡` button. Updates on every keystroke (`input` event) and every cursor movement (`selectionchange` listener). Shows the 1-based line number of the current caret position. Implemented inside the editor IIFE using the existing `getCaretOffset()` and `getValue()` functions; no interpreter changes.
+- + ADDITION: Left panel width now scales with font size via `calc(384px * var(--fs-base))` — 384 px at SMALL, 538 px at MEDIUM, 691 px at LARGE. Switching font size in OPTIONS clears any residual inline width style so the CSS calc value takes effect immediately.
+
+---
+
+## v6.6  2026-03-16
+**BUG FIX + GRAPH DRAWING PRIMITIVES — MAKE scoping, DOT, SCRWIDTH/SCRHEIGHT**
+- * BUG: `MAKE :STEP :STEP + 1` (and any MAKE mutation) inside a `REPEAT` body stopped working in v6.5. Root cause: the REPCOUNT feature created a child scope (`Object.create(outerVars)`) for each REPEAT iteration body; `MAKE` wrote to that child scope, which was discarded at the end of the iteration. Fix: added `const REPEAT_SCOPE = Symbol('repeatScope')` to mark REPEAT body scopes. `CMD['MAKE']` now walks the prototype chain through REPEAT-marked scopes to write to the correct defining scope. FOR uses `Object.assign` (flat copy, no prototype chain) so MAKE inside FOR correctly stays local — no change there. Procedure scopes use `Object.create` but are not marked with `REPEAT_SCOPE`, so procedure-local MAKE is also unaffected. Broken examples restored: Spiral, Sunburst, Rainbow Spiral, Comments.
+- + ADDITION: `SCRWIDTH` and `SCRHEIGHT` — read-only bare tokens (like `XCOR`/`YCOR`) that return the current canvas pixel dimensions. Since the Logo origin is at the canvas centre, `SCRWIDTH / 2` is the rightmost x coordinate. Useful for writing programs that scale to any window size.
+- + ADDITION: `DOT` — draw a filled circle dot at the turtle's current position. `DOT x y` draws at (x, y) without moving the turtle. Diameter = current pen width (`SETWIDTH`). Color = current pen color (`SETCOLOR`). Always draws regardless of pen up/down state. Stored as a zero-length trail segment so dots survive canvas resize. New "DOT — Sine Wave Scatter" example added.
+
+---
+
 ## v6.5  2026-03-16
 **ADDITION — `REPCOUNT`**
 - + ADDITION: `REPCOUNT` returns the current iteration index (1-based) inside a `REPEAT` loop. Implemented by injecting `REPCOUNT` as an own property of a child vars scope before each body execution in both `run()` and `runExpr()`, so it is visible inside the body without polluting the enclosing scope. Resolved as a bare token (no colon) via `resolveToken`, like `XCOR`/`YCOR`. Throws `"REPCOUNT used outside a REPEAT loop"` if used outside any REPEAT. New "REPCOUNT — Expanding Spiral" example added.

@@ -1,0 +1,3217 @@
+<!DOCTYPE html>
+<!-- Release notes: see CHANGELOG.md — v6.6  2026-03-16 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Claude Logo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+:root {
+  --fs-base: 1;   /* font scale multiplier: 1 | 1.4 | 1.8 */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #1a1a2e;
+  font-family: 'VT323', monospace;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  color: #fff;
+}
+
+#panel {
+  width: 384px;
+  min-width: 384px;
+  background: #0d0d1a;
+  border-right: 3px solid #4a9;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 6px;
+}
+
+h1 { font-size: calc(16px * var(--fs-base)); color: #4afa; text-align: center; padding: 4px 0; flex-shrink: 0; }
+
+#split { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* ── Code editor (contenteditable) ── */
+#code-label {
+  font-size: calc(11px * var(--fs-base));
+  color: #4a8;
+  letter-spacing: 1px;
+  padding: 2px 0 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#code-label-btns { display: flex; gap: 4px; align-items: center; }
+#btn-copy-code, #btn-fmt-code, #btn-console-toggle, #btn-save-file, #btn-load-file, #opt-btn {
+  background: none;
+  border: 1px solid #2a5a3a;
+  color: #4a8;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: calc(13px * var(--fs-base));
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+#btn-copy-code:hover, #btn-fmt-code:hover, #btn-console-toggle:hover, #btn-save-file:hover, #btn-load-file:hover, #opt-btn:hover { opacity: 1; color: #8fc; border-color: #4a8; }
+#btn-copy-code.copied   { color: #4f8; border-color: #4f8; opacity: 1; }
+#btn-fmt-code.fmted     { color: #4f8; border-color: #4f8; opacity: 1; }
+#btn-console-toggle.active { color: #4f8; border-color: #4f8; opacity: 1; }
+#code-wrap {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+#editor {
+  flex: 1;
+  background: #111;
+  border: 2px solid #2a5a3a;
+  color: #4f8;
+  font-family: 'VT323', monospace;
+  font-size: calc(18px * var(--fs-base));
+  padding: 8px;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-y: auto;
+  outline: none;
+  box-sizing: border-box;
+  min-height: 0;
+  caret-color: #4f8;
+  /* prevent rich paste, images, etc */
+  -webkit-user-modify: read-write-plaintext-only;
+}
+#editor .comment { color: #556; }
+/* placeholder shown via ::before when editor is empty */
+#editor:empty::before {
+  content: "; Welcome to CLAUDE LOGO\A ; Type commands below and press RUN\A ;\A ; Move:    FD 100   BK 50   RT 90   LT 45\A ; Draw:    CIRCLE 80   SETCOLOR 200 50 50\A ; Repeat:  REPEAT 4 [ FD 100 RT 90 ]\A ; Vars:    MAKE :n 10   FD :n\A ; Procs:   TO SQUARE\A ;            REPEAT 4 [FD 80 RT 90]  END\A ;\A ; Click EXAMPLES for more\A ; ? COMMANDS for reference";
+  white-space: pre;
+  color: #2a4a2a;
+  pointer-events: none;
+  font-style: italic;
+}
+
+#splitter {
+  height: 6px;
+  background: #1a3a2a;
+  border-top: 1px solid #2a5a3a;
+  border-bottom: 1px solid #2a5a3a;
+  cursor: row-resize;
+  flex-shrink: 0;
+  user-select: none;
+}
+#splitter:hover { background: #2a5a3a; }
+
+#console-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: calc(11px * var(--fs-base));
+  color: #4a8;
+  letter-spacing: 1px;
+  padding: 2px 0 3px;
+  flex-shrink: 0;
+}
+
+#console {
+  background: #0a0a0a;
+  border: 2px solid #2a3a2a;
+  padding: 6px;
+  font-size: calc(13px * var(--fs-base));
+  overflow-y: auto;
+  line-height: 1.8;
+  min-height: 0;
+  flex: 1;
+}
+#console .op   { color: #fa4; }
+#console .ok   { color: #6f9; }
+#console .err  { color: #f84; }
+#console .info { color: #8af; }
+#console .cmd   { color: #4a9; }
+#console .print { color: #ff9; font-weight: bold; }
+
+.btn-row { display: flex; gap: 6px; flex-shrink: 0; }
+
+button {
+  font-family: 'VT323', monospace;
+  font-size: calc(14px * var(--fs-base));
+  padding: 7px 8px;
+  border: 2px solid;
+  cursor: pointer;
+  transition: background .1s;
+}
+
+#btn-run   { background: #1a4a2a; color: #4f8;  border-color: #4a8; flex: 1; }
+#btn-run:hover   { background: #2a6a3a; }
+/* Running state: pulsing border + dimmed text to signal activity */
+@keyframes run-pulse {
+  0%,100% { border-color: #4a8; box-shadow: 0 0 0px #4f8; }
+  50%     { border-color: #8f8; box-shadow: 0 0 8px #4f8;  }
+}
+#btn-run.running {
+  animation: run-pulse 0.9s ease-in-out infinite;
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+#btn-stop  { background: #4a1a1a; color: #f84;  border-color: #a42; flex: 1; }
+#btn-stop:hover  { background: #6a2a1a; }
+#btn-clear { background: #1a1a4a; color: #8af;  border-color: #48a; }
+#btn-clear:hover { background: #2a2a6a; }
+#btn-ref, #btn-examples { flex: 1; }
+#btn-ref      { background: #2a1a3a; color: #c8f; border-color: #86a; font-size: calc(13px * var(--fs-base)); }
+#btn-examples { background: #1a2a4a; color: #8cf; border-color: #48a; font-size: calc(13px * var(--fs-base)); }
+#btn-examples:hover { background: #2a3a6a; }
+
+#canvas-panel {
+  flex: 1;
+  display: flex;
+  background: #1a1a2e;
+  position: relative;
+  overflow: hidden;
+}
+canvas { image-rendering: auto; display: block; }
+
+/* ── Overlays ── */
+#ref-overlay, #ex-overlay {
+  display: none;
+  position: absolute;
+  background: rgba(10,10,24,0.97);
+  font-size: calc(13px * var(--fs-base));
+  z-index: 100;
+  max-height: calc(100% - 40px);
+  height: calc(100% - 40px);
+}
+#ref-overlay.open, #ex-overlay.open { display: flex; flex-direction: column; }
+
+#ref-overlay {
+  top: 20px; right: 20px;
+  border: 2px solid #4a9;
+  color: #c8f;
+  min-width: 280px;
+  box-shadow: 0 0 24px rgba(0,200,100,0.15);
+}
+#ex-overlay {
+  top: 20px; left: 20px;
+  border: 2px solid #48a;
+  color: #8cf;
+  min-width: 300px;
+  max-width: 420px;
+  box-shadow: 0 0 24px rgba(0,100,200,0.18);
+  padding: 14px;
+  overflow-y: auto;
+  height: auto;
+}
+
+/* Ref overlay: fixed header + scrollable body */
+#ref-header {
+  background: rgba(6,14,10,0.98);
+  border-bottom: 2px solid #2a5a3a;
+  padding: 10px 14px 8px;
+  flex-shrink: 0;
+}
+#ref-body {
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+#ref-overlay h2 { font-size: calc(14px * var(--fs-base)); color: #4f8; margin: 0; }
+#ex-overlay  h2 { font-size: calc(14px * var(--fs-base)); color: #8cf; margin-bottom: 10px; }
+
+.close-btn {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: none; color: #f84;
+  font-size: 16px; cursor: pointer; padding: 2px 4px;
+  font-family: 'VT323', monospace;
+}
+#ref-header { position: relative; }
+#opt-overlay { position: absolute; /* already absolute, close-btn uses its own stacking */ }
+
+#ref-overlay table { border-collapse: collapse; width: 100%; }
+#ref-overlay td { padding: 1px 6px 1px 0; vertical-align: top; }
+#ref-overlay td:first-child { color: #4f8; white-space: nowrap; padding-right: 10px; }
+#ref-overlay td:last-child  { color: #aac; }
+#ref-overlay .section-head { color: #fa0; font-size: calc(13px * var(--fs-base)); padding: 8px 0 3px; border-bottom: 1px solid #2a4a3a; margin-bottom: 2px; }
+.csw { display:inline-block; width:10px; height:10px; margin-right:5px; vertical-align:middle; border:1px solid #4a6a5a; }
+/* Colors table — both columns symmetric, override the green first-child rule */
+#ref-overlay .color-table td:first-child { color: #aac; }
+
+.ex-item { margin-bottom: 12px; border: 1px solid #2a3a5a; padding: 8px; cursor: pointer; transition: background .1s; }
+.ex-item:hover { background: rgba(60,80,140,0.4); }
+.ex-item:hover .ex-title { color: #fff; }
+.ex-title { color: #adf; margin-bottom: 6px; font-size: calc(13px * var(--fs-base)); }
+.ex-desc  { color: #678; margin-bottom: 6px; font-size: calc(11px * var(--fs-base)); line-height: 1.8; }
+#ex-overlay pre {
+  background: #0a0a18; border: 1px solid #2a3a5a;
+  padding: 6px; color: #4f8;
+  font-family: 'VT323', monospace;
+  font-size: calc(11px * var(--fs-base)); line-height: 1.8; white-space: pre-wrap; margin-top: 4px;
+}
+.ex-hint { font-size: calc(11px * var(--fs-base)); color: #456; margin-top: 8px; text-align: center; }
+
+/* ── Options overlay ── */
+#opt-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+#opt-header h2 { margin-bottom:0; }
+#save-btn { background:none; border:1px solid #4a9; color:#4a9; font-size:calc(12px * var(--fs-base)); cursor:pointer; padding:2px 7px; font-family:'VT323',monospace; line-height:1; }
+#save-btn:hover { color:#6fc; border-color:#6fc; }
+
+#opt-overlay {
+  display: none; position: absolute;
+  top: 32px; left: 8px;
+  background: rgba(10,10,24,0.97);
+  border: 2px solid #4a9;
+  padding: 14px 16px;
+  z-index: 200;
+  min-width: 220px;
+  box-shadow: 0 0 24px rgba(0,200,100,0.15);
+  font-size: calc(13px * var(--fs-base));
+  color: #c8f;
+}
+#opt-overlay.open { display: block; }
+#opt-overlay h2 { font-size: calc(14px * var(--fs-base)); color: #4f8; margin-bottom: 12px; }
+
+.opt-section { margin-bottom: 14px; }
+.opt-label { color: #fa0; font-size: calc(11px * var(--fs-base)); margin-bottom: 6px; border-bottom: 1px solid #2a4a3a; padding-bottom: 3px; }
+
+.opt-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+.opt-pill {
+  font-family: 'VT323', monospace;
+  font-size: calc(11px * var(--fs-base));
+  padding: 4px 8px; border: 1px solid #4a9;
+  background: #0d0d1a; color: #4a9;
+  cursor: pointer; transition: background .1s;
+}
+.opt-pill:hover { background: #1a3a2a; }
+.opt-pill.active { background: #1a4a2a; color: #4f8; border-color: #6fc; }
+
+.opt-check {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 6px; cursor: pointer; user-select: none;
+}
+.opt-check input { accent-color: #4f8; width: 12px; height: 12px; cursor: pointer; }
+.opt-check span { font-size: calc(11px * var(--fs-base)); color: #aac; }
+.opt-speed-row { display:flex; align-items:center; gap:6px; margin-top:8px; }
+.opt-speed-label { font-size:calc(11px * var(--fs-base)); color:#aac; min-width:44px; }
+.opt-speed-end { font-size:calc(9px * var(--fs-base)); color:#4a9; }
+#opt-speed { flex:1; accent-color:#4f8; cursor:pointer; }
+
+/* ── Direct mode ── */
+#btn-direct-toggle { background: #1a1a3a; color: #8af; border-color: #48a; }
+#btn-direct-toggle:hover { background: #2a2a5a; }
+#btn-direct-toggle.dm-active { background: #1a4a2a; color: #4f8; border-color: #6fc; }
+
+/* Direct panel lives inside #split — flex-shrink:0 keeps it from being squashed */
+#direct-panel {
+  display: none;
+  flex-shrink: 0;
+  border-top: 1px dashed #3a6a3a;
+  padding: 5px 0 3px;
+}
+#direct-panel.dm-open { display: flex; flex-direction: column; }
+#direct-row { display: flex; gap: 6px; align-items: center; }
+#direct-prompt {
+  color: #4a9;
+  font-size: calc(15px * var(--fs-base));
+  flex-shrink: 0;
+  user-select: none;
+}
+#direct-input {
+  flex: 1;
+  background: #0a120a;
+  color: #cec;
+  border: 2px solid #3a6a3a;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: 'VT323', monospace;
+  font-size: calc(15px * var(--fs-base));
+  outline: none;
+}
+#direct-input:focus { border-color: #6fc; }
+#direct-input::placeholder { color: #2a4a2a; }
+#btn-direct-run {
+  background: #1a3a1a; color: #4f8; border: 2px solid #3a6a3a;
+  border-radius: 4px; padding: 4px 10px; cursor: pointer;
+  font-family: 'VT323', monospace;
+  font-size: calc(14px * var(--fs-base));
+}
+#btn-direct-run:hover { background: #1a4a2a; border-color: #6fc; }
+/* When terminal mode active: relabel CONSOLE header text */
+#console-label.dm-terminal > span { font-size: 0; }            /* hide "▸ CONSOLE" text */
+#console-label.dm-terminal > span::before {
+  content: '▸ TERMINAL';
+  font-size: calc(11px * var(--fs-base));
+}
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>🐢 CLAUDE LOGO <span style="color:#4a9;font-size:0.7em">v6.5</span></h1>
+  <div id="split">
+    <div id="code-label"><span>▸ CODE</span><span id="code-label-btns"><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">LOG</button><button id="btn-save-file" title="Save program to file">SAVE</button><button id="btn-load-file" title="Load program from file">LOAD</button><button id="opt-btn" title="Options">⚙</button></span></div>
+    <div id="code-wrap">
+      <div id="editor"
+           contenteditable="true"
+           spellcheck="false"
+           autocorrect="off"
+           autocapitalize="none"
+           autocomplete="off"
+           data-placeholder="Type LOGO commands here..."></div>
+    </div>
+    <div id="splitter"></div>
+    <div id="console-label"><span>▸ CONSOLE</span></div>
+    <div id="console"></div>
+    <!-- Direct-mode input (inside #split so flex layout is shared) -->
+    <div id="direct-panel">
+      <div id="direct-row">
+        <span id="direct-prompt">&gt;</span>
+        <input id="direct-input" type="text"
+               autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false"
+               placeholder="Type a command… (Enter to run)">
+        <button id="btn-direct-run">▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button id="btn-run">▶ RUN</button>
+    <button id="btn-stop">■ STOP</button>
+    <button id="btn-clear" title="Clear screen &amp; reset turtle">CLR</button>
+    <button id="btn-direct-toggle" title="Toggle direct command input mode">⌘ DIRECT</button>
+  </div>
+  <div class="btn-row">
+    <button id="btn-ref">? COMMANDS</button>
+    <button id="btn-examples">✦ EXAMPLES</button>
+  </div>
+</div>
+
+<div id="canvas-panel">
+  <canvas id="c"></canvas>
+
+  <div id="opt-overlay">
+    <button class="close-btn" id="btn-opt-close">✕</button>
+    <h2>⚙ OPTIONS</h2>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ SAVE</div>
+      <button id="save-btn" title="Save canvas as PNG">&#x2913; SAVE AS PNG</button>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ FONT SIZE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-fs="1">SMALL</button>
+        <button class="opt-pill" data-fs="1.4">MEDIUM</button>
+        <button class="opt-pill" data-fs="1.8">LARGE</button>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ CONSOLE LOG FILTERS</div>
+      <label class="opt-check"><input type="checkbox" id="log-op"><span>MOTION (FD, RT…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-info"><span>INFO (MAKE, CALL…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-ok" checked><span>STATUS (Done, Stop)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-err" checked><span>ERRORS</span></label>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ BEHAVIOUR</div>
+      <label class="opt-check"><input type="checkbox" id="opt-clear-on-run" checked><span>CLEAR SCREEN ON RUN</span></label>
+      <div class="opt-speed-row">
+        <span class="opt-speed-label">SPEED</span>
+        <span class="opt-speed-end">SLOW</span>
+        <input type="range" id="opt-speed" min="0" max="4" value="0">
+        <span class="opt-speed-end">FAST</span>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ CANVAS STYLE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-canvas="parchment">PARCHMENT</button>
+        <button class="opt-pill" data-canvas="white">WHITE</button>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ TURTLE STYLE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-turtle="animated">ANIMATED</button>
+        <button class="opt-pill" data-turtle="triangle">TRIANGLE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ref-overlay">
+    <div id="ref-header">
+      <button class="close-btn" id="btn-ref-close">✕</button>
+      <h2>📋 COMMANDS</h2>
+    </div>
+    <div id="ref-body">
+
+    <div class="section-head">▸ MOTION</div>
+    <table>
+      <tr><td>FORWARD / FD n</td><td>move forward n pixels</td></tr>
+      <tr><td>BACK / BK n</td><td>move backward n pixels</td></tr>
+      <tr><td>RIGHT / RT n</td><td>turn right n degrees</td></tr>
+      <tr><td>LEFT / LT n</td><td>turn left n degrees</td></tr>
+      <tr><td>SETHEADING / SETH n</td><td>set absolute heading angle</td></tr>
+      <tr><td>HOME</td><td>return to center, heading 0</td></tr>
+      <tr><td>SETPOS x y</td><td>jump to position x y</td></tr>
+      <tr><td>XCOR / YCOR</td><td>current x / y coordinate</td></tr>
+      <tr><td>HEADING</td><td>current heading in degrees</td></tr>
+      <tr><td>TOWARDS x y</td><td>angle needed to face x y</td></tr>
+      <tr><td>DISTANCE x y</td><td>distance to point x y</td></tr>
+      <tr><td>SCRWIDTH / SCRHEIGHT</td><td>canvas width / height in Logo units (origin at centre)</td></tr>
+    </table>
+
+    <div class="section-head">▸ DRAWING</div>
+    <table>
+      <tr><td>PENUP / PU</td><td>pen up — stop drawing</td></tr>
+      <tr><td>PENDOWN / PD</td><td>pen down — start drawing</td></tr>
+      <tr><td>PENDOWN? / PD?</td><td>1 if pen is down, 0 if up</td></tr>
+      <tr><td>PENUP? / PU?</td><td>1 if pen is up, 0 if down</td></tr>
+      <tr><td>CIRCLE r</td><td>draw circle, radius r px</td></tr>
+      <tr><td>DOT</td><td>filled dot at turtle position (size = pen width, color = pen color)</td></tr>
+      <tr><td>DOT x y</td><td>filled dot at (x, y) — no turtle movement</td></tr>
+      <tr><td>SETCOLOR / SC r g b</td><td>line color (0–255 each)</td></tr>
+      <tr><td>SETCOLOR / SC name</td><td>named colour — see ▸ COLORS section</td></tr>
+      <tr><td>SETWIDTH / SW n</td><td>line width in pixels</td></tr>
+      <tr><td>LABEL text</td><td>draw text at turtle position  e.g. LABEL "HELLO</td></tr>
+      <tr><td>CLEARSCREEN / CS</td><td>clear screen, reset turtle</td></tr>
+      <tr><td>CLEARTEXT / CT</td><td>clear console output</td></tr>
+      <tr><td>HIDETURTLE / HT</td><td>hide turtle</td></tr>
+      <tr><td>SHOWTURTLE / ST</td><td>show turtle</td></tr>
+    </table>
+
+    <div class="section-head">▸ CONTROL</div>
+    <table>
+      <tr><td>REPEAT n [...]</td><td>repeat block n times</td></tr>
+      <tr><td>REPCOUNT</td><td>current iteration index inside REPEAT (1 to n)</td></tr>
+      <tr><td>WHILE [cond] [...]</td><td>loop while condition is true</td></tr>
+      <tr><td>FOR :v start end [...]</td><td>count loop (step defaults to ±1)</td></tr>
+      <tr><td>FOR :v start end step [...]</td><td>count loop with explicit step</td></tr>
+      <tr><td>IF cond [...]</td><td>run block if condition true</td></tr>
+      <tr><td>IFELSE c [...] [...]</td><td>if/else branches</td></tr>
+      <tr><td>STOP</td><td>exit current procedure early</td></tr>
+      <tr><td>BREAK</td><td>exit the innermost loop early (REPEAT / FOR / WHILE)</td></tr>
+      <tr><td>OUTPUT / OP val</td><td>return value from procedure</td></tr>
+      <tr><td>WAIT n</td><td>pause for n seconds</td></tr>
+      <tr><td>SPEED n</td><td>set animation speed 1 (slow) – 4 (instant)</td></tr>
+      <tr><td>TO name / END</td><td>define a procedure</td></tr>
+      <tr><td>; comment</td><td>rest of line is ignored</td></tr>
+    </table>
+
+    <div class="section-head">▸ VARIABLES</div>
+    <table>
+      <tr><td>MAKE :x val</td><td>set variable x to value</td></tr>
+      <tr><td>MAKE "x val</td><td>set variable (legacy syntax)</td></tr>
+      <tr><td>:x</td><td>read variable x</td></tr>
+      <tr><td>PRINT :x</td><td>print value to console</td></tr>
+    </table>
+
+    <div class="section-head">▸ MATH FUNCTIONS</div>
+    <table>
+      <tr><td>+ - * /</td><td>arithmetic operators</td></tr>
+      <tr><td>MOD a b</td><td>modulo (prefix or infix: a MOD b)</td></tr>
+      <tr><td>POWER a b</td><td>a raised to power b</td></tr>
+      <tr><td>MAX a b</td><td>larger of two values</td></tr>
+      <tr><td>MIN a b</td><td>smaller of two values</td></tr>
+      <tr><td>&gt; &lt; = &gt;= &lt;= !=</td><td>comparison (returns 1/0)</td></tr>
+      <tr><td>AND OR NOT</td><td>logical operators (1/0)</td></tr>
+      <tr><td>SIN n</td><td>sine of n degrees</td></tr>
+      <tr><td>COS n</td><td>cosine of n degrees</td></tr>
+      <tr><td>TAN n</td><td>tangent of n degrees</td></tr>
+      <tr><td>ARCSIN n</td><td>arcsine → degrees</td></tr>
+      <tr><td>ARCCOS n</td><td>arccosine → degrees</td></tr>
+      <tr><td>ARCTAN n</td><td>arctangent → degrees</td></tr>
+      <tr><td>SQRT n</td><td>square root</td></tr>
+      <tr><td>LN n</td><td>natural logarithm</td></tr>
+      <tr><td>LOG n</td><td>base-10 logarithm</td></tr>
+      <tr><td>EXP n</td><td>e raised to power n</td></tr>
+      <tr><td>ABS n</td><td>absolute value</td></tr>
+      <tr><td>INT n</td><td>truncate to integer</td></tr>
+      <tr><td>ROUND n</td><td>round to nearest integer</td></tr>
+      <tr><td>FLOOR n</td><td>round down to nearest integer</td></tr>
+      <tr><td>CEILING n</td><td>round up to nearest integer</td></tr>
+      <tr><td>RANDOM n / RND n</td><td>random integer 0 to n-1</td></tr>
+    </table>
+
+    <div class="section-head">▸ COLORS</div>
+    <table class="color-table">
+      <tr>
+        <td><span class="csw" style="background:rgb(220,50,50)"></span>RED</td>
+        <td><span class="csw" style="background:rgb(255,140,0)"></span>ORANGE</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(255,220,0)"></span>YELLOW</td>
+        <td><span class="csw" style="background:rgb(50,180,50)"></span>GREEN</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(100,255,50)"></span>LIME</td>
+        <td><span class="csw" style="background:rgb(0,220,220)"></span>CYAN</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(50,100,220)"></span>BLUE</td>
+        <td><span class="csw" style="background:rgb(0,0,150)"></span>NAVY</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,50,200)"></span>PURPLE</td>
+        <td><span class="csw" style="background:rgb(255,100,180)"></span>PINK</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(220,0,220)"></span>MAGENTA</td>
+        <td><span class="csw" style="background:rgb(255,255,255)"></span>WHITE</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,150,150)"></span>GRAY</td>
+        <td><span class="csw" style="background:rgb(0,0,0);border-color:#555"></span>BLACK</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,80,30)"></span>BROWN</td>
+        <td><span class="csw" style="background:rgb(255,200,0)"></span>GOLD</td>
+      </tr>
+    </table>
+
+    </div><!-- /ref-body -->
+  </div>
+
+  <div id="ex-overlay">
+    <button class="close-btn" id="btn-ex-close">✕</button>
+    <h2>✦ EXAMPLES</h2>
+    <div class="ex-hint">Click any example to load it into the editor</div>
+    <br>
+  </div>
+</div>
+
+<script>
+// ── Utilities ─────────────────────────────────────────────────────────────────
+// escHtml: escape a string for safe insertion into innerHTML.
+// Used by renderLines (editor highlighting) and buildExamples (overlay previews).
+// Defined at module level so both can share it without exposing editor internals.
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+// canvas/ctx  — the main visible canvas; redrawn every frame by render().
+// con         — the console log panel DOM element; appended to by log().
+// imageSmoothingEnabled=false keeps pixel-art sprite edges crisp when scaled.
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const con = document.getElementById('console');
+
+// SPRITE_SIZE: off-screen sprite canvas dimensions in pixels (square).
+// SPRITE_OFFSET: Logo (x,y) is the pen-tip position; the sprite is drawn
+//   nose-forward so its visual centre must be shifted SPRITE_OFFSET px ahead
+//   along the heading direction to align the pen dot with the logical position.
+//   Measured empirically from the sprite geometry in buildSprite().
+const SPRITE_SIZE   = 64;
+const SPRITE_OFFSET = 18.8;
+
+// ── Sprite colour palette ─────────────────────────────────────────────────────
+// All greens/browns; kept as short constants for density in the drawing helpers.
+// Naming convention — prefix letter = region, suffix = brightness index:
+//   SK/S0–S5  shell (K = darkest outline → S5 = brightest highlight)
+//   LK/L0–L3  legs and head
+//   EW/EP     eye white / eye pupil
+//   B0/B1     belly plate (plastron) dark / mid
+const SK='#0f1f04',S0='#1e3a06',S1='#2e580a',S2='#3e7810',S3='#56aa18',S4='#74d428',S5='#a0f040';
+const LK='#142808',L0='#1e3c0a',L1='#2e5c10',L2='#48901c',L3='#6ab82a';
+const EW='#f0f0e0',EP='#111100';  // eye white, eye pupil
+const B0='#6a4810',B1='#a07828'; // belly dark / belly mid
+
+// ── Sprite drawing helpers ────────────────────────────────────────────────────
+// Each helper draws one body part into context c, centred on the current
+// transform origin. All coordinates are relative to that origin so buildSprite()
+// can position parts by translating/rotating before calling them.
+function drawShell(c) {
+  const R=13;
+  c.beginPath();c.ellipse(0,0,R+2,R+2,0,0,Math.PI*2);c.fillStyle=SK;c.fill();
+  c.beginPath();c.ellipse(0,0,R,R,0,0,Math.PI*2);c.fillStyle=S1;c.fill();
+  const g=c.createRadialGradient(-3,-3,1,0,0,R);
+  g.addColorStop(0,S5);g.addColorStop(0.2,S4);g.addColorStop(0.5,S3);g.addColorStop(0.75,S2);g.addColorStop(1,S0);
+  c.beginPath();c.ellipse(0,0,R,R,0,0,Math.PI*2);c.fillStyle=g;c.fill();
+  c.strokeStyle=SK;c.lineWidth=1;c.globalAlpha=0.55;
+  const cp=4.5;
+  c.beginPath();
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2-Math.PI/6;i===0?c.moveTo(Math.cos(a)*cp,Math.sin(a)*cp):c.lineTo(Math.cos(a)*cp,Math.sin(a)*cp);}
+  c.closePath();c.stroke();
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2-Math.PI/6;c.beginPath();c.moveTo(Math.cos(a)*cp,Math.sin(a)*cp);c.lineTo(Math.cos(a)*(R-1),Math.sin(a)*(R-1));c.stroke();}
+  for(let ring=0;ring<2;ring++){const ri=[cp+3.5,cp+7.5][ring];for(let i=0;i<6;i++){const a0=i/6*Math.PI*2-Math.PI/6,a1=(i+1)/6*Math.PI*2-Math.PI/6;c.beginPath();c.arc(0,0,ri,a0,a1);c.stroke();}}
+  c.globalAlpha=1;
+  c.beginPath();c.arc(0,0,R-1,Math.PI*1.1,Math.PI*1.75);c.strokeStyle=S5;c.lineWidth=1.5;c.globalAlpha=0.5;c.stroke();c.globalAlpha=1;
+}
+
+// drawLeg: three-layer ellipse (dark outline → base colour → specular highlight).
+// cx,cy = centre offset from the transform origin; w,h = bounding box.
+function drawLeg(c,cx,cy,w,h){
+  c.beginPath();c.ellipse(cx,cy,w/2+1,h/2+1,0,0,Math.PI*2);c.fillStyle=LK;c.fill();
+  c.beginPath();c.ellipse(cx,cy,w/2,h/2,0,0,Math.PI*2);c.fillStyle=L1;c.fill();
+  c.beginPath();c.ellipse(cx-w*.1,cy-h*.1,w/2*.75,h/2*.75,0,0,Math.PI*2);c.fillStyle=L3;c.fill();
+  c.beginPath();c.ellipse(cx-w*.22,cy-h*.22,w/2*.3,h/2*.3,0,0,Math.PI*2);c.fillStyle='#ccff88';c.globalAlpha=0.45;c.fill();c.globalAlpha=1;
+}
+
+// drawHead: radial-gradient circle with two elliptical eyes.
+// eyeOpen: vertical scale of the eye ellipse — 1 = fully open, ~0 = closed.
+//   The blink animation in buildSprite drives this value via a slow sine wave.
+function drawHead(c,cx,cy,r,eyeOpen){
+  c.beginPath();c.arc(cx,cy,r+1.2,0,Math.PI*2);c.fillStyle=LK;c.fill(); // 1.2px dark outline border
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=L1;c.fill();
+  const hg=c.createRadialGradient(cx-r*.3,cy-r*.3,r*.1,cx,cy,r);
+  hg.addColorStop(0,L3);hg.addColorStop(0.6,L2);hg.addColorStop(1,L0);
+  c.beginPath();c.arc(cx,cy,r,0,Math.PI*2);c.fillStyle=hg;c.fill();
+  const eox=r*.35,eoy=-r*.2,er=r*.28,pr=er*.55;
+  for(const ex of[-eox,eox]){
+    c.beginPath();c.ellipse(cx+ex,cy+eoy,er,er*eyeOpen,0,0,Math.PI*2);c.fillStyle=EW;c.fill();
+    c.beginPath();c.ellipse(cx+ex+er*.15,cy+eoy,pr,pr*eyeOpen,0,0,Math.PI*2);c.fillStyle=EP;c.fill();
+    c.beginPath();c.arc(cx+ex-er*.1,cy+eoy-er*.2,er*.22,0,Math.PI*2);c.fillStyle='#fff';c.globalAlpha=0.8;c.fill();c.globalAlpha=1;
+  }
+}
+
+// drawBelly: concentric ellipses approximate the plastron (turtle belly plate).
+function drawBelly(c){
+  c.beginPath();c.ellipse(0,0,15,15,0,0,Math.PI*2);c.fillStyle='#2a1a04';c.fill();
+  c.beginPath();c.ellipse(0,0,14,14,0,0,Math.PI*2);c.fillStyle=B1;c.fill();
+  c.beginPath();c.ellipse(0,0,13,13,0,0,Math.PI*2);c.fillStyle=B0;c.fill();
+}
+
+const spr=document.createElement('canvas');
+spr.width=SPRITE_SIZE;spr.height=SPRITE_SIZE;
+const sc=spr.getContext('2d');
+sc.imageSmoothingEnabled=true;
+
+// buildSprite(tick, moving, penDown): render the turtle into the off-screen spr canvas.
+// A three-tuple cache guard (_lastSpriteTick/Moving/Pen) skips redraws when all
+// inputs are unchanged — avoids redundant canvas work on stationary frames.
+//
+// Parameters
+//   tick    integer, wraps at 0xFFFF; drives all animation via sin(tick * k)
+//   moving  true while FD/BK runs; false freezes leg swing and extends blink window
+//   penDown true → red glowing dot at tail tip; false → brown stub
+//
+// Draw order (back-to-front, painter's algorithm):
+//   rear legs → belly → shell → tail stub / pen dot → head
+//
+// Animation values derived from tick:
+//   swing    sin(tick * 0.32)  leg ±displacement; 0 when !moving
+//   headExt  1.5 + sin(...)    head bobs 1px while walking, retracts when still
+//   blink    sin(tick * 0.05)  period ≈ 125 ticks; fires eye-close when > 0.92
+//   eyeOpen  dips to 0.15 during blink peak, 1 otherwise (ignored while moving)
+//   pulse    sin(tick * 0.18)  pen-dot glow radius / alpha oscillation
+let _lastSpriteTick=-1, _lastSpriteMoving=null, _lastSpritePen=null;
+function buildSprite(tick,moving,penDown){
+  if(tick===_lastSpriteTick && moving===_lastSpriteMoving && penDown===_lastSpritePen) return;
+  _lastSpriteTick=tick; _lastSpriteMoving=moving; _lastSpritePen=penDown;
+  sc.clearRect(0,0,spr.width,spr.height);
+  sc.save();sc.translate(SPRITE_SIZE/2,SPRITE_SIZE/2);
+  const swing   = moving ? Math.sin(tick * 0.32) : 0;          // leg swing ±1, ~2 steps/cycle
+  const headExt = moving ? 1.5 + Math.sin(tick * 0.32) : 1.5; // head bobs ±1px when walking
+  const blink   = Math.sin(tick * 0.05);                       // slow wave, peaks every ~125 ticks
+  const eyeOpen = moving ? 1 : (blink > 0.92 ? Math.max(0.15, 1 - (blink - 0.92) * 30) : 1);
+  // Four legs in opposite-phase pairs (FL+RR swing together, FR+RL opposite).
+  // x-factor 1.2 < y-factor 1.5: asymmetric swing produces a diagonal waddle
+  // rather than a pure lateral rock — reads as a more natural gait.
+  drawLeg(sc,-9+swing*1.2,-9+swing*1.5,7,7); // front-left
+  drawLeg(sc, 9-swing*1.2,-9-swing*1.5,7,7); // front-right (opposite phase)
+  drawLeg(sc,-9-swing*1.2, 9+swing*1.5,7,7); // rear-left  (opposite to front)
+  drawLeg(sc, 9+swing*1.2, 9-swing*1.5,7,7); // rear-right
+  drawBelly(sc);drawShell(sc);
+  const tailX=-14-headExt*0.5;
+  drawLeg(sc,tailX,0,4.5,4.5);
+  const dotX=tailX-3.8;
+  if(penDown){
+    const pulse = 0.5 + 0.5 * Math.sin(tick * 0.18); // glow pulse: 0→1 at ~35 ticks/cycle
+    sc.beginPath();sc.arc(dotX,0,3.5+pulse*1.2,0,Math.PI*2);sc.fillStyle=`rgba(255,40,0,${0.15+pulse*0.2})`;sc.fill(); // glow halo: radius 3.5–4.7, alpha 0.15–0.35
+    sc.beginPath();sc.arc(dotX,0,2.2,0,Math.PI*2);sc.fillStyle='#f20';sc.fill();
+    sc.beginPath();sc.arc(dotX-0.5,-0.6,0.7,0,Math.PI*2);sc.fillStyle='rgba(255,200,200,.9)';sc.fill();
+  } else {
+    sc.beginPath();sc.arc(dotX,0,2.2,0,Math.PI*2);sc.fillStyle='#5a3010';sc.fill();
+    sc.beginPath();sc.arc(dotX,0,1.3,0,Math.PI*2);sc.fillStyle='#8a5828';sc.fill();
+    sc.beginPath();sc.arc(dotX-0.4,-0.4,0.5,0,Math.PI*2);sc.fillStyle='rgba(200,160,100,.6)';sc.fill();
+  }
+  drawHead(sc,13+headExt,0,4.5,eyeOpen);
+  sc.restore();
+}
+
+// ── Background: sand texture ──────────────────────────────────────────────────
+// 1600 random dots in pixel-space composited once into bgCache to mimic sand.
+// Grain positions must be regenerated on every resize because they are stored
+// in absolute pixel coordinates, not proportional coordinates.
+let grains=[];
+function buildGrains(){
+  grains=[];
+  for(let i=0;i<1600;i++) grains.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.6+0.3,a:Math.random()*0.28+0.07,c:Math.random()>0.5?'#9a6a18':'#f2dc8a'});
+}
+
+// buildBgCache: paint the static background (radial gradient + 1600 grain dots)
+// into a dedicated off-screen canvas so render() can blit it with one drawImage().
+// Prerequisite: buildGrains() must have been called first (grains[] is populated).
+// Must be called again after every canvas resize (bgCache dimensions must match).
+let bgCache=null;
+function buildBgCache(){
+  bgCache=document.createElement('canvas');
+  bgCache.width=canvas.width; bgCache.height=canvas.height;
+  const bc=bgCache.getContext('2d');
+  const w=canvas.width,h=canvas.height;
+  const g=bc.createRadialGradient(w*.45,h*.4,0,w*.5,h*.6,w*.85);
+  g.addColorStop(0,'#edd98a');g.addColorStop(0.5,'#d4a850');g.addColorStop(1,'#a87030');
+  bc.fillStyle=g; bc.fillRect(0,0,w,h);
+  for(const gr of grains){bc.globalAlpha=gr.a;bc.fillStyle=gr.c;bc.beginPath();bc.arc(gr.x,gr.y,gr.r,0,Math.PI*2);bc.fill();}
+  bc.globalAlpha=1;
+}
+let canvasStyle = 'parchment'; // 'parchment' | 'white'  — set by OPTIONS panel
+let turtleStyle = 'animated';  // 'animated'  | 'triangle' — set by OPTIONS panel
+function drawBackground(){
+  switch(canvasStyle){
+    case 'white':
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      break;
+    default: // 'parchment'
+      ctx.drawImage(bgCache,0,0); // single blit — far cheaper than replaying 1600 grain arcs
+  }
+}
+
+// ── Trail storage (typed array layout) ───────────────────────────────────────
+// Pen strokes are stored as line segments in two pre-allocated typed arrays.
+// Writing a segment costs one trailPush() call; reading costs direct index math.
+// There is no per-segment object allocation and no GC pressure at cap.
+//
+// Array layout — segment index i:
+//   trailF32[i*5 + 0] = x1  (Logo world coords, Float32 — origin at canvas centre)
+//   trailF32[i*5 + 1] = y1
+//   trailF32[i*5 + 2] = x2
+//   trailF32[i*5 + 3] = y2
+//   trailF32[i*5 + 4] = w   (stroke width in pixels)
+//   trailU8 [i*3 + 0] = r   (colour channels, Uint8 clamped 0–255)
+//   trailU8 [i*3 + 1] = g
+//   trailU8 [i*3 + 2] = b
+//
+// Memory at cap: Float32Array(250 000) = 1 000 KB + Uint8Array(150 000) = 150 KB ≈ 1.1 MB
+//   vs a JS object array: ~5 MB (56-byte V8 object × 50k + GC overhead)
+//
+// Invariants:
+//   0 <= trailLen <= MAX_TRAIL_SEGS  (trailLen never exceeds the array bound)
+//   trailCapWarned = false until the first rejected segment; then always true
+//   trailLen and trailCapWarned are both reset to 0/false by CS and RUN-with-clear
+const MAX_TRAIL_SEGS = 50000;
+const trailF32 = new Float32Array(MAX_TRAIL_SEGS * 5); // x1,y1,x2,y2,w
+const trailU8  = new Uint8Array(MAX_TRAIL_SEGS * 3);   // r,g,b
+let trailLen       = 0;     // number of committed segments (0..MAX_TRAIL_SEGS)
+let trailCapWarned = false; // true once the cap-reached message has been shown
+
+// ── Label store — text drawn by LABEL; replayed by rebuildTrailCanvas on resize.
+const MAX_LABELS = 500;
+let labelStore    = []; // {x, y, text, r, g, b} in Logo coordinates
+let labelCapWarned = false;
+const trailCanvas=document.createElement('canvas');
+const trailCtx=trailCanvas.getContext('2d');
+// toCanvas: Logo world → canvas pixel.
+// Logo: Cartesian, origin at centre, Y points UP.
+// Canvas: top-left origin, Y points DOWN.
+// Result: cx = width/2 + x,  cy = height/2 - y
+function toCanvas(x,y){ return [canvas.width/2 + x, canvas.height/2 - y]; }
+
+// paintSegment(): stroke segment at index trailLen-1 onto trailCanvas.
+// Must be called immediately after trailPush() — the implicit index is trailLen-1.
+// toCanvas conversion is inlined (hw/hh read from canvas dimensions directly)
+// to avoid the [x,y] array allocation that the standalone toCanvas() would create.
+function paintSegment(){
+  const i  = trailLen - 1;
+  const fi = i * 5, ci = i * 3;
+  const hw = canvas.width / 2, hh = canvas.height / 2;
+  const x1 = trailF32[fi], y1 = trailF32[fi+1], x2 = trailF32[fi+2], y2 = trailF32[fi+3];
+  const w  = trailF32[fi+4];
+  const r  = trailU8[ci], g = trailU8[ci+1], b = trailU8[ci+2];
+  if(x1 === x2 && y1 === y2) {
+    // DOT: filled circle — diameter = w (matches pen width)
+    trailCtx.fillStyle = `rgb(${r},${g},${b})`;
+    trailCtx.beginPath();
+    trailCtx.arc(hw + x1, hh - y1, w / 2, 0, Math.PI * 2);
+    trailCtx.fill();
+  } else {
+    trailCtx.lineCap    = 'round';
+    trailCtx.lineJoin   = 'round';
+    trailCtx.strokeStyle = `rgb(${r},${g},${b})`;
+    trailCtx.lineWidth   = w;
+    trailCtx.beginPath();
+    trailCtx.moveTo(hw + x1, hh - y1);
+    trailCtx.lineTo(hw + x2, hh - y2);
+    trailCtx.stroke();
+  }
+}
+
+// trailPush(x1,y1,x2,y2,w, r,g,b): write one segment at index trailLen, then
+// increment trailLen. Precondition: trailLen < MAX_TRAIL_SEGS (all callers check).
+function trailPush(x1,y1,x2,y2,w, r,g,b){
+  const fi = trailLen * 5, ci = trailLen * 3;
+  trailF32[fi]=x1; trailF32[fi+1]=y1; trailF32[fi+2]=x2; trailF32[fi+3]=y2; trailF32[fi+4]=w;
+  trailU8[ci]=r;   trailU8[ci+1]=g;   trailU8[ci+2]=b;
+  trailLen++;
+}
+
+// trailPushIfRoom(x1,y1,x2,y2,w, r,g,b): guard + trailPush + paintSegment in one call.
+// Returns true if the segment was written; false if the cap was already reached.
+// Emits the cap warning once (on the first rejected segment) via trailCapWarned.
+// Centralises the three formerly-independent cap-check blocks in move() and SETPOS.
+function trailPushIfRoom(x1,y1,x2,y2,w, r,g,b){
+  if(trailLen < MAX_TRAIL_SEGS){
+    trailPush(x1,y1,x2,y2,w, r,g,b);
+    paintSegment();
+    return true;
+  }
+  if(!trailCapWarned){
+    trailCapWarned=true;
+    log('Trail limit reached ('+MAX_TRAIL_SEGS+' segments) — use CS to clear','err');
+  }
+  return false;
+}
+
+// rebuildTrailCanvas(): repaint all committed segments onto trailCanvas from scratch.
+// Called after canvas resize (trailCanvas must match main canvas dimensions) and
+// after CS (trailLen is reset to 0 so the loop draws nothing, producing a clear canvas).
+//
+// Context state note: assigning to canvas.width/height resets the entire 2D context
+// including lineCap/lineJoin, so these must be re-set before any drawing.
+//
+// Performance (OPT-5):
+//   • toCanvas() inlined — hw/hh hoisted outside loop: 2 divisions per rebuild
+//     instead of 4 per segment (~200k divisions saved at full cap).
+//   • Colour batching: strokeStyle/lineWidth only written on change, not per segment.
+//     lastR=-1 sentinel forces a strokeStyle write on the first segment.
+// paintLabel — draw one label entry onto trailCanvas.
+// Uses hw/hh of trailCanvas (same dims as canvas) to convert Logo → pixel coords.
+function paintLabel(lab){
+  const hw=trailCanvas.width/2, hh=trailCanvas.height/2;
+  trailCtx.save();
+  trailCtx.fillStyle=`rgb(${lab.r},${lab.g},${lab.b})`;
+  trailCtx.font='16px "VT323", monospace';
+  trailCtx.fillText(lab.text, hw+lab.x, hh-lab.y);
+  trailCtx.restore();
+}
+
+function rebuildTrailCanvas(){
+  trailCanvas.width=canvas.width; trailCanvas.height=canvas.height;
+  trailCtx.lineCap='round'; trailCtx.lineJoin='round'; // re-apply after canvas reset
+  const hw=canvas.width/2, hh=canvas.height/2; // hoisted
+  // Colour batching via raw channel comparison — avoids string construction per segment.
+  // lastR=-1 ensures the first segment always sets strokeStyle.
+  let lastR=-1, lastG=0, lastB=0, lastW=0;
+  for(let i=0; i<trailLen; i++){
+    const fi=i*5, ci=i*3;
+    const r=trailU8[ci], g=trailU8[ci+1], b=trailU8[ci+2], w=trailF32[fi+4];
+    const x1=trailF32[fi], y1=trailF32[fi+1], x2=trailF32[fi+2], y2=trailF32[fi+3];
+    if(x1===x2 && y1===y2){
+      // DOT: filled circle — diameter = w
+      trailCtx.fillStyle=`rgb(${r},${g},${b})`;
+      trailCtx.beginPath();
+      trailCtx.arc(hw+x1, hh-y1, w/2, 0, Math.PI*2);
+      trailCtx.fill();
+      lastR=-1; // reset batching: next line segment must re-set strokeStyle
+    } else {
+      if(r!==lastR || g!==lastG || b!==lastB){
+        trailCtx.strokeStyle=`rgb(${r},${g},${b})`; lastR=r; lastG=g; lastB=b;
+      }
+      if(w!==lastW){ trailCtx.lineWidth=w; lastW=w; }
+      trailCtx.beginPath();
+      trailCtx.moveTo(hw+x1, hh-y1);
+      trailCtx.lineTo(hw+x2, hh-y2);
+      trailCtx.stroke();
+    }
+  }
+  // Replay labels on top of trail segments
+  labelStore.forEach(paintLabel);
+}
+
+// ── Render pipeline ───────────────────────────────────────────────────────────
+// render() composites three layers every frame via painter's algorithm:
+//   1. bgCache     — static background (one drawImage blit, never redrawn)
+//   2. trailCanvas — incremental pen strokes (updated by paintSegment / rebuildTrailCanvas)
+//   3. sprite      — turtle, only if turtle.visible
+//
+// spriteCenter(): the sprite is drawn nose-forward; to align the pen dot with
+// turtle.{x,y} the sprite's visual centre must be offset SPRITE_OFFSET px ahead
+// along the current heading direction before converting to canvas coordinates.
+function spriteCenter(){
+  const a = turtle.angle * Math.PI / 180;
+  return [turtle.x + Math.sin(a) * SPRITE_OFFSET, turtle.y + Math.cos(a) * SPRITE_OFFSET];
+}
+// drawSimpleTurtle: legacy small triangle cursor (turtleStyle === 'triangle').
+// Centred at turtle world position (no SPRITE_OFFSET). Pen state shown as a dot.
+function drawSimpleTurtle(){
+  const[cx,cy]=toCanvas(turtle.x,turtle.y);
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(turtle.angle*Math.PI/180);
+  // triangle: tip 12px forward (+y = north at angle 0, standard Logo convention), base ±7px
+  ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(7,6);ctx.lineTo(-7,6);ctx.closePath();
+  ctx.fillStyle='#56aa18';ctx.fill();
+  ctx.strokeStyle='#1e3a06';ctx.lineWidth=1;ctx.stroke();
+  // pen-state indicator dot at centre
+  ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);
+  ctx.fillStyle=turtle.pen?'#e03030':'#6a4810';ctx.fill();
+  ctx.restore();
+}
+function render(){
+  // Guard: canvas not yet sized (0×0 during initial layout) — drawing would throw
+  if(canvas.width===0 || canvas.height===0) return;
+  drawBackground();
+  ctx.drawImage(trailCanvas,0,0);   // composite cached trail in one blit
+  if(!turtle.visible) return;
+  switch(turtleStyle){
+    case 'triangle':
+      drawSimpleTurtle();
+      break;
+    default: // 'animated'
+      buildSprite(walkTick,isMoving,turtle.pen);
+      const[sx,sy]=spriteCenter(),[cx,cy]=toCanvas(sx,sy);
+      ctx.save();ctx.translate(cx,cy);ctx.rotate((turtle.angle-90)*Math.PI/180);ctx.drawImage(spr,-spr.width/2,-spr.height/2);ctx.restore();
+  }
+}
+
+// ── Turtle state ──────────────────────────────────────────────────────────────
+// mkTurtle(): canonical initial state — origin (0,0), pen down, heading 0° (north).
+//   x, y     Logo world coordinates (float, origin = canvas centre)
+//   angle    heading in degrees, 0 = north, increases clockwise (standard Logo convention)
+//   pen      true = draw segments; false = move silently (PENUP)
+//   visible  false = skip sprite draw in render() (HIDETURTLE)
+//   color    [r,g,b] Uint8-range values written directly into trailU8 by trailPush
+//   width    stroke width in pixels, clamped 0.5–100 by SETWIDTH
+function mkTurtle(){ return {x:0, y:0, angle:0, pen:true, visible:true, color:[0,0,0], width:3}; }
+
+let turtle    = mkTurtle();
+let walkTick  = 0;       // cyclic 16-bit integer (& 0xFFFF); drives all sprite animation via sin
+let isMoving  = false;   // true during move() animation loop; controls leg-swing in buildSprite
+
+// ── Run context ───────────────────────────────────────────────────────────────
+// makeRunContext(instant, procsMap): factory for per-run mutable interpreter state.
+//   stopped:  kill-switch checked every step in run/runExpr/move/rotate.
+//             Set true by STOP/CLR buttons via the module-level activeRctx pointer.
+//   execLine: { n, text } of the most recently executed source line.
+//             Updated by run/runExpr sentinels; appended to error messages.
+//   speed:    0–4 resolved once at RUN time from optSpeed.value.
+//             Passed to move/rotate so they never read the DOM directly.
+//   procs:    reference to the live user-procedure map for this run.
+//             Using ctx.procs makes all interpreter functions callable with any
+//             procedure set without touching global state.
+//
+// Note: 'rctx' is used as the parameter name throughout (not 'ctx') to avoid
+// shadowing the module-level canvas 2D context also named 'ctx'.
+function makeRunContext(speed, procsMap) {
+  return {
+    stopped:          false,
+    execLine:         { n: 0, text: '' },
+    speed:            speed|0,   // 0=slowest animated … 4=instant; coerce to int
+    procs:            procsMap || {},
+    instantStepCount: 0  // flush counter for speed=4 (instant) path
+  };
+}
+let activeRctx = null; // reference to the currently-executing run context; set by btn-run
+
+// ── Direct mode state ─────────────────────────────────────────────────────────
+let directMode = false;
+const directHistory = [];
+let directHistoryIdx = -1;
+
+// ── Run-state indicator ───────────────────────────────────────────────────────
+// setRunning(on): toggle the #btn-run visual state between idle and running.
+//   on=true  → adds .running CSS class (pulsing border), disables button, changes label
+//   on=false → restores idle appearance
+//
+// Instant-mode partial flush: in instant mode move() never yields a rAF, so the
+// browser would show nothing until the program ends. To show progress and keep the
+// .running CSS animation alive, move() increments rctx.instantStepCount each step;
+// when it reaches INSTANT_FLUSH it calls render() + setTimeout(0) (a macro-task
+// yield that lets the browser paint). Lower value = more feedback, slightly slower.
+const INSTANT_FLUSH   = 150; // yield every N instant-mode move steps
+
+const btnRun = document.getElementById('btn-run');
+function setRunning(on) {
+  if(on) {
+    btnRun.classList.add('running');
+    btnRun.textContent = '⟳';
+    btnRun.disabled = true;
+  } else {
+    btnRun.classList.remove('running');
+    btnRun.textContent = '▶ RUN';
+    btnRun.disabled = false;
+  }
+}
+
+// ── Console / log ─────────────────────────────────────────────────────────────
+// log(msg, cls): append one div to #console with class cls.
+//   'op'    motion commands (FD, RT…)  — filtered by #log-op checkbox
+//   'info'  variable / proc events     — filtered by #log-info checkbox
+//   'ok'    Done / Stop messages       — filtered by #log-ok checkbox
+//   'err'   runtime errors             — always shown regardless of filters
+//   'print' PRINT command output       — always shown; auto-expands console panel
+//
+// All filter checkboxes and hot-path UI elements are cached at module startup.
+// log() and move()/rotate() are called thousands of times per program run;
+// getElementById() on every call would be measurably slow.
+//
+// Cap: when childElementCount reaches MAX_LOG_LINES the oldest child is removed
+// before appending, keeping memory bounded.
+const logFilters={
+  op:   document.getElementById('log-op'),
+  info: document.getElementById('log-info'),
+  ok:   document.getElementById('log-ok'),
+  err:  document.getElementById('log-err'),
+};
+const optSpeed    = document.getElementById('opt-speed');     // 0=slowest animated … 4=instant
+let consoleVisible = true;          // true = console section is shown
+let showConsole    = () => {};      // populated by splitter IIFE below
+const MAX_LOG_LINES = 500;
+function log(msg,cls){
+  cls=cls||'info';
+  // 'print' bypasses filter checkboxes and forces the console panel open so
+  // PRINT output is always visible even if the user collapsed the console.
+  if(cls==='print'){
+    if(!consoleVisible) showConsole();
+  } else if(cls!=='cmd' && cls!=='err'){
+    const chk=logFilters[cls];
+    if(chk&&!chk.checked) return; // suppressed by filter — do not append
+  }
+  // Evict oldest entry before appending when at cap (keeps DOM size bounded)
+  while(con.childElementCount >= MAX_LOG_LINES) con.removeChild(con.firstChild);
+  const d=document.createElement('div');d.className=cls;d.textContent=msg;
+  con.appendChild(d);con.scrollTop=con.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTERPRETER — v2.6  TRAMPOLINE ARCHITECTURE
+//
+// Entry point: run(tokens, startIdx, vars)
+//   Replaces JS recursion with an explicit frame stack, eliminating the ~200-
+//   frame JS call-stack cap that limited deep Logo recursion in v2.0.
+//
+// Frame shapes (discriminated by presence of isRepeat / isWhile / isFor):
+//
+//   Exec frame   { tokens, idx, vars, procBoundary?, outputVal? }
+//     Normal sequential execution. idx is the next token to process.
+//     procBoundary=true marks a procedure entry point — STOP unwinds to here
+//     and pops it; OUTPUT stores its value in outputVal then also unwinds.
+//
+//   Repeat frame { isRepeat:true, body, vars, remaining }
+//     Pushes a fresh exec frame for body each time remaining > 0, then pops self.
+//
+//   While frame  { isWhile:true, cond, body, vars }
+//     cond is a token[] evaluated from scratch each iteration via evalExpr.
+//     Pushes body exec frame while cond !== 0, then pops self.
+//
+//   For frame    { isFor:true, varName, end, step, body, vars, nextVal }
+//     nextVal holds the value for the next body execution (pre-advanced so
+//     frame.vars[varName] is already set when the body frame starts).
+//
+// Flow control:
+//   STOP         pops frames until procBoundary, then pops that frame
+//   OUTPUT       single-pass scan to find boundary, stores value, unwinds like STOP
+//   IF / IFELSE  handled inline in the exec loop — push body frame if cond met
+//   REPEAT / WHILE / FOR  push typed control frame; handler at top of loop re-enters
+//   User proc (statement context)  push procBoundary exec frame for the body
+//
+// Expression-level proc calls (e.g. FD DOUBLE 50):
+//   evalExpr() calls runExpr(), a lightweight throw/catch recursive helper.
+//   Safe because expression-level call depth is bounded by expression complexity
+//   (typically 3–5 frames), not Logo tail-call depth. MAX_EXPR_DEPTH=64 guards it.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let globalVars = {}; // top-level variable scope; cleared at the start of each RUN
+
+// Symbol used to mark REPEAT body scopes so MAKE can walk the chain to the defining scope.
+// REPEAT uses Object.create(outerVars) for REPCOUNT isolation; without this marker MAKE
+// would write to the short-lived child scope and mutations would be lost each iteration.
+// FOR uses Object.assign (flat copy) — no prototype chain, no marker needed.
+const REPEAT_SCOPE = Symbol('repeatScope');
+
+// ── Token resolution ──────────────────────────────────────────────────────────
+// resolveToken(tok, vars, tstate) → number
+//   :varname / "varname  variable lookup in vars (throws if missing or non-finite)
+//   XCOR / YCOR          live turtle position (tstate.x / tstate.y)
+//   HEADING              turtle.angle normalised to [0, 360)
+//   bare number string   parseFloat (throws on NaN — unknown token)
+//
+// tstate defaults to the global turtle; pass a snapshot for pure evaluation.
+// Tokens arrive pre-uppercased from tokenize() so all comparisons are direct ===.
+function resolveToken(tok, vars, tstate) {
+  if(!tok) throw new Error('Missing value');
+  tstate = tstate || turtle;
+  // Pre-uppercased by tokenize() (OPT-4) — compare directly, no allocation.
+  if(tok === 'XCOR')    return tstate.x;
+  if(tok === 'YCOR')    return tstate.y;
+  if(tok === 'HEADING') return ((tstate.angle % 360) + 360) % 360; // normalise to [0, 360)
+  if(tok === 'PENDOWN?' || tok === 'PD?') return turtle.pen ? 1 : 0;
+  if(tok === 'PENUP?'   || tok === 'PU?') return turtle.pen ? 0 : 1;
+  if(tok === 'SCRWIDTH')  return canvas.width;   // canvas width  in Logo world units (1 unit = 1 px, origin at centre)
+  if(tok === 'SCRHEIGHT') return canvas.height;  // canvas height in Logo world units
+  // REPCOUNT: current iteration index (1-based) of the innermost REPEAT loop.
+  // Stored as own property 'REPCOUNT' on the body vars scope by the repeat handler.
+  if(tok === 'REPCOUNT') {
+    if(!('REPCOUNT' in vars)) throw new Error('REPCOUNT used outside a REPEAT loop');
+    return vars['REPCOUNT'];
+  }
+  // Colon prefix is for user variables only — reject :XCOR/:YCOR/:HEADING with a clear message
+  if(tok === ':XCOR' || tok === ':YCOR' || tok === ':HEADING') {
+    const bare = tok.slice(1);
+    throw new Error(bare + ': use without colon (e.g. FD XCOR). Colon prefix is for variables only.');
+  }
+  if(tok.startsWith(':') || tok.startsWith('"')) {
+    const name = tok.slice(1); // strip : or " prefix; already uppercase (OPT-4)
+    if(!(name in vars)) throw new Error('Unknown variable: ' + name);
+    const v = vars[name];
+    if(typeof v !== 'number' || !isFinite(v)) throw new Error('Variable :' + name + ' has invalid value: ' + v);
+    return v;
+  }
+  // '~digits' tokens are produced by the tokenizer for negative number literals
+  // (e.g. 'SETPOS 0 -100' → token '~100' → -100).
+  if(tok.startsWith('~')) {
+    const n = parseFloat(tok.slice(1));
+    if(!isNaN(n)) return -n;
+  }
+  const n = parseFloat(tok);
+  if(isNaN(n)) throw new Error('Unknown token: ' + tok);
+  return n;
+}
+
+// ── Expression evaluator ──────────────────────────────────────────────────────
+// evalExpr(tokens, idx, vars, tstate) → { value: number, nextIdx: number }
+//   Consumes one expression starting at tokens[idx], returns its numeric value
+//   and the index of the first unconsumed token.
+//   tstate: turtle-state snapshot for TOWARDS/DISTANCE (optional, defaults to
+//           global turtle). All internal recursive calls thread it through.
+//
+// Grammar (Logo has no operator precedence — all operators are right-recursive):
+//   expr    ::= primary (BINOP expr)*
+//   primary ::= BINARY2_FN expr expr   (TOWARDS x y, DISTANCE x y)
+//             | UNARY_FN  token        (SIN :a, SQRT n — single resolveToken arg)
+//             | PROC_NAME expr*        (user proc as value — delegates to runExpr)
+//             | token                  (number literal, :var, XCOR/YCOR/HEADING)
+//
+// Async because user-proc primaries call runExpr() which animates (move/rotate).
+// UNARY, BINARY2, BINOPS are module-level Sets (built once, reused every call).
+const UNARY   = new Set(['SIN','COS','TAN','ARCTAN','ARCSIN','ARCCOS','SQRT','LN','LOG','ABS','ROUND','INT','EXP','RANDOM','RND','NOT','FLOOR','CEILING']);
+const BINARY2 = new Set(['TOWARDS','DISTANCE','MOD','POWER','MAX','MIN']); // two-argument functions
+const BINOPS  = new Set(['+','-','*','/','MOD','AND','OR','>','<','=','>=','<=','!=']);
+
+const UNARY_FNS = {
+  SIN:    a => Math.sin(a  * Math.PI / 180),
+  COS:    a => Math.cos(a  * Math.PI / 180),
+  TAN:    a => Math.tan(a  * Math.PI / 180),
+  ARCTAN: a => Math.atan(a) * 180 / Math.PI,
+  ARCSIN: a => { if(a < -1 || a > 1) throw new Error('ARCSIN: argument ' + a + ' out of range [-1, 1]'); return Math.asin(a) * 180 / Math.PI; },
+  ARCCOS: a => { if(a < -1 || a > 1) throw new Error('ARCCOS: argument ' + a + ' out of range [-1, 1]'); return Math.acos(a) * 180 / Math.PI; },
+  SQRT:   a => { if(a < 0)           throw new Error('SQRT: argument ' + a + ' must be >= 0');            return Math.sqrt(a); },
+  LN:     a => { if(a <= 0)          throw new Error('LN: argument ' + a + ' must be > 0');               return Math.log(a); },
+  LOG:    a => { if(a <= 0)          throw new Error('LOG: argument ' + a + ' must be > 0');              return Math.log10(a); },
+  ABS:    a => Math.abs(a),
+  ROUND:  a => Math.round(a),
+  INT:    a => Math.trunc(a),
+  EXP:    a => { if(a > 709) throw new Error('EXP: argument ' + a + ' would overflow (~e^710 > Number.MAX_VALUE)'); return Math.exp(a); },
+  RANDOM: a => { if(a <= 0) throw new Error('RANDOM: argument ' + a + ' must be > 0'); return Math.floor(Math.random() * a); },
+  RND:    a => { if(a <= 0) throw new Error('RND: argument ' + a + ' must be > 0');    return Math.floor(Math.random() * a); }, // alias for RANDOM
+  NOT:    a => a === 0 ? 1 : 0,
+  FLOOR:   a => Math.floor(a),
+  CEILING: a => Math.ceil(a),
+};
+
+// evalExpr(tokens, idx, vars, rctx, tstate, depth) → { value: number, nextIdx: number }
+//   rctx:  RunContext — mandatory; provides rctx.procs for user-procedure lookup.
+//   tstate: optional turtle snapshot for TOWARDS/DISTANCE (defaults to global turtle).
+//   depth:  optional recursion depth for unary minus guard (defaults to 0).
+//   All internal recursive calls thread rctx, tstate, and depth through.
+async function evalExpr(tokens, idx, vars, rctx, tstate, depth) {
+  tstate = tstate || turtle;
+  depth  = depth  || 0;
+  let val;
+  const t = tokens[idx] || ''; // pre-uppercased by tokenize() — direct comparison
+
+  // Unary minus: '-' is always its own token (tokenizer splits on it).
+  // Catch before any other dispatch and negate the following sub-expression.
+  // S2: depth guard prevents pathological - - - - chains from recursing unboundedly.
+  if(t === '-') {
+    idx++;
+    if(depth >= MAX_EXPR_DEPTH) throw new Error('Expression depth exceeded (unary minus chain)');
+    const {value, nextIdx} = await evalExpr(tokens, idx, vars, rctx, tstate, depth + 1);
+    return { value: -value, nextIdx };
+  }
+
+  if(BINARY2.has(t)) {
+    // Two-argument prefix functions.
+    // tstate threaded so TOWARDS/DISTANCE see the same turtle snapshot.
+    idx++;
+    const {value:ax, nextIdx:i1} = await evalExpr(tokens, idx, vars, rctx, tstate); idx = i1;
+    const {value:ay, nextIdx:i2} = await evalExpr(tokens, idx, vars, rctx, tstate); idx = i2;
+    switch(t) {
+      case 'TOWARDS': {
+        // Logo heading is CW from +y (north=0). atan2 gives CCW from +x.
+        const dx = ax - tstate.x, dy = ay - tstate.y;
+        val = ((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360;
+        break;
+      }
+      case 'DISTANCE': {
+        const dx = ax - tstate.x, dy = ay - tstate.y;
+        val = Math.sqrt(dx*dx + dy*dy);
+        break;
+      }
+      case 'MOD':
+        if(ay === 0) throw new Error('MOD: divisor must not be zero');
+        val = ax % ay;
+        break;
+      case 'POWER':
+        val = ax ** ay;
+        break;
+      case 'MAX':
+        val = Math.max(ax, ay);
+        break;
+      case 'MIN':
+        val = Math.min(ax, ay);
+        break;
+    }
+
+  } else if(UNARY.has(t)) {
+    // Unary function takes a single token (via resolveToken, not recursive evalExpr)
+    // so that SIN :x * 150 parses as (SIN :x) * 150, not SIN(:x * 150).
+    idx++;
+    val = UNARY_FNS[t](resolveToken(tokens[idx++], vars));
+
+  } else if(rctx.procs[t]) {
+    // User procedure used as an expression value: FD DOUBLE 50, OUTPUT HYPO 3 4.
+    // Evaluate parameter expressions in the caller's scope, then run the proc body
+    // via runExpr(). OUTPUT in the body throws {__output__, value} which we catch.
+    idx++;
+    const proc = rctx.procs[t];
+    // OPT-3: prototype-chain scope — MAKE writes stay local; reads fall through to caller.
+    const localVars = Object.create(vars);
+    for(let p = 0; p < proc.params.length; p++) {
+      const r = await evalExpr(tokens, idx, vars, rctx); idx = r.nextIdx;
+      localVars[proc.params[p]] = r.value;
+    }
+    let outputVal;
+    try { await runExpr(proc.body, localVars, 0, rctx); }
+    catch(e) {
+      if(e.__output__)        outputVal = e.value;                              // OUTPUT — extract return value
+      else if(e === BREAK_SIGNAL) throw new Error('BREAK used outside a loop'); // proc boundary: BREAK may not escape
+      else throw e;                                                              // STOP_SIGNAL or real error — propagate
+    }
+    if(outputVal === undefined) throw new Error('Procedure ' + t + ' did not OUTPUT a value');
+    val = outputVal;
+
+  } else {
+    val = resolveToken(tokens[idx++], vars);
+  }
+
+  // Binary operator chain: keep consuming (op, expr) pairs until no BINOP found.
+  // Logo has no precedence levels — all operators bind equally left-to-right.
+  // tstate threaded so TOWARDS/DISTANCE in sub-expressions sees the same snapshot.
+  while(idx < tokens.length) {
+    const op = tokens[idx];
+    if(!BINOPS.has(op)) break;
+    idx++;
+    const {value: right, nextIdx} = await evalExpr(tokens, idx, vars, rctx, tstate); idx = nextIdx;
+    switch(op) {
+      case '+':   val += right;                           break;
+      case '-':   val -= right;                           break;
+      case '*':   val *= right;                           break;
+      case '/':   if(right === 0) throw new Error('Division by zero'); val /= right; break;
+      case 'MOD': val  = val % right;                     break;
+      case 'AND': val  = (val !== 0 && right !== 0)?1:0;  break;
+      case 'OR':  val  = (val !== 0 || right !== 0)?1:0;  break;
+      case '>':   val  = val >   right ? 1 : 0;           break;
+      case '<':   val  = val <   right ? 1 : 0;           break;
+      case '=':   val  = val === right ? 1 : 0;           break;
+      case '>=':  val  = val >=  right ? 1 : 0;           break;
+      case '<=':  val  = val <=  right ? 1 : 0;           break;
+      case '!=':  val  = val !== right ? 1 : 0;           break;
+    }
+  }
+  return { value: val, nextIdx: idx };
+}
+
+// ── Tokeniser ─────────────────────────────────────────────────────────────────
+// tokenize(src) → token[]
+//   Splits source into tokens and injects a LINE_SEN sentinel before each
+//   non-empty line. Sentinels survive extractBlock() and procedure body slicing,
+//   so line tracking in run()/runExpr() works correctly inside loops and procs.
+//
+// Sentinel format: LINE_SEN + lineNum + ':' + original source text
+//   e.g. "__L3:  REPEAT 4 [FD 100]"
+//   run()/runExpr() detect them by startsWith(LINE_SEN) and update execLine.
+//
+// LINE_SEN uses a lowercase prefix ('__L') which can never appear in valid Logo
+// since tokenize() uppercases all non-sentinel tokens (OPT-4).
+//
+// OPT-4: toUpperCase() applied once here rather than in every downstream caller.
+//   Removes allocation from the hot dispatch loops in run(), evalExpr(),
+//   runExpr(), and extractProcedures(). Variable names (:x → :X) are also
+//   uppercased; resolveToken() uses .slice(1) directly (no-op on upper case).
+const LINE_SEN = '__L'; // sentinel prefix; must be lowercase to be distinct from commands
+function tokenize(src) {
+  const TOK = />=|<=|!=|[\[\]+\-*\/=><]|[^\s\[\]+\-*\/=><]+/g;
+  const tokens = [];
+  src.split('\n').forEach((rawLine, i) => {
+    const stripped = rawLine.replace(/;.*$/, '');  // strip inline comment
+    // Negative-number literals: minus preceded by whitespace/[ and directly followed by
+    // a digit (no space) becomes '~digits' — a single token parsed as a negative number.
+    // This allows 'SETPOS 0 -100' (two separate args) while preserving 'A - B' (binary,
+    // space on both sides) and 'A-B' (binary, no spaces).  The '~' char never appears in
+    // valid Logo source so it cannot conflict with user identifiers.
+    const processed = stripped.replace(/((?:^|[\s\[]))-(?=\d)/g, '$1~');
+    const toks = processed.match(TOK);
+    if(toks && toks.length) {
+      tokens.push(LINE_SEN + (i + 1) + ':' + rawLine.trim()); // sentinel — kept as-is
+      for(const tok of toks) tokens.push(tok.toUpperCase());   // pre-uppercase all tokens
+    }
+  });
+  return tokens;
+}
+
+// ── Block extractor ───────────────────────────────────────────────────────────
+// extractBlock(tokens, idx) → { body: token[], nextIdx: number }
+//   Consumes the '[' at tokens[idx] and collects all tokens up to the matching ']',
+//   handling nested brackets. Returns the body tokens (without the outer brackets)
+//   and the index of the first token after the closing ']'.
+//   Throws on missing '[' or unclosed ']'.
+function extractBlock(tokens, idx) {
+  if(tokens[idx] !== '[') throw new Error('Expected [ but got: ' + (tokens[idx] || 'end of program'));
+  idx++; // consume '['
+  let depth = 1, body = [];
+  while(idx < tokens.length && depth > 0) {
+    if     (tokens[idx] === '[') depth++;
+    else if(tokens[idx] === ']') { depth--; if(depth === 0) { idx++; break; } }
+    if(depth > 0) body.push(tokens[idx]);
+    idx++;
+  }
+  if(depth > 0) throw new Error('Missing ] — block was never closed');
+  return { body, nextIdx: idx };
+}
+
+// ── Procedure store ───────────────────────────────────────────────────────────
+// procs: global map  NAME (uppercase) → { params: string[], body: token[] }
+//   params: parameter names without the ':' prefix, already uppercase
+//   body:   token[] including LINE_SEN sentinels — line tracking works inside procs
+//
+// extractProcedures(tokens) → { topLevel: token[], newProcs: {} }
+//   Pure function: strips TO…END blocks from the token stream and returns them
+//   as newProcs. Does NOT mutate the global procs map — the RUN handler merges
+//   via Object.assign so multiple calls are safe and the function is testable.
+const procs = {};
+function extractProcedures(tokens) {
+  const out = [], newProcs = {}; let i = 0;
+  while(i < tokens.length) {
+    const tok = tokens[i]; // pre-uppercased
+    // Sentinels are structural markers, not commands; skip at top level
+    if(tok.startsWith(LINE_SEN)) { i++; continue; }
+    if(tok === 'TO') {
+      i++;
+      // Guard: TO must be followed by a name token
+      if(i >= tokens.length || tokens[i].startsWith(LINE_SEN))
+        throw new Error('TO: missing procedure name');
+      const name = tokens[i++]; // pre-uppercased by tokenize()
+      if(!name || /^[+\-*/=><\[\]]/.test(name))
+        throw new Error('TO: invalid procedure name: ' + name);
+      const params = [];
+      while(i < tokens.length && (tokens[i].startsWith(':') || tokens[i].startsWith('"')))
+        params.push(tokens[i++].slice(1)); // strip : or " prefix; pre-uppercased (OPT-4)
+      const body = [];
+      while(i < tokens.length && tokens[i] !== 'END') body.push(tokens[i++]);
+      if(i >= tokens.length) throw new Error('Procedure ' + name + ': missing END');
+      i++; // consume END
+      newProcs[name] = { params, body };
+    } else {
+      out.push(tokens[i++]);
+    }
+  }
+  return { topLevel: out, newProcs };
+}
+
+// ── Control-flow sentinels ─────────────────────────────────────────────────────
+// run() handles STOP/OUTPUT/BREAK via stack unwinding (no throw/catch needed).
+// runExpr() is recursive, so it uses thrown sentinel objects instead:
+//   STOP_SIGNAL           thrown by STOP; propagates up through the entire runExpr
+//                         call stack until caught by the top-level run() button handler.
+//   BREAK_SIGNAL          thrown by BREAK; caught by the nearest enclosing loop
+//                         handler in runExpr (REPEAT/FOR/WHILE each wrap their body
+//                         call in try/catch and break the JS loop on BREAK_SIGNAL).
+//                         Re-thrown as a plain Error at proc-call sites so BREAK
+//                         cannot silently escape a procedure boundary.
+//   { __output__, value } thrown by OUTPUT; caught by evalExpr to extract the value.
+// MAX_EXPR_DEPTH caps runExpr recursion; typical expression depth is 3–5 frames.
+const STOP_SIGNAL    = Object.freeze({ __stop__:  true }); // frozen: accidental write would silently break all STOP handling
+const BREAK_SIGNAL   = Object.freeze({ __break__: true }); // same rationale
+const MAX_EXPR_DEPTH = 64;
+
+// execLine is now rctx.execLine — removed as a standalone global (D2).
+// Updated by run() and runExpr() via rctx.execLine when encountering LINE_SEN sentinels.
+
+// ── Command dispatch table ────────────────────────────────────────────────────
+// CMD maps uppercase command name → async handler.
+// Handler signature: async (tokens, idx, vars) → nextIdx
+//   tokens  full token array of the current exec frame
+//   idx     index of the first argument token (command itself already consumed)
+//   vars    current variable scope object
+//   return  index of the next token after all arguments consumed
+//
+// Leaf commands only. Flow-control keywords (IF / IFELSE / REPEAT / WHILE / FOR /
+// STOP / BREAK / OUTPUT) are dispatched inline in run() and runExpr() — they need
+// direct access to the frame stack / throw machinery and cannot be factored into
+// a simple nextIdx handler.
+const CMD = {};
+
+// ▸ Variables
+CMD['MAKE'] = async (t,i,v,rctx) => {
+  const rawName = t[i++];
+  if(!rawName || (!rawName.startsWith(':') && !rawName.startsWith('"')))
+    throw new Error('MAKE: expected a variable name like :x or "x, got: ' + rawName);
+  const name = rawName.slice(1); // already uppercase (OPT-4)
+  const {value, nextIdx} = await evalExpr(t, i, v, rctx);
+  // Walk the prototype chain through REPEAT body scopes to find the defining scope.
+  // REPEAT bodies are marked with REPEAT_SCOPE so we traverse them without crossing
+  // FOR (flat copy, no chain) or procedure (Object.create but no marker) boundaries.
+  let scope = v;
+  while (Object.prototype.hasOwnProperty.call(scope, REPEAT_SCOPE)) {
+    const parent = Object.getPrototypeOf(scope);
+    if (!parent || parent === Object.prototype) break;
+    scope = parent;
+    if (Object.prototype.hasOwnProperty.call(scope, name)) break;
+  }
+  scope[name] = value;
+  log('MAKE :' + name + ' = ' + value, 'info');
+  return nextIdx;
+};
+// PRINT: always visible regardless of filter settings; auto-expands console panel.
+// Use for user-inserted debug output that must never be suppressed.
+CMD['PRINT'] = async (t,i,v,rctx) => {
+  const {value, nextIdx} = await evalExpr(t, i, v, rctx);
+  log('PRINT → ' + value, 'print');
+  return nextIdx;
+};
+
+// LABEL text — draw text on the canvas at the turtle's current position.
+// Accepts Logo word syntax: LABEL "HELLO  or bare word: LABEL HELLO
+// Text is stored in labelStore so it survives canvas resize.
+CMD['LABEL'] = async (t,i,v,rctx) => {
+  // Skip any LINE_SEN sentinels between LABEL and its argument
+  // tokens are plain strings — use string methods directly
+  while(t[i]?.startsWith('__L')){
+    const m=t[i].match(/^__L(\d+):(.*)$/);
+    if(m){ rctx.execLine.n=parseInt(m[1]); rctx.execLine.text=m[2]; }
+    i++;
+  }
+  const tok=t[i];
+  if(!tok) throw new Error('LABEL: text argument missing');
+  let text=tok;                              // tok is already the string value
+  if(text.startsWith('"')) text=text.slice(1); // strip Logo word-quote prefix
+  if(!text) throw new Error('LABEL: text cannot be empty');
+  if(labelStore.length>=MAX_LABELS){
+    if(!labelCapWarned){ log('LABEL: label limit ('+MAX_LABELS+') reached — further labels ignored','info'); labelCapWarned=true; }
+    return i+1;
+  }
+  const lab={x:turtle.x, y:turtle.y, text, r:turtle.color[0], g:turtle.color[1], b:turtle.color[2]};
+  labelStore.push(lab);
+  paintLabel(lab);
+  render();
+  return i+1;
+};
+
+// ▸ Motion — all delegate to move()/rotate() which own animation and instant-mode logic
+CMD['FD'] = CMD['FORWARD'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('FD '+n.toFixed(1),'op'); await move(n,rctx);   return nextIdx;
+};
+CMD['BK'] = CMD['BACK'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('BK '+n.toFixed(1),'op'); await move(-n,rctx);  return nextIdx;
+};
+CMD['RT'] = CMD['RIGHT'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('RT '+n.toFixed(1),'op'); await rotate(n,rctx);  return nextIdx;
+};
+CMD['LT'] = CMD['LEFT'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('LT '+n.toFixed(1),'op'); await rotate(-n,rctx); return nextIdx;
+};
+CMD['SETH'] = CMD['SETHEADING'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
+  // Find the shortest-arc delta to target so the turtle turns at most 180°.
+  const cur = ((turtle.angle%360)+360)%360, target = ((n%360)+360)%360;
+  let delta = target - cur;
+  if(delta >  180) delta -= 360; // e.g. cur=350 target=10 → delta=-340 → +20
+  if(delta < -180) delta += 360;
+  await rotate(delta, rctx);
+  turtle.angle = target; // snap to exact value after animation to eliminate float drift
+  log('SETH ' + target.toFixed(1), 'info');
+  return nextIdx;
+};
+// HOME: teleport to origin (0,0), heading 0°. Instant — no animation, no trail segment.
+// Pen/color/width state is unchanged; use CS to clear the trail.
+CMD['HOME'] = async (_t,i) => {
+  turtle.x=0; turtle.y=0; turtle.angle=0; render(); log('HOME','info'); return i;
+};
+CMD['SETPOS'] = async (t,i,v,rctx) => {
+  const {value:nx, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:ny, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  if(turtle.pen) trailPushIfRoom(turtle.x,turtle.y,nx,ny,turtle.width, turtle.color[0],turtle.color[1],turtle.color[2]);
+  turtle.x=nx; turtle.y=ny; render();
+  log('SETPOS '+nx.toFixed(1)+' '+ny.toFixed(1), 'info');
+  return i2;
+};
+// DOT [x y] — draw a filled dot at (x,y), or at the turtle's current position if no
+// coordinates are given. Diameter = current pen width (SETWIDTH). Color = current pen
+// color (SETCOLOR). Always draws regardless of pen state. Does not move the turtle.
+// Stored as a zero-length trail segment (x1===x2, y1===y2); paintSegment and
+// rebuildTrailCanvas detect this and draw an arc+fill instead of a stroked line.
+CMD['DOT'] = async (t,i,v,rctx) => {
+  // Peek at next token: if absent, ']', or a known command → 0 args (use turtle pos).
+  // Tokens that start a value: ':' or '"' (variable/word), digit or '~' (number),
+  // or an uppercase token that is NOT in CMD (query tokens: XCOR, YCOR, SCRWIDTH, …).
+  const peek = t[i];
+  let px, py;
+  const isVal = peek && peek !== ']' && peek !== '[' && (
+    peek.startsWith(':') || peek.startsWith('"') ||
+    /^[~\d]/.test(peek) ||
+    (peek === peek.toUpperCase() && !CMD[peek])  // query token (XCOR, SCRWIDTH, …)
+  );
+  if(isVal) {
+    const r1 = await evalExpr(t, i,       v, rctx); px = r1.value; i = r1.nextIdx;
+    const r2 = await evalExpr(t, i,       v, rctx); py = r2.value; i = r2.nextIdx;
+  } else {
+    px = turtle.x; py = turtle.y;
+  }
+  trailPushIfRoom(px, py, px, py, turtle.width, turtle.color[0], turtle.color[1], turtle.color[2]);
+  render();
+  log('DOT '+px.toFixed(1)+' '+py.toFixed(1), 'info');
+  return i;
+};
+// XCOR / YCOR / HEADING as standalone statements: log current value, no-op otherwise.
+// When used inside an expression (e.g. FD XCOR) resolveToken() handles them directly
+// and these CMD entries are never reached.
+CMD['XCOR']    = async (_t,i) => { log('XCOR = '   +turtle.x.toFixed(1),'info');                        return i; };
+CMD['YCOR']    = async (_t,i) => { log('YCOR = '   +turtle.y.toFixed(1),'info');                        return i; };
+CMD['HEADING'] = async (_t,i) => { log('HEADING = '+(((turtle.angle%360)+360)%360).toFixed(1),'info');   return i; };
+
+// ▸ Pen / visibility — data-table factory: [abbr, full, property, value, log-message]
+[['PU','PENUP',      'pen',     false, 'PEN UP'     ],
+ ['PD','PENDOWN',    'pen',     true,  'PEN DOWN'   ],
+ ['HT','HIDETURTLE', 'visible', false, 'HIDE TURTLE'],
+ ['ST','SHOWTURTLE', 'visible', true,  'SHOW TURTLE'],
+].forEach(([abbr, full, prop, val, msg]) => {
+  CMD[abbr] = CMD[full] = async (_t,i) => { turtle[prop]=val; render(); log(msg,'info'); return i; };
+});
+
+// ▸ Drawing
+CMD['CS'] = CMD['CLEARSCREEN'] = async (_t,i) => {
+  trailLen=0; trailCapWarned=false; turtle=mkTurtle(); rebuildTrailCanvas(); render(); log('CLEAR','info'); return i;
+};
+CMD['CT'] = CMD['CLEARTEXT'] = async (_t,i) => { con.innerHTML=''; return i; };
+CMD['CIRCLE'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('CIRCLE '+n.toFixed(1),'op'); await circle(n,rctx); return nextIdx;
+};
+// Named colour table — 16 kid-friendly colours accepted by SETCOLOR.
+// GREY is an alias for GRAY (same slot, not counted separately).
+const COLOR_NAMES = {
+  RED:[220,50,50], ORANGE:[255,140,0], YELLOW:[255,220,0],
+  GREEN:[50,180,50], LIME:[100,255,50], CYAN:[0,220,220],
+  BLUE:[50,100,220], NAVY:[0,0,150], PURPLE:[150,50,200],
+  PINK:[255,100,180], MAGENTA:[220,0,220], WHITE:[255,255,255],
+  GRAY:[150,150,150], GREY:[150,150,150], BLACK:[0,0,0],
+  BROWN:[150,80,30], GOLD:[255,200,0],
+};
+
+CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
+  // Named colour form: SETCOLOR RED, SETCOLOR BLUE, etc.
+  // tokens are plain strings — skip any LINE_SEN before peeking
+  let pi=i; while(t[pi]?.startsWith('__L')) pi++;
+  if(t[pi] && COLOR_NAMES[t[pi]]){
+    turtle.color = [...COLOR_NAMES[t[pi]]];
+    log('COLOR ' + turtle.color.join(' '), 'info');
+    return pi+1;
+  }
+  // Numeric form: SETCOLOR r g b
+  const {value:r, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:g, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  const {value:b, nextIdx:i3} = await evalExpr(t,i2,v,rctx);
+  // Clamp each channel to 0–255 and warn if any value was changed — mirrors
+  // SETWIDTH's behaviour so out-of-range input is never silently discarded.
+  const clamp = x => Math.max(0, Math.min(255, Math.round(x)));
+  turtle.color = [clamp(r), clamp(g), clamp(b)];
+  if(turtle.color[0]!==Math.round(r) || turtle.color[1]!==Math.round(g) || turtle.color[2]!==Math.round(b))
+    log('SETCOLOR ' + [r,g,b].map(x=>+x.toFixed(1)).join(' ') + ' clamped to ' + turtle.color.join(' '), 'info');
+  log('COLOR ' + turtle.color.join(' '), 'info');
+  return i3;
+};
+CMD['SW'] = CMD['SETWIDTH'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
+  const w = Math.max(0.5, Math.min(100, n)); // clamp: 0 or negative = invisible; >100 = unreasonable
+  if(w !== n) log('SETWIDTH ' + n + ' clamped to ' + w, 'info');
+  turtle.width = w;
+  log('WIDTH ' + w, 'info');
+  return nextIdx;
+};
+// WAIT n: suspend execution for n seconds using setTimeout (non-blocking).
+// Cap at 30s: prevents accidental multi-minute freezes from e.g. WAIT 9999.
+// Negative n throws immediately; capped values log a warning.
+CMD['WAIT'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
+  if(n < 0)  throw new Error('WAIT: duration must be >= 0, got ' + n);
+  const secs = Math.min(n, 30); // cap: prevent accidental multi-hour freeze
+  if(secs < n) log('WAIT ' + n + 's capped to 30s', 'info');
+  log('WAIT ' + secs + 's', 'op');
+  await new Promise(res => setTimeout(res, secs * 1000));
+  return nextIdx;
+};
+
+CMD['SPEED'] = async (t,i,v,rctx) => {
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
+  const s = Math.max(1, Math.min(4, Math.round(n)));
+  if(s !== Math.round(n)) log('SPEED ' + n + ' clamped to ' + s, 'info');
+  rctx.speed   = s;   // takes effect immediately for the rest of this run
+  optSpeed.value = s; // sync slider so next run starts at same speed
+  log('SPEED ' + s, 'info');
+  return nextIdx;
+};
+
+// ── runExpr: recursive executor for expression-context procedure calls ─────────
+// Called by evalExpr when a user proc appears as a value (e.g. FD DOUBLE 50,
+// MAKE :N ITER :X :Y).  Uses the JS call stack for recursion rather than the
+// explicit trampoline stack in run(); this is safe because expression-level
+// call depth is bounded in practice and MAX_EXPR_DEPTH=64 guards against abuse.
+//
+// Control-flow in runExpr uses throw/catch instead of stack unwinding:
+//   STOP        → throws STOP_SIGNAL (propagates to the top-level run() handler)
+//   BREAK       → throws BREAK_SIGNAL (caught by the nearest loop in THIS function;
+//                 re-thrown as a plain Error at proc boundaries so it cannot escape)
+//   OUTPUT/OP   → throws { __output__, value } (caught by evalExpr caller)
+//
+// Loops (REPEAT / FOR / WHILE) are now handled here in addition to run().
+// Design note: this duplicates the loop logic from run(). The duplication is
+// intentional and preferred over a larger refactor:
+//   • run() must keep its explicit-stack trampoline for unbounded Logo recursion.
+//   • Routing expression-context calls through run() would require a two-way
+//     channel (start run, block evalExpr until OUTPUT fires) — significantly more
+//     complex and harder to reason about than the current clean boundary.
+//   • Loop bodies here use JS `for`/`while` because JS stack depth per loop
+//     iteration is O(1) — only the body runExpr call adds a frame.  Deeply nested
+//     loops inside expression-context procs are the unusual case; the common case
+//     (top-level loops) still goes through the trampoline in run() with zero
+//     JS stack growth.
+//   Any future change to loop semantics must be applied in BOTH run() and here.
+async function runExpr(tokens, vars, depth, rctx) {
+  depth = depth || 0;
+  if(depth > MAX_EXPR_DEPTH) throw new Error('Expression call depth exceeded');
+  let idx = 0;
+  while(idx < tokens.length && !rctx.stopped) {
+    const raw = tokens[idx++];
+    if(raw.startsWith(LINE_SEN)) {
+      const col = raw.indexOf(':');
+      if(col >= 0) { // guard: malformed sentinel (missing ':') would give NaN from parseInt
+        rctx.execLine.n    = parseInt(raw.slice(LINE_SEN.length, col));
+        rctx.execLine.text = raw.slice(col + 1);
+      }
+      continue;
+    }
+    const cmd = raw; // pre-uppercased by tokenize() (OPT-4)
+
+    if(cmd === 'STOP') throw STOP_SIGNAL;
+
+    // ── BREAK: throw sentinel; nearest enclosing loop handler catches it ───────
+    // Proc-call sites below re-throw BREAK_SIGNAL as a plain Error, enforcing
+    // the rule that BREAK cannot escape a procedure boundary.
+    if(cmd === 'BREAK') throw BREAK_SIGNAL;
+
+    if(cmd === 'OUTPUT' || cmd === 'OP') {
+      const {value} = await evalExpr(tokens, idx, vars, rctx);
+      throw { __output__: true, value };
+    }
+    if(cmd === 'IF') {
+      const {value:cond,nextIdx:ci} = await evalExpr(tokens,idx,vars,rctx); idx=ci;
+      const {body,nextIdx:ni}       = extractBlock(tokens,idx);              idx=ni;
+      if(cond !== 0) await runExpr(body, vars, depth+1, rctx);
+      continue;
+    }
+    if(cmd === 'IFELSE') {
+      const {value:cond,nextIdx:ci} = await evalExpr(tokens,idx,vars,rctx); idx=ci;
+      const b0=extractBlock(tokens,idx), b1=extractBlock(tokens,b0.nextIdx);
+      idx=b1.nextIdx;
+      await runExpr(cond !== 0 ? b0.body : b1.body, vars, depth+1, rctx);
+      continue;
+    }
+
+    // ── REPEAT ─────────────────────────────────────────────────────────────────
+    // Mirrors run() REPEAT but uses a JS for-loop + BREAK_SIGNAL catch.
+    // STOP_SIGNAL and __output__ propagate straight through the catch.
+    if(cmd === 'REPEAT') {
+      const {value:count,nextIdx:ci} = await evalExpr(tokens,idx,vars,rctx); idx=ci;
+      const {body,nextIdx:ni}        = extractBlock(tokens,idx);              idx=ni;
+      const n = Math.round(count);
+      if(n < 0) { log('REPEAT ' + n + ': count is negative, skipping', 'err'); continue; }
+      for(let k = 0; k < n && !rctx.stopped; k++) {
+        const bodyVars = Object.create(vars);
+        bodyVars['REPCOUNT'] = k + 1;
+        bodyVars[REPEAT_SCOPE] = true;
+        try        { await runExpr(body, bodyVars, depth+1, rctx); }
+        catch(e)   { if(e === BREAK_SIGNAL) break; throw e; } // BREAK exits loop; anything else propagates
+      }
+      continue;
+    }
+
+    // ── WHILE ──────────────────────────────────────────────────────────────────
+    // Condition block is re-evaluated before each iteration (same as run() WHILE).
+    if(cmd === 'WHILE') {
+      const {body:cond,nextIdx:ci} = extractBlock(tokens,idx); idx=ci;
+      const {body,      nextIdx:ni} = extractBlock(tokens,idx); idx=ni;
+      for(;;) {
+        if(rctx.stopped) break;
+        const {value} = await evalExpr(cond, 0, vars, rctx);
+        if(value === 0) break;
+        try      { await runExpr(body, vars, depth+1, rctx); }
+        catch(e) { if(e === BREAK_SIGNAL) break; throw e; }
+      }
+      continue;
+    }
+
+    // ── FOR ────────────────────────────────────────────────────────────────────
+    // Matches run() FOR exactly: copy semantics for loop vars (Object.assign),
+    // optional step token, auto-sign step when omitted.
+    if(cmd === 'FOR') {
+      const rawVar = tokens[idx++];
+      if(!rawVar || (!rawVar.startsWith(':') && !rawVar.startsWith('"')))
+        throw new Error('FOR: expected a variable name like :i, got: ' + rawVar);
+      const varName = rawVar.slice(1); // already uppercase (OPT-4)
+      const {value:start,nextIdx:i1} = await evalExpr(tokens,idx,vars,rctx); idx=i1;
+      const {value:end,  nextIdx:i2} = await evalExpr(tokens,idx,vars,rctx); idx=i2;
+      // Step is optional: if the next token opens a block, auto-sign from direction
+      let step;
+      if(tokens[idx] === '[') {
+        step = end >= start ? 1 : -1;
+      } else {
+        const r = await evalExpr(tokens,idx,vars,rctx); idx=r.nextIdx; step=r.value;
+      }
+      if(step === 0) throw new Error('FOR: step cannot be zero');
+      const {body,nextIdx:ni} = extractBlock(tokens,idx); idx=ni;
+      // Object.assign: copy semantics — MAKE inside body stays local to the loop
+      // (same documented inconsistency vs REPEAT/WHILE that is preserved here).
+      const loopVars = Object.assign({}, vars);
+      const active   = v => step > 0 ? v <= end : v >= end;
+      for(let v = start; active(v) && !rctx.stopped; v += step) {
+        loopVars[varName] = v;
+        try      { await runExpr(body, loopVars, depth+1, rctx); }
+        catch(e) { if(e === BREAK_SIGNAL) break; throw e; }
+      }
+      continue;
+    }
+
+    // ── User procedure call ────────────────────────────────────────────────────
+    // BREAK_SIGNAL is caught here and converted to a plain Error: BREAK cannot
+    // silently propagate out of a called procedure (same boundary rule as run()).
+    if(rctx.procs[cmd]) {
+      const proc=rctx.procs[cmd], lv=Object.create(vars); // OPT-3: prototype chain scope
+      for(let p=0;p<proc.params.length;p++){
+        const {value,nextIdx}=await evalExpr(tokens,idx,vars,rctx);
+        lv[proc.params[p]]=value; idx=nextIdx;
+      }
+      try        { await runExpr(proc.body, lv, depth+1, rctx); }
+      catch(e)   {
+        if(e === BREAK_SIGNAL) throw new Error('BREAK used outside a loop');
+        throw e;
+      }
+      continue;
+    }
+
+    const handler=CMD[cmd];
+    if(handler) idx=await handler(tokens,idx,vars,rctx);
+    else throw new Error('Unknown command: '+cmd);
+  }
+}
+
+// ── run(tokens, startIdx, vars): trampoline executor ─────────────────────────
+// Main interpreter entry point. All Logo control structures are handled via
+// explicit stack frames; JS call stack depth stays constant regardless of Logo
+// recursion depth.
+//
+// Extension pattern for new loop constructs: push a typed control frame
+// { isXxx:true, ... } and add an if(frame.isXxx) branch at the top of the while
+// loop. The branch pushes a body exec frame per iteration and pops itself when
+// done. See isRepeat/isWhile/isFor for the pattern.
+async function run(tokens, startIdx, vars, rctx) {
+  const stack = [{ tokens: tokens||[], idx: startIdx||0, vars: vars||globalVars }];
+
+  while(stack.length > 0 && !rctx.stopped) {
+    const frame = stack[stack.length - 1];
+
+    // ── REPEAT: decrement counter, push body frame, or pop when done ─────────
+    // REPCOUNT is injected as an own property of a child vars scope so it is
+    // visible inside the body without polluting the enclosing scope.
+    if(frame.isRepeat) {
+      if(frame.remaining > 0) {
+        frame.remaining--;
+        const bodyVars = Object.create(frame.vars);
+        bodyVars['REPCOUNT'] = frame.iteration++;
+        bodyVars[REPEAT_SCOPE] = true;
+        stack.push({ tokens: frame.body, idx: 0, vars: bodyVars });
+      } else {
+        stack.pop();
+      }
+      continue;
+    }
+
+    // ── WHILE: re-evaluate cond each tick, push body frame or pop ───────────
+    // cond is stored as a token[] and evaluated from index 0 on every iteration.
+    if(frame.isWhile) {
+      const {value: cond} = await evalExpr(frame.cond, 0, frame.vars, rctx);
+      if(cond !== 0) {
+        stack.push({ tokens: frame.body, idx: 0, vars: frame.vars });
+      } else {
+        stack.pop();
+      }
+      continue;
+    }
+
+    // ── FOR: write loop var, push body frame, advance nextVal, or pop ────────
+    // nextVal is pre-advanced each iteration so the body always sees the current
+    // value in frame.vars[varName] from the previous iteration's write.
+    if(frame.isFor) {
+      const cur    = frame.nextVal;
+      const active = frame.step > 0 ? cur <= frame.end : cur >= frame.end;
+      if(active) {
+        frame.vars[frame.varName] = cur;          // body sees current value
+        frame.nextVal             = cur + frame.step;
+        stack.push({ tokens: frame.body, idx: 0, vars: frame.vars });
+      } else {
+        stack.pop();
+      }
+      continue;
+    }
+
+    // ── Exec frame: tokens consumed — pop and resume caller ─────────────────
+    if(frame.idx >= frame.tokens.length) { stack.pop(); continue; }
+
+    // Tokens pre-uppercased (OPT-4). Sentinels start with LINE_SEN (lowercase '__L')
+    // so startsWith() identifies them without any case conversion.
+    const raw = frame.tokens[frame.idx++];
+    if(raw.startsWith(LINE_SEN)) {
+      // Sentinel: update line tracker for error reporting; never dispatched as a command
+      const col = raw.indexOf(':');
+      if(col >= 0) { // guard: malformed sentinel (missing ':') would give NaN from parseInt
+        rctx.execLine.n    = parseInt(raw.slice(LINE_SEN.length, col));
+        rctx.execLine.text = raw.slice(col + 1);
+      }
+      continue;
+    }
+    const cmd = raw; // already uppercase (OPT-4)
+
+    // ── STOP: pop frames until procBoundary, then pop boundary itself ─────────
+    if(cmd === 'STOP') {
+      log('STOP', 'info');
+      while(stack.length > 0 && !stack[stack.length-1].procBoundary) stack.pop();
+      if(stack.length > 0) stack.pop(); // pop the boundary frame itself
+      continue;
+    }
+
+    // ── BREAK: pop frames until the innermost loop frame, then pop it ─────────
+    // Stops at procBoundary without popping it — BREAK cannot escape a procedure.
+    // isRepeat / isFor / isWhile are the three loop frame types.
+    if(cmd === 'BREAK') {
+      let found = false;
+      while(stack.length > 0) {
+        const top = stack[stack.length - 1];
+        if(top.procBoundary) break;           // hit a proc boundary — stop unwinding
+        stack.pop();
+        if(top.isRepeat || top.isFor || top.isWhile) { found = true; break; } // loop frame popped
+      }
+      if(!found) throw new Error('BREAK used outside a loop');
+      continue;
+    }
+
+    // ── OUTPUT: scan for boundary, store value, unwind like STOP ───────────
+    if(cmd === 'OUTPUT' || cmd === 'OP') {
+      const {value, nextIdx} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = nextIdx;
+      log('OUTPUT → ' + value, 'info');
+      // Single pass (no pre-check with stack.some): scan, store, throw if absent.
+      let foundBoundary = false;
+      for(let k=stack.length-1; k>=0; k--) {
+        if(stack[k].procBoundary) { stack[k].outputVal = value; foundBoundary = true; break; }
+      }
+      if(!foundBoundary) throw new Error('OUTPUT used outside a procedure');
+      while(stack.length > 0 && !stack[stack.length-1].procBoundary) stack.pop();
+      if(stack.length > 0) stack.pop();
+      continue;
+    }
+
+    // ── IF ──────────────────────────────────────────────────────────────────
+    if(cmd === 'IF') {
+      const {value:cond, nextIdx:ci} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = ci;
+      const {body, nextIdx:ni} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ni;
+      if(cond !== 0) { log('IF → true','info');  stack.push({ tokens:body, idx:0, vars:frame.vars }); }
+      else             log('IF → false','info');
+      continue;
+    }
+
+    // ── IFELSE ──────────────────────────────────────────────────────────────
+    if(cmd === 'IFELSE') {
+      const {value:cond, nextIdx:ci} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = ci;
+      const b0=extractBlock(frame.tokens,frame.idx); frame.idx=b0.nextIdx;
+      const b1=extractBlock(frame.tokens,frame.idx); frame.idx=b1.nextIdx;
+      if(cond !== 0) { log('IFELSE → true', 'info');  stack.push({ tokens:b0.body, idx:0, vars:frame.vars }); }
+      else           { log('IFELSE → false','info');   stack.push({ tokens:b1.body, idx:0, vars:frame.vars }); }
+      continue;
+    }
+
+    // ── REPEAT ──────────────────────────────────────────────────────────────
+    if(cmd === 'REPEAT') {
+      const {value:count, nextIdx:ci} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = ci;
+      const {body, nextIdx:ni} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ni;
+      const n = Math.round(count);
+      if(n < 0) { log('REPEAT ' + n + ': count is negative, skipping', 'err'); }
+      else { log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1 }); }
+      continue;
+    }
+
+    // ── WHILE ───────────────────────────────────────────────────────────────
+    // WHILE [ condition ] [ body ] — condition re-evaluated each iteration.
+    if(cmd === 'WHILE') {
+      const {body:cond, nextIdx:ci} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ci;
+      const {body, nextIdx:ni} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ni;
+      // Push control frame; isWhile branch evaluates cond before first body run
+      stack.push({ isWhile:true, cond, body, vars:frame.vars });
+      continue;
+    }
+
+    // ── FOR ─────────────────────────────────────────────────────────────────
+    // FOR :var start end [ body ]
+    // FOR :var start end step [ body ]   (step is optional; auto-sign if omitted)
+    // Loop variable is written into frame.vars (shared scope, Logo standard).
+    if(cmd === 'FOR') {
+      const rawVar = frame.tokens[frame.idx++];
+      if(!rawVar || (!rawVar.startsWith(':') && !rawVar.startsWith('"')))
+        throw new Error('FOR: expected a variable name like :i, got: ' + rawVar);
+      const varName = rawVar.slice(1); // already uppercase (OPT-4)
+      const {value:start, nextIdx:i1} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = i1;
+      const {value:end,   nextIdx:i2} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+      frame.idx = i2;
+      // Peek: if next token is not '[' there is an explicit step argument
+      let step = start <= end ? 1 : -1;
+      if(frame.tokens[frame.idx] !== '[') {
+        const {value:s, nextIdx:i3} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+        if(s === 0) throw new Error('FOR: step cannot be zero (infinite loop)');
+        step = s; frame.idx = i3;
+      }
+      const {body, nextIdx:ni} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ni;
+      // FOR gets its own vars copy so :var does not persist after the loop.
+      // Known inconsistency: MAKE inside a FOR body is also local (copy semantics),
+      // while MAKE inside REPEAT/WHILE affects the outer scope (shared object).
+      // Documented by design — prefer explicit over surprising implicit scoping.
+      // Object.assign (not Object.create) — copy semantics: FOR loop variable
+      // stays local and MAKE inside the body does not affect the outer scope.
+      // Documented inconsistency vs REPEAT/WHILE which share the parent vars object.
+      const loopVars = Object.assign({}, frame.vars);
+      stack.push({ isFor:true, varName, end, step, body, vars:loopVars, nextVal:start });
+      continue;
+    }
+
+    // ── User procedure call (statement context) ─────────────────────────────
+    // Evaluate each parameter expression in the caller's scope, bind to param
+    // names in a child scope, then push a procBoundary exec frame for the body.
+    if(rctx.procs[cmd]) {
+      log('CALL ' + cmd, 'info');
+      const proc = rctx.procs[cmd];
+      // OPT-3: prototype chain scope — child object inherits parent via __proto__.
+      // Reads walk the chain (gives access to caller's vars without copying them).
+      // MAKE writes create own properties at this level only — caller is unaffected.
+      // Memory per frame: O(param count) not O(all visible vars).
+      // resolveToken uses `in` which traverses the prototype chain correctly.
+      const localVars = Object.create(frame.vars);
+      for(let p = 0; p < proc.params.length; p++) {
+        const {value, nextIdx} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
+        localVars[proc.params[p]] = value;
+        frame.idx = nextIdx;
+      }
+      stack.push({ tokens:proc.body, idx:0, vars:localVars, procBoundary:true });
+      continue;
+    }
+
+    // ── Built-in leaf command via CMD dispatch table ────────────────────────
+    const handler = CMD[cmd];
+    if(handler) {
+      frame.idx = await handler(frame.tokens, frame.idx, frame.vars, rctx);
+    } else {
+      // Unknown command: throw to halt. Continuing would produce cascading errors
+      // (misaligned idx means subsequent token reads would be garbage).
+      throw new Error('Unknown command: ' + cmd);
+    }
+  }
+}
+
+// move(dist): translate turtle by dist Logo units along turtle.angle.
+//   dist > 0  forward; dist < 0  backward (BK delegates with negated dist).
+//
+// Animated mode (speed 0–3):
+//   Splits movement into Math.ceil(|dist| * 1.2) sub-steps, yielding one rAF
+//   between steps so the browser repaints each pixel. Factor 1.2 gives slightly
+//   sub-pixel steps for smoother diagonal lines (fewer staircase artefacts).
+//   Last step snaps to exact destination to prevent float drift accumulation.
+//
+// Instant mode (speed=4):
+//   Writes a single segment and returns immediately (no rAF yield).
+//   Progress is invisible until INSTANT_FLUSH steps accumulate, at which point
+//   render() + setTimeout(0) lets the browser paint the partial drawing.
+async function move(dist, rctx){
+  const a=turtle.angle*Math.PI/180;
+  const endX=turtle.x+Math.sin(a)*dist, endY=turtle.y+Math.cos(a)*dist;
+  const HW=canvas.width/2, HH=canvas.height/2; // half-dimensions for boundary check (Logo coords)
+
+  if(rctx.speed >= 4){
+    // Instant path: one segment, no rAF. Periodic flush keeps the browser alive.
+    const oobI = endX < -HW || endX > HW || endY < -HH || endY > HH;
+    const cx = oobI ? Math.max(-HW, Math.min(HW, endX)) : endX;
+    const cy = oobI ? Math.max(-HH, Math.min(HH, endY)) : endY;
+    if(turtle.pen) trailPushIfRoom(turtle.x,turtle.y,cx,cy,turtle.width, turtle.color[0],turtle.color[1],turtle.color[2]);
+    turtle.x=cx; turtle.y=cy;
+    walkTick=(walkTick+1)&0xFFFF; // 16-bit wrap avoids float precision loss over long programs
+    if(oobI){
+      rctx.stopped=true; render();
+      log('OUCH! Turtle went off the canvas.', 'print');
+      throw STOP_SIGNAL;
+    }
+    rctx.instantStepCount++;
+    if(rctx.instantStepCount >= INSTANT_FLUSH){
+      rctx.instantStepCount = 0;
+      render();
+      await new Promise(res => setTimeout(res, 0)); // macro-task yield → browser paint + CSS tick
+    }
+    return;
+  }
+
+  // Animated path: sub-step loop; SPF controls how many steps happen per rAF yield.
+  // speed=0 → 1 step/frame (slowest); speed=1 → 4; speed=2 → 16; speed=3 → 64.
+  const SPF = [1,4,16,64][rctx.speed] || 1; // steps per rAF frame
+  const steps=Math.max(1,Math.round(Math.abs(dist)*1.2)); // 1.2× → sub-pixel steps, smoother diagonals
+  const dx=Math.sin(a)*dist/steps, dy=Math.cos(a)*dist/steps;
+  isMoving=true;
+  for(let i=0;i<steps&&!rctx.stopped;i++){
+    const ox=turtle.x,oy=turtle.y;
+    // Last step: snap to exact destination — prevents accumulated float drift
+    if(i===steps-1){ turtle.x=endX; turtle.y=endY; }
+    else { turtle.x+=dx; turtle.y+=dy; }
+    if(turtle.x < -HW || turtle.x > HW || turtle.y < -HH || turtle.y > HH){
+      // Clamp to boundary edge, draw trail to that point, then halt
+      turtle.x=Math.max(-HW,Math.min(HW,turtle.x));
+      turtle.y=Math.max(-HH,Math.min(HH,turtle.y));
+      if(turtle.pen) trailPushIfRoom(ox,oy,turtle.x,turtle.y,turtle.width, turtle.color[0],turtle.color[1],turtle.color[2]);
+      walkTick=(walkTick+1)&0xFFFF;
+      isMoving=false; render();
+      log('OUCH! Turtle went off the canvas.', 'print');
+      throw STOP_SIGNAL;
+    }
+    if(turtle.pen) trailPushIfRoom(ox,oy,turtle.x,turtle.y,turtle.width, turtle.color[0],turtle.color[1],turtle.color[2]);
+    walkTick=(walkTick+1)&0xFFFF;
+    if((i+1)%SPF===0 || i===steps-1){ render(); await new Promise(res=>requestAnimationFrame(res)); }
+  }
+  isMoving=false; render();
+}
+
+// rotate(deg): turn turtle by deg degrees.
+//   deg > 0  clockwise (Logo convention — north=0, clockwise positive)
+// Animated: one rAF yield per 3° (steps = ceil(|deg| / 3)).
+// Instant: single angle update, no yield, no render.
+async function rotate(deg, rctx){
+  if(rctx.speed >= 4){
+    turtle.angle+=deg; // instant: single write, no yield
+    return;
+  }
+  const DPF=[3,12,48,192][rctx.speed]||3; // degrees per rAF frame
+  const steps=Math.max(1,Math.round(Math.abs(deg)/DPF));
+  const start=turtle.angle;
+  for(let i=1;i<=steps&&!rctx.stopped;i++){turtle.angle=start+deg*(i/steps);render();await new Promise(res=>requestAnimationFrame(res));}
+  turtle.angle=start+deg; render();
+}
+
+// circle(r): polygon approximation of a circle with radius r.
+//   steps = max(36, round(r)) — large r → more steps for smooth curves; tiny r → 36 minimum
+//   Each step: move one chord length, rotate 360/steps degrees.
+// Instant/animated mode is inherited from move() and rotate().
+// MAX_CIRCLE_R=2000 cap mirrors WAIT's 30s cap: prevents accidental multi-minute
+// animated draws from CIRCLE 999999.
+const MAX_CIRCLE_R = 2000;
+async function circle(r, rctx){
+  if(!isFinite(r)) throw new Error('CIRCLE: radius must be a finite number, got ' + r);
+  if(r === 0) return;
+  if(r > MAX_CIRCLE_R){ log('CIRCLE '+r+' radius capped to '+MAX_CIRCLE_R,'info'); r=MAX_CIRCLE_R; }
+  const steps = Math.max(36, Math.round(r));
+  const aStep = 360/steps, fwd = 2*Math.PI*r/steps;
+  for(let i=0; i<steps && !rctx.stopped; i++){
+    await move(fwd, rctx);
+    await rotate(aStep, rctx);
+  }
+}
+
+// ── Examples ──────────────────────────────────────────────────────────────────
+const EXAMPLES=[
+  {
+    title:'Square',
+    desc:'The classic — 4 sides, 90 degree turns',
+    code:'; Square\nREPEAT 4 [ FD 100 RT 90 ]'
+  },
+  {
+    title:'Triangle',
+    desc:'Three sides, 120 degrees each turn',
+    code:'; Triangle\nREPEAT 3 [ FD 120 RT 120 ]'
+  },
+  {
+    title:'Circle',
+    desc:'Draw a circle with radius 80 pixels',
+    code:'; Circle\nCIRCLE 80'
+  },
+  {
+    title:'Star',
+    desc:'Five pointed star — 144 degree turns',
+    code:'; Star\nREPEAT 5 [ FD 120 RT 144 ]'
+  },
+  {
+    title:'Spiral',
+    desc:'Growing spiral using a variable for step size',
+    code:'; Spiral\nMAKE :STEP 2\nREPEAT 120 [\n  FD :STEP\n  RT 30\n  MAKE :STEP :STEP + 1\n]'
+  },
+  {
+    title:'Spinning Squares',
+    desc:'Eight squares rotated around the center',
+    code:'; Spinning Squares\nREPEAT 8 [\n  REPEAT 4 [ FD 80 RT 90 ]\n  RT 45\n]'
+  },
+  {
+    title:'Sunburst',
+    desc:'Spokes radiating from the center',
+    code:'; Sunburst\nMAKE :LEN 20\nREPEAT 24 [\n  FD :LEN\n  BK :LEN\n  RT 15\n  MAKE :LEN :LEN + 2\n]'
+  },
+  {
+    title:'Random Splatter',
+    desc:'RND for random colours and lengths — a new pattern each run',
+    code:'; Random Splatter\n; RND n returns a random integer 0 to n-1\nHT\nSETWIDTH 2\nREPEAT 80 [\n  SETCOLOR RND 255 RND 255 RND 255\n  MAKE :LEN 20 + RND 180\n  FD :LEN\n  BK :LEN\n  RT RND 360\n]'
+  },
+  {
+    title:'Coloured Star',
+    desc:'Star with thick red lines',
+    code:'; Coloured Star\nSETCOLOR 200 40 20\nSETWIDTH 3\nREPEAT 5 [ FD 140 RT 144 ]'
+  },
+  {
+    title:'Growing Circles',
+    desc:'Concentric circles of increasing size',
+    code:'; Growing Circles\nMAKE :R 10\nREPEAT 8 [ CIRCLE :R MAKE :R :R + 15 ]'
+  },
+  {
+    title:'House',
+    desc:'Walls (square) and roof (triangle) drawn with two procedures',
+    code:'; House\nTO WALLS\n  REPEAT 4 [ FD 80 RT 90 ]\nEND\n\nTO ROOF\n  REPEAT 3 [ FD 80 LT 120 ]\nEND\n\nWALLS\nFD 80\nRT 90\nROOF'
+  },
+  {
+    title:'Flower',
+    desc:'Petals made from circles using a variable angle',
+    code:'; Flower\nREPEAT 12 [ CIRCLE 35 RT 30 ]'
+  },
+  {
+    title:'Rainbow Spiral',
+    desc:'Spiral with changing colors using variables',
+    code:'; Rainbow Spiral\nMAKE :STEP 3\nMAKE :R 200\nMAKE :G 50\nMAKE :B 50\nREPEAT 80 [\n  SETCOLOR :R :G :B\n  FD :STEP\n  RT 29\n  MAKE :STEP :STEP + 1\n  MAKE :R :R - 2\n  MAKE :G :G + 2\n]'
+  },
+  {
+    title:'Bouncing Counter',
+    desc:'IF and PRINT — color changes when counter passes 5',
+    code:'; Bouncing Counter\nMAKE :N 0\nREPEAT 10 [\n  MAKE :N :N + 1\n  PRINT :N\n  IFELSE :N > 5 [ SETCOLOR 200 50 50 ]\n  [ SETCOLOR 50 180 100 ]\n  FD 20\n  RT 36\n]'
+  },
+  {
+    title:'Diamond',
+    desc:'Uses SETPOS to jump directly to coordinates',
+    code:'; Diamond\nMAKE :N - 80\nPU\nSETPOS 0 80\nPD\nSETPOS 80 0\nSETPOS 0 :N\nSETPOS :N 0\nSETPOS 0 80'
+  },
+  {
+    title:'Compass Rose',
+    desc:'24 spokes radiate from the origin, each slightly longer than the last',
+    code:'; Compass Rose\nMAKE :ANGLE 0\nSETWIDTH 2\nREPEAT 24 [\n  SETH :ANGLE\n  MAKE :LEN 40 + :ANGLE * 0.2\n  FD :LEN\n  BK :LEN\n  MAKE :ANGLE :ANGLE + 15\n]'
+  },
+  {
+    title:'Sine Wave',
+    desc:'Draws a sine curve using SIN and SETPOS',
+    code:'; Sine Wave\nMAKE :X - 180\nPU\nREPEAT 361 [\n  MAKE :Y SIN :X\n  MAKE :Y :Y * 180\n  SETPOS :X * 1.5 :Y\n  PD\n  MAKE :X :X + 1\n]'
+  },
+  {
+    title:'STOP in Procedure',
+    desc:'Procedure exits early with STOP when condition is met',
+    code:'; STOP in Procedure\nTO DRAW :N\n  IF :N > 100 [ STOP ]\n  FD :N\n  RT 91\n  DRAW :N + 2\nEND\nDRAW 2'
+  },
+  {
+    title:'OUTPUT — Return Values',
+    desc:'Procedures that return values using OUTPUT',
+    code:'; OUTPUT — Return Values\n; Hypotenuse of a right triangle\nTO HYPO :A :B\n  MAKE :AA :A * :A\n  MAKE :SUM :AA + :B * :B\n  OUTPUT SQRT :SUM\nEND\n; Square a number\nTO SQR :N\n  OUTPUT :N * :N\nEND\n; Draw spokes scaled by computed length\nREPEAT 12 [\n  FD HYPO 60 80\n  BK HYPO 60 80\n  RT 30\n]'
+  },
+  {
+    title:'Comments',
+    desc:'Using ; to annotate code — comments are ignored by the interpreter',
+    code:'; Comments\n; Draw a colourful spiral\n; Each arm gets longer and rotates\nMAKE :STEP 4  ; starting step size\nMAKE :R 220  ; start red\nMAKE :B 50  ; start blue\nREPEAT 60 [\n  SETCOLOR :R 80 :B  ; cycle colours\n  FD :STEP\n  RT 31\n  MAKE :STEP :STEP + 1\n  MAKE :R :R - 3\n  MAKE :B :B + 3\n]'
+  },
+  {
+    title:'WHILE — Unwinding Spiral',
+    desc:'WHILE loop runs until a condition becomes false',
+    code:'; WHILE — Unwinding Spiral\n; Color sweeps blue -> purple -> red as spiral grows\nMAKE :R 0\nWHILE [ :R < 60 ] [\n  SETCOLOR :R * 4 0 240 - :R * 4\n  FD :R + 5\n  RT 29\n  MAKE :R :R + 1\n]'
+  },
+  {
+    title:'FOR — Starburst',
+    desc:'FOR loop counts a variable from start to end with optional step',
+    code:'; FOR — Starburst\n; Spokes at every 15 degrees, length grows with angle\nFOR :A 0 345 15 [\n  SETCOLOR 80 :A * 0.7 220\n  MAKE :LEN :A * 0.7\n  MAKE :LEN :LEN + 20\n  FD :LEN\n  BK :LEN\n  RT 15\n]'
+  },
+  {
+    title:'FOR — Colour Spectrum',
+    desc:'FOR painting vertical colour bars — green to yellow to red across the canvas',
+    code:'; FOR — Colour Spectrum\n; Each bar is painted with SETPOS (instant, no step animation)\nHT\nSETWIDTH 8\nMAKE :BOT - 140\nMAKE :TOP 140\nPU\nFOR :X - 180 180 6 [\n  MAKE :R :X + 180\n  SETPOS :X :BOT\n  PD\n  SETCOLOR :R * 0.7 252 - :R * 0.7 0\n  SETPOS :X :TOP\n  PU\n]'
+  },
+  {
+    title:'Deep Recursion — Dragon Curve',
+    desc:'Tests the trampoline: 12 levels of recursion draw the Dragon fractal',
+    code:'; Deep Recursion — Dragon Curve\nTO DRAGON :SIZE :DEPTH :TURN\n  IF :DEPTH = 0 [ FD :SIZE STOP ]\n  MAKE :HALF :SIZE / SQRT 2\n  MAKE :D :DEPTH - 1\n  DRAGON :HALF :D 1\n  RT 90 * :TURN\n  MAKE :RT - 1\n  DRAGON :HALF :D :RT\nEND\n\nHT\nSETWIDTH 1\nSETCOLOR 20 80 255\nPU SETPOS - 40 20 PD\nDRAGON 300 12 1'
+  },
+  {
+    title:'Named Colours — Colour Wheel',
+    desc:'Six spokes using named colours and LABEL',
+    code:'; Colour wheel — named colours and LABEL\nHT SETWIDTH 3\nPU HOME PD\nSETCOLOR RED     FD 100 LABEL "RED\nPU HOME PD SETCOLOR ORANGE  SETHEADING  60 FD 100 LABEL "ORANGE\nPU HOME PD SETCOLOR YELLOW  SETHEADING 120 FD 100 LABEL "YELLOW\nPU HOME PD SETCOLOR GREEN   SETHEADING 180 FD 100 LABEL "GREEN\nPU HOME PD SETCOLOR BLUE    SETHEADING 240 FD 100 LABEL "BLUE\nPU HOME PD SETCOLOR PURPLE  SETHEADING 300 FD 100 LABEL "PURPLE'
+  },
+  {
+    title:'SPEED — Slow to Fast',
+    desc:'Draws the same square 4 times, each faster than the last',
+    code:'; SPEED — Slow to Fast\n; Each pass through the loop increases speed 1→4\nSETWIDTH 2\nFOR :S 1 4 [\n  SPEED :S\n  REPEAT 4 [ FD 80 RT 90 ]\n  RT 20\n]'
+  },
+  {
+    title:'REPCOUNT — Expanding Spiral',
+    desc:'REPCOUNT gives the current iteration number (1..n) inside REPEAT',
+    code:'; REPCOUNT — Expanding Spiral\n; Each step forward uses REPCOUNT as the distance,\n; and REPCOUNT * 3 as the turn angle for a tightening spiral\nSETWIDTH 1\nREPEAT 60 [\n  SETCOLOR REPCOUNT * 4 200 - REPCOUNT * 3 80\n  FD REPCOUNT * 2\n  RT REPCOUNT * 3\n]'
+  },
+  {
+    title:'DOT — Sine Wave Scatter',
+    desc:'DOT plots filled points; SCRWIDTH/SCRHEIGHT scale the graph to the canvas',
+    code:'; DOT — Sine Wave Scatter\n; Filled dots sized by pen width, colored by x position\nSPEED 4\nMAKE :W SCRWIDTH / 2 - 10\nMAKE :H SCRHEIGHT / 2 - 10\nFOR :A 0 360 3 [\n  MAKE :X :A / 360 * :W * 2 - :W\n  MAKE :Y SIN :A * :H\n  SETCOLOR :A * 0.7 80 255 - :A * 0.7\n  SETWIDTH 5\n  DOT :X :Y\n]'
+  },
+];
+
+(function buildExamples(){
+  const overlay=document.getElementById('ex-overlay');
+  EXAMPLES.forEach(function(ex){
+    const item=document.createElement('div');
+    item.className='ex-item';
+    item.innerHTML='<div class="ex-title">'+escHtml(ex.title)+'</div><div class="ex-desc">'+escHtml(ex.desc)+'</div><pre>'+escHtml(ex.code)+'</pre>';
+    item.onclick=function(){
+      editor.setValue(ex.code);
+      document.getElementById('ex-overlay').classList.remove('open');
+      editor.focus();
+    };
+    overlay.appendChild(item);
+  });
+})();
+
+// ── Code editor (contenteditable) ────────────────────────────────────────────
+const editor = (function(){
+  const el = document.getElementById('editor');
+
+  // Render a plain-text source string into the editor as highlighted divs.
+  // One <div> per line — the browser's natural contenteditable line model.
+  function renderLines(src){
+    const lines = src.split('\n');
+    // Build fragment to avoid multiple reflows
+    const frag = document.createDocumentFragment();
+    for(const line of lines){
+      const div = document.createElement('div');
+      const ci  = line.indexOf(';');
+      if(line === ''){
+        // Empty line: use <br> so the div has height
+        div.innerHTML = '<br>';
+      } else if(ci === -1){
+        div.innerHTML = escHtml(line);
+      } else {
+        div.innerHTML = escHtml(line.slice(0, ci)) +
+                        '<span class="comment">' + escHtml(line.slice(ci)) + '</span>';
+      }
+      frag.appendChild(div);
+    }
+    el.innerHTML = '';
+    el.appendChild(frag);
+  }
+
+  // Read plain text from the editor — walk child divs, join with \n.
+  // Handles both <div> line model (Chrome/Edge) and <br> model (Safari/Firefox).
+  function getValue(){
+    const lines = [];
+    for(const node of el.childNodes){
+      if(node.nodeType === Node.TEXT_NODE){
+        lines.push(node.textContent);
+      } else if(node.nodeName === 'DIV' || node.nodeName === 'P'){
+        lines.push(node.textContent);
+      } else if(node.nodeName === 'BR'){
+        lines.push('');
+      }
+    }
+    // If editor has no children at all it's empty
+    if(lines.length === 0) return '';
+    // Trim trailing empty lines — browsers insert a guard <div><br></div> at the
+    // end of contenteditable which would otherwise bake a spurious trailing \n
+    // into every getValue() call, causing copy-paste to accumulate blank lines.
+    while(lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+    return lines.join('\n');
+  }
+
+  // Save & restore cursor position across innerHTML rewrites using character offset.
+  //
+  // Both functions operate div-by-div and add 1 per div boundary (the implicit
+  // newline between lines). This keeps them in sync.
+  //
+  // getCaretOffset: finds which div the caret is in, uses range.toString() within
+  //   that single div (reliable — no cross-div newline ambiguity), adds the length
+  //   of all preceding divs plus one newline per div.
+  //
+  // setCaretOffset: reverses the process — subtracts div lengths (+1 per newline)
+  //   until it finds the target div, then walks text nodes within that div.
+  //
+  // Bug that was here: getCaretOffset previously used a single range.toString()
+  // spanning the whole editor, which omits inter-div newlines. setCaretOffset
+  // subtracted those newlines, so the cursor landed N lines too early for a caret
+  // on line N (the "jumps to line above" symptom).
+  function getCaretOffset(){
+    const sel = window.getSelection();
+    if(!sel.rangeCount) return 0;
+    const r = sel.getRangeAt(0);
+    let offset = 0;
+    for(const div of el.childNodes){
+      if(div.contains(r.startContainer)){
+        // Caret is inside this div — measure chars within this div only
+        const inner = document.createRange();
+        inner.setStart(div, 0);
+        inner.setEnd(r.startContainer, r.startOffset);
+        offset += inner.toString().length;
+        return offset;
+      }
+      offset += div.textContent.length + 1; // +1 for the implicit newline
+    }
+    return offset;
+  }
+
+  function setCaretOffset(offset){
+    const sel = window.getSelection();
+    for(const div of el.childNodes){
+      const len = div.textContent.length;
+      if(offset <= len){
+        // Caret lands inside this div — walk its text nodes
+        const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT);
+        let node, remaining = offset;
+        while((node = walker.nextNode())){
+          if(remaining <= node.textContent.length){
+            const range = document.createRange();
+            range.setStart(node, remaining);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return;
+          }
+          remaining -= node.textContent.length;
+        }
+        // Empty div (<br>) or past all text nodes — place at end of div
+        const range = document.createRange();
+        range.selectNodeContents(div);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      offset -= len + 1; // +1 for the implicit newline
+    }
+    // Fallback: move to end of editor
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // Re-highlight after every edit, preserving caret position
+  function onInput(){
+    const offset = getCaretOffset();
+    const src    = getValue();
+    renderLines(src);
+    setCaretOffset(offset);
+  }
+
+  el.addEventListener('input', onInput);
+
+  // Trap Tab — insert 2 spaces at caret
+  // Note: document.execCommand('insertText') is deprecated per spec but retained
+  // for contenteditable editing in all current browsers. The modern alternative
+  // (DataTransfer + input events) requires significantly more code for no practical
+  // benefit here. Revisit if browser support degrades.
+  el.addEventListener('keydown', function(e){
+    if(e.key !== 'Tab') return;
+    e.preventDefault();
+    document.execCommand('insertText', false, '  ');
+  });
+
+  // Intercept paste — strip HTML, insert plain text only
+  el.addEventListener('paste', function(e){
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+
+  // Public API used by the rest of the app
+  return {
+    getValue,
+    setValue(src){ renderLines(src); },
+    focus(){ el.focus(); },
+  };
+})();
+
+// ── Splitter ──────────────────────────────────────────────────────────────────
+(function(){
+  const splitter  = document.getElementById('splitter');
+  const codeEl    = document.getElementById('code-wrap');
+  const conEl     = document.getElementById('console');
+  const wrap      = document.getElementById('split');
+  const codeLabel = document.getElementById('code-label');
+  const conLabel   = document.getElementById('console-label');
+  const btnConsole = document.getElementById('btn-console-toggle');
+
+  // Fixed chrome height inside #split (everything except the two resizable panes).
+  // Includes direct-panel height when it is visible (offsetHeight=0 when display:none).
+  function chromeH(){
+    const dp = document.getElementById('direct-panel');
+    return splitter.offsetHeight + codeLabel.offsetHeight + conLabel.offsetHeight + dp.offsetHeight;
+  }
+
+  // Max height code-wrap can reach (leaves 40px for console when visible).
+  function maxCodeH(){
+    return wrap.clientHeight - chromeH() - (consoleVisible ? 40 : 0);
+  }
+
+  function initHeights(){
+    const avail = wrap.clientHeight - chromeH();
+    if(avail <= 0) return;
+    codeEl.style.height = Math.floor(avail * 0.75) + 'px';
+    // console fills remainder via flex:1 — no height needed
+  }
+  requestAnimationFrame(initHeights);
+  window.addEventListener('resize', initHeights);
+
+  // ── drag ──
+  let startY = 0, startCodeH = 0;
+
+  function applyDrag(clientY){
+    const dy       = clientY - startY;
+    const newH     = Math.max(40, Math.min(maxCodeH(), startCodeH + dy));
+    codeEl.style.height = newH + 'px';
+    // console adjusts automatically via flex:1
+  }
+
+  function onMouseMove(e){ applyDragGuarded(e.clientY); }
+  function onMouseUp(){
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup',   onMouseUp);
+    document.body.style.cursor = '';
+  }
+  splitter.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    startY     = e.clientY;
+    startCodeH = codeEl.offsetHeight;
+    document.body.style.cursor = 'row-resize';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup',   onMouseUp);
+  });
+
+  function onTouchMove(e){ applyDragGuarded(e.touches[0].clientY); }
+  function onTouchEnd(){
+    window.removeEventListener('touchmove', onTouchMove);
+    window.removeEventListener('touchend',  onTouchEnd);
+  }
+  splitter.addEventListener('touchstart', function(e){
+    startY     = e.touches[0].clientY;
+    startCodeH = codeEl.offsetHeight;
+    window.addEventListener('touchmove', onTouchMove, {passive:true});
+    window.addEventListener('touchend',  onTouchEnd);
+  }, {passive:true});
+
+  // ── LOG button toggle ──
+  // Hides/shows console-label + #console completely (display:none).
+  // If the user drags the splitter while hidden, auto-show — dragging always
+  // implies intent to see the console.
+  let savedCodeH = 0;
+
+  showConsole = function(){
+    consoleVisible = true;
+    conLabel.style.display = '';
+    conEl.style.display    = '';
+    codeEl.style.height    = (savedCodeH || Math.floor((wrap.clientHeight - chromeH()) * 0.5)) + 'px';
+    btnConsole.classList.add('active');
+  };
+
+  function hideConsole(){
+    savedCodeH = codeEl.offsetHeight;
+    consoleVisible = false;
+    if(!directMode) conLabel.style.display = 'none';
+    conEl.style.display = 'none';
+    codeEl.style.height = Math.max(40, wrap.clientHeight - chromeH()) + 'px';
+    btnConsole.classList.remove('active');
+  }
+
+  btnConsole.addEventListener('click', function(){
+    if(consoleVisible) hideConsole(); else showConsole();
+  });
+
+  // Auto-show when splitter is dragged while console is hidden
+  function applyDragGuarded(clientY){
+    if(!consoleVisible){
+      showConsole();
+      // Re-anchor drag to current position so it doesn't jump
+      startY     = clientY;
+      startCodeH = codeEl.offsetHeight;
+    }
+    applyDrag(clientY);
+  }
+})();
+
+// ── beautify(src) ─────────────────────────────────────────────────────────────
+// Pure function — string → string, no globals read or written, no interpreter
+// functions called. A bug here can only produce oddly-formatted code; it cannot
+// corrupt turtle state, the trail, or the token pipeline.
+//
+// What it does:
+//   • Uppercase all keywords and variable names
+//   • Indent TO…END bodies by INDEN (2 spaces)
+//   • Indent expanded [ body ] by INDEN
+//   • Inline short blocks: if a block has ≤ INLINE_THRESHOLD non-bracket tokens
+//     AND contains no nested [ → keep it on one line: REPEAT 4 [ FD 100 RT 90 ]
+//     Blocks that exceed the threshold, or contain nested [, always expand.
+//   • Preserve trailing ; comments on their original lines
+//   • Re-inject comment-only lines at their original relative positions
+//   • Strip blank lines between plain statements; preserve one blank line after
+//     END or ] at the top level (procedure/block separators only)
+//
+// Four-pass architecture (each pass is O(n)):
+//   Pass 1  rawLines[]   split every source line into {code, comment, blank}
+//                        so the comment text survives the lexing step unchanged.
+//   Pass 2  stream[]     lex non-comment code into {tok, li} pairs.
+//                        tok is already uppercased here — all downstream
+//                        comparisons are direct string equality, no allocation.
+//                        li = rawLines index so Pass 3 can track line advances.
+//   Pass 3  outLines[]   walk stream, emit {toks[], sourceLi, depth} records.
+//                        ensureLine(li) flushes the accumulating line whenever
+//                        the source line index advances AND we are not inside an
+//                        inline block (inlineDepth === 0) — this is what preserves
+//                        the per-statement line structure without needing to know
+//                        which tokens are statement boundaries.
+//   Pass 4  final[]      render outLines to strings, interleave comment-only lines,
+//                        gate blank-line injection on END/] (see below).
+//
+// Key invariants:
+//   • depth >= 0 always (Math.max(0, depth-1) guards against unmatched ] or END)
+//   • inlineDepth counts nesting of inline-block collection loops; when > 0,
+//     ensureLine() does not flush, so all inline-block tokens land on one line
+//   • shouldInline() scans forward from '[' without mutating i — pure lookahead
+//   • inline-mode collection has its own bracket-depth counter (d2) separate from
+//     the outer depth, so nested inline blocks are counted correctly
+//
+const INLINE_THRESHOLD = 8; // blocks with ≤ this many non-bracket tokens stay inline
+
+function beautify(src) {
+  const TOK   = />=|<=|!=|[\[\]+\-*\/=><]|[^\s\[\]+\-*\/=><]+/g;
+  const INDEN = '  '; // 2-space indent unit
+
+  // ── Pass 1: split each source line into code and comment ──────────────────
+  // ';' starts a comment that extends to end of line (Logo convention).
+  // blank=true for lines that are entirely whitespace (used in Pass 4 to decide
+  // whether a gap between tokens should produce a blank output line).
+  const rawLines = src.split('\n').map(line => {
+    const semi = line.indexOf(';');
+    if(semi === -1) return { code: line, comment: '', blank: !line.trim() };
+    return { code: line.slice(0, semi), comment: line.slice(semi), blank: false };
+  });
+
+  // ── Pass 2: lex into a flat token stream tagged with source line index ─────
+  // Each entry: { tok: string (uppercased), li: rawLines index }
+  // Uppercasing here means every downstream comparison is a direct === check.
+  // Variables (:x) and string names ("x) are uppercased too — consistent with
+  // the interpreter's resolveToken which already expects uppercase keys in vars.
+  const stream = [];
+  rawLines.forEach(({ code }, li) => {
+    // Mirror the interpreter's negative-literal preprocessing: a '-' preceded by
+    // whitespace or '[' and directly followed by a digit becomes '~digits', a single
+    // token. Without this, '-100' in 'SETPOS 100 -100' would lex as '-' + '100'
+    // and beautify would output 'SETPOS 100 - 100' (spurious spaces around minus).
+    const processed = code.replace(/((?:^|[\s\[]))-(?=\d)/g, '$1~');
+    const toks = processed.match(TOK);
+    if(toks) toks.forEach(t => stream.push({ tok: t.toUpperCase(), li }));
+  });
+
+  // shouldInline(idx): pure lookahead from stream[idx] which must be '['.
+  // Returns true iff the block has no nested '[' AND ≤ INLINE_THRESHOLD
+  // non-bracket tokens. Both conditions must hold:
+  //   • nested [ → always expand, regardless of total token count
+  //   • too many tokens → always expand, even if no nesting
+  // Scanning stops at the matching ']' (depth back to 0).
+  function shouldInline(idx) {
+    let depth = 0, count = 0;
+    for(let i = idx; i < stream.length; i++) {
+      const t = stream[i].tok;
+      if(t === '[') { if(depth > 0) return false; depth++; } // second [ → stop, always expand
+      else if(t === ']') { depth--; if(depth === 0) return count <= INLINE_THRESHOLD; }
+      else count++;
+    }
+    return false; // unclosed block — valid code would not reach here
+  }
+
+  // ── Pass 3: emit output line records ──────────────────────────────────────
+  // outLines entries: { toks: string[], sourceLi: number, depth: number }
+  // depth is captured at flush time so each line renders at the right indent.
+  const outLines = [];
+  let depth = 0;
+  let cur = null;       // accumulator for the current output line: { toks[], sourceLi }
+  let inlineDepth = 0;  // incremented while collecting an inline block; > 0 suppresses ensureLine flush
+
+  // flushLine: commit cur (if non-empty) to outLines at current depth, then clear cur.
+  // Called before any operation that must start a fresh line (TO, END, expanded [, ]).
+  function flushLine() {
+    if(cur && cur.toks.length) { outLines.push({ toks: cur.toks, sourceLi: cur.sourceLi, depth }); }
+    cur = null;
+  }
+
+  // ensureLine(li): guarantee cur is open for token li.
+  // If cur is null, open a new one tagged with li.
+  // If li has advanced past cur.sourceLi and we are NOT inside an inline block,
+  // flush first — this is the mechanism that gives each source statement its own
+  // output line without the formatter needing to know which tokens are statements.
+  // Inside an inline block (inlineDepth > 0) the flush is suppressed so the
+  // entire block accumulates on one line despite spanning multiple source lines.
+  function ensureLine(li) {
+    if(!cur) { cur = { toks: [], sourceLi: li }; return; }
+    if(inlineDepth === 0 && li > cur.sourceLi && cur.toks.length) { flushLine(); cur = { toks: [], sourceLi: li }; }
+  }
+
+  let i = 0;
+  while(i < stream.length) {
+    const { tok, li } = stream[i];
+
+    // TO name :p1 :p2 … ────────────────────────────────────────────────────
+    // Always its own line regardless of what preceded it on the source line.
+    // After flushing the TO line, depth increases so the procedure body is
+    // indented. Parameters are tokens starting with ':' or '"'
+    if(tok === 'TO') {
+      flushLine();
+      cur = { toks: ['TO'], sourceLi: li };
+      i++;
+      if(i < stream.length && stream[i].tok !== '[') cur.toks.push(stream[i++].tok); // proc name
+      while(i < stream.length && (stream[i].tok.startsWith(':') || stream[i].tok.startsWith('"')))
+        cur.toks.push(stream[i++].tok); // collect :param tokens
+      flushLine();
+      depth++;
+      continue;
+    }
+
+    // END ───────────────────────────────────────────────────────────────────
+    // Flush any partial line (shouldn't normally have content but guards it),
+    // then dedent before emitting END so it aligns with its matching TO.
+    if(tok === 'END') {
+      flushLine();
+      depth = Math.max(0, depth - 1); // Math.max guards against unmatched END
+      cur = { toks: ['END'], sourceLi: li };
+      flushLine();
+      i++;
+      continue;
+    }
+
+    // '[' — inline or expand ────────────────────────────────────────────────
+    if(tok === '[') {
+      if(shouldInline(i)) {
+        // Inline path: bump inlineDepth to suppress ensureLine flushes, then
+        // consume tokens up to the matching ']' directly into cur.toks.
+        // d2 tracks bracket nesting within this inline block only.
+        ensureLine(li);
+        inlineDepth++;
+        let d2 = 0;
+        while(i < stream.length) {
+          const t2 = stream[i++].tok;
+          cur.toks.push(t2);
+          if(t2 === '[') d2++;
+          else if(t2 === ']') { d2--; if(d2 === 0) break; }
+        }
+        inlineDepth--;
+        // After collecting an inline block, flush if the very next token is
+        // neither '[' nor ']'. This handles the case where we are inside an
+        // expanded block and just consumed an inline sub-block — remaining tokens
+        // at this depth level (e.g. RT 90 after REPEAT 4 [ FD 10 RT 90 ]) must
+        // land on their own output line, not be appended to the inline block line.
+        // We do NOT flush before '[' because IFELSE cond [A] [B] needs both
+        // branches to stay on the same statement line.
+        // We do NOT flush before ']' because that closes the outer expanded block.
+        if(i < stream.length && stream[i].tok !== '[' && stream[i].tok !== ']') {
+          flushLine();
+        }
+      } else {
+        // Expanded path: '[' ends the current line (e.g. "REPEAT 4 ["),
+        // then depth increases so the block body is indented on subsequent lines.
+        ensureLine(li);
+        cur.toks.push('[');
+        flushLine();
+        depth++;
+        i++;
+      }
+      continue;
+    }
+
+    // ']' ────────────────────────────────────────────────────────────────────
+    // Only reached in expanded mode — inline mode consumes its own ']' above.
+    // Flush the last body line, dedent, emit ']\ on its own line, flush again.
+    if(tok === ']') {
+      flushLine();
+      depth = Math.max(0, depth - 1); // Math.max guards against unmatched ]
+      cur = { toks: [']'], sourceLi: li };
+      flushLine();
+      i++;
+      continue;
+    }
+
+    // Regular token ─────────────────────────────────────────────────────────
+    // ensureLine handles the line-advance flush; just push the token.
+    ensureLine(li);
+    cur.toks.push(tok);
+    i++;
+  }
+  flushLine(); // flush any remaining tokens after last source line
+
+  // ── Pass 4: render, attach comments, inject blank separators ──────────────
+  // Separate inline comments (trailing on a code line) from comment-only lines.
+  // inlineComments keyed by sourceLi so they can be appended to the matching
+  // output line. commentOnlyLines ordered by li for sequential injection.
+  const inlineComments   = {}; // sourceLi → comment string
+  const commentOnlyLines = []; // { li, comment } in source order
+  rawLines.forEach(({ code, comment }, li) => {
+    if(!comment) return;
+    if(code.trim()) inlineComments[li] = comment; // trailing comment on a code line
+    else            commentOnlyLines.push({ li, comment }); // pure comment line
+  });
+
+  // Render each outLine to a string, appending any trailing inline comment.
+  // Two spaces before the comment (Logo convention: "; comment" after code).
+  const withComments = outLines.map(ol => ({
+    // '~digits' tokens were produced by the negative-literal preprocessing step above;
+    // convert them back to '-digits' for output (e.g. ~100 → -100).
+    text:     INDEN.repeat(ol.depth) + ol.toks.map(t => t.startsWith('~') ? '-' + t.slice(1) : t).join(' ')
+              + (inlineComments[ol.sourceLi] ? '  ' + inlineComments[ol.sourceLi] : ''),
+    sourceLi: ol.sourceLi,
+    depth:    ol.depth,
+  }));
+
+  // Walk withComments in order, interleaving:
+  //   (a) comment-only lines that precede the current output line
+  //   (b) a single blank line when the gap condition holds (see below)
+  //   (c) the output line itself
+  const final = [];
+  let ci = 0;           // next commentOnlyLines entry to inject
+  let prevSourceLi = -1;
+
+  for(const ol of withComments) {
+    // (a) inject comment-only lines whose source position precedes this output line
+    while(ci < commentOnlyLines.length && commentOnlyLines[ci].li <= ol.sourceLi)
+      final.push(commentOnlyLines[ci++].comment);
+
+    // (b) blank-line gate: allow one blank line between output lines ONLY when:
+    //   • there is a source gap (sourceLi jumped by > 1, meaning blank/comment lines existed)
+    //   • we are at the top level (depth === 0) — blanks inside bodies are already
+    //     suppressed because Pass 3 never emits them into outLines
+    //   • the final[] array is non-empty (no leading blank at top of output)
+    //   • the previous non-blank final[] line ends with END or ] — blank lines
+    //     are structural separators between blocks, not padding between statements
+    //   • at least one of those gap lines was actually blank in the source (not just comments)
+    if(ol.sourceLi > prevSourceLi + 1 && ol.depth === 0 && final.length > 0) {
+      const prev = final[final.length - 1].trimEnd();
+      const lastTok = prev.split(/\s+/).pop(); // last token on the previous output line
+      if((lastTok === 'END' || lastTok === ']') && prev !== '') {
+        for(let li = prevSourceLi + 1; li < ol.sourceLi; li++) {
+          if(rawLines[li] && rawLines[li].blank) { final.push(''); break; }
+        }
+      }
+    }
+
+    final.push(ol.text);
+    prevSourceLi = ol.sourceLi;
+  }
+  // (a) continued: inject any comment-only lines that trail after all code
+  while(ci < commentOnlyLines.length) final.push(commentOnlyLines[ci++].comment);
+
+  // Strip trailing blank lines
+  while(final.length > 0 && final[final.length - 1].trim() === '') final.pop();
+  return final.join('\n');
+}
+// ── Copy code button ──────────────────────────────────────────────────────────
+document.getElementById('btn-copy-code').onclick = function(){
+  const code = editor.getValue();
+  const btn = document.getElementById('btn-copy-code');
+  function flashCopied(){ btn.textContent='✓'; btn.classList.add('copied'); setTimeout(()=>{ btn.textContent='⎘'; btn.classList.remove('copied'); },1200); }
+  navigator.clipboard.writeText(code).then(flashCopied).catch(() => {
+    // Fallback for browsers where clipboard API is unavailable (e.g. non-https)
+    const ta = document.createElement('textarea');
+    ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    flashCopied();
+  });
+};
+
+// ── Beautify button ───────────────────────────────────────────────────────────
+document.getElementById('btn-fmt-code').onclick = function(){
+  const prev = editor.getValue();
+  const fmted = beautify(prev);
+  if(fmted !== prev) editor.setValue(fmted);
+  const btn = document.getElementById('btn-fmt-code');
+  btn.classList.add('fmted');
+  setTimeout(() => btn.classList.remove('fmted'), 1200);
+};
+
+// ── Direct mode execution ─────────────────────────────────────────────────────
+async function runDirectCommand(rawText) {
+  const cmdText = rawText.trim();
+  if (!cmdText) return;
+
+  // Save to history (deduplicate consecutive identical commands)
+  if (directHistory[directHistory.length - 1] !== cmdText) {
+    directHistory.push(cmdText);
+  }
+  directHistoryIdx = -1;
+
+  // Re-parse editor procedures so the latest editor content is always available
+  try {
+    const editorToks = tokenize(editor.getValue());
+    const { newProcs: editorProcs } = extractProcedures(editorToks);
+    Object.entries(editorProcs).forEach(([name, proc]) => { procs[name] = proc; });
+  } catch(_) { /* ignore editor parse errors in direct mode */ }
+
+  // Parse the command itself
+  let topLevel, newProcs;
+  try {
+    const cmdToks = tokenize(cmdText);
+    ({ topLevel, newProcs } = extractProcedures(cmdToks));
+  } catch(e) {
+    log('✗ Parse error: ' + (e.message || String(e)), 'err');
+    return;
+  }
+
+  // Register any procedures defined in the command itself
+  Object.entries(newProcs).forEach(([name, proc]) => {
+    procs[name] = proc;
+    log('Defined: ' + name + (proc.params.length ? ' (' + proc.params.join(', ') + ')' : ''), 'info');
+  });
+
+  if (!topLevel.length) return; // Only procedure definitions typed, nothing to run
+
+  log('⌘ ' + cmdText, 'cmd');
+  const rctx = makeRunContext(parseInt(optSpeed.value), procs);
+  activeRctx = rctx;
+  setRunning(true);
+  try {
+    await run(topLevel, 0, globalVars, rctx);
+    if (!rctx.stopped) log('✓ Done!', 'ok');
+  } catch(e) {
+    isMoving = false;
+    if (e === STOP_SIGNAL) {
+      log('✓ Done (STOP).', 'ok');
+    } else {
+      const lineCtx = rctx.execLine.text
+        ? '\n  line ' + rctx.execLine.n + ':  ' + rctx.execLine.text : '';
+      log('✗ ' + (e.message || String(e)) + lineCtx, 'err');
+    }
+  }
+  activeRctx = null;
+  setRunning(false);
+  render();
+}
+
+// ── Button handlers ───────────────────────────────────────────────────────────
+document.getElementById('btn-run').onclick=async function(){
+  con.innerHTML=''; globalVars={};
+  if(document.getElementById('opt-clear-on-run').checked){
+    turtle=mkTurtle();trailLen=0;trailCapWarned=false;rebuildTrailCanvas();
+  }
+  Object.keys(procs).forEach(k=>delete procs[k]);
+  const {topLevel: tokens, newProcs} = extractProcedures(tokenize(editor.getValue()));
+  // Merge parsed procedures into global procs store, logging each definition
+  Object.entries(newProcs).forEach(([name, proc]) => {
+    procs[name] = proc;
+    log('Defined: ' + name + (proc.params.length ? ' (' + proc.params.join(', ') + ')' : ''), 'info');
+  });
+  log('▶ Running...','info');
+  setRunning(true);
+  const rctx = makeRunContext(parseInt(optSpeed.value), procs);
+  activeRctx = rctx;
+  try{await run(tokens,0,globalVars,rctx);if(!rctx.stopped)log('✓ Done!','ok');}
+  catch(e){
+    isMoving=false; // reset walk animation if error fired mid-move
+    if(e===STOP_SIGNAL) {
+      log('✓ Done (STOP).','ok');
+    } else {
+      const lineCtx = rctx.execLine.text ? '\n  line ' + rctx.execLine.n + ':  ' + rctx.execLine.text : '';
+      log('✗ ' + (e.message || String(e)) + lineCtx, 'err');
+    }
+  }
+  activeRctx = null;
+  setRunning(false);
+  render(); // ensure instant-mode result is visible (animated mode renders continuously)
+};
+document.getElementById('btn-stop').onclick=function(){if(activeRctx)activeRctx.stopped=true;isMoving=false;setRunning(false);render();log('■ Stopped.','err');};
+document.getElementById('btn-clear').onclick=function(){
+  if(activeRctx)activeRctx.stopped=true; setRunning(false); // halt any running program before resetting state
+  trailLen=0;trailCapWarned=false;labelStore=[];labelCapWarned=false;turtle=mkTurtle();rebuildTrailCanvas();
+  globalVars={};Object.keys(procs).forEach(k=>delete procs[k]);
+  con.innerHTML='';log('Screen cleared.','info');render();
+};
+
+// ── Direct mode UI handlers ───────────────────────────────────────────────────
+document.getElementById('btn-direct-toggle').onclick = function() {
+  directMode = !directMode;
+  this.classList.toggle('dm-active', directMode);
+  document.getElementById('direct-panel').classList.toggle('dm-open', directMode);
+  // Switch console label text to "▸ TERMINAL" in direct mode
+  document.getElementById('console-label').classList.toggle('dm-terminal', directMode);
+  // Console-label is shown when consoleVisible OR directMode (terminal header always needed)
+  document.getElementById('console-label').style.display =
+    (consoleVisible || directMode) ? '' : 'none';
+  // Recalculate code height when console is hidden (label may have just appeared/disappeared)
+  if (!consoleVisible) {
+    const wrap   = document.getElementById('split');
+    const codeEl = document.getElementById('code-wrap');
+    const chrH   = document.getElementById('splitter').offsetHeight
+                 + document.getElementById('code-label').offsetHeight
+                 + document.getElementById('console-label').offsetHeight
+                 + document.getElementById('direct-panel').offsetHeight;
+    codeEl.style.height = Math.max(40, wrap.clientHeight - chrH) + 'px';
+  }
+  if (directMode) document.getElementById('direct-input').focus();
+};
+
+document.getElementById('direct-input').addEventListener('keydown', async function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const val = this.value;
+    this.value = '';
+    directHistoryIdx = -1;
+    await runDirectCommand(val);
+    this.focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (directHistory.length === 0) return;
+    if (directHistoryIdx === -1) directHistoryIdx = directHistory.length - 1;
+    else if (directHistoryIdx > 0) directHistoryIdx--;
+    this.value = directHistory[directHistoryIdx];
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (directHistoryIdx === -1) return;
+    if (directHistoryIdx < directHistory.length - 1) {
+      directHistoryIdx++;
+      this.value = directHistory[directHistoryIdx];
+    } else {
+      directHistoryIdx = -1;
+      this.value = '';
+    }
+  }
+});
+
+document.getElementById('btn-direct-run').onclick = async function() {
+  const inp = document.getElementById('direct-input');
+  const val = inp.value;
+  inp.value = '';
+  await runDirectCommand(val);
+  inp.focus();
+};
+
+// ── Overlay management ────────────────────────────────────────────────────────
+// Only one overlay (COMMANDS / EXAMPLES / OPTIONS) can be open at a time.
+// openOverlay: toggles the target (so clicking its button again closes it),
+//              and removes 'open' from all others.
+// closeOverlay: removes 'open' unconditionally from the named overlay.
+const OVERLAYS = ['ref-overlay', 'ex-overlay', 'opt-overlay'];
+function openOverlay(id){
+  OVERLAYS.forEach(function(oid){
+    document.getElementById(oid).classList[oid===id?'toggle':'remove']('open');
+  });
+}
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+
+document.getElementById('btn-ref').onclick      = ()=>openOverlay('ref-overlay');
+document.getElementById('btn-ref-close').onclick = ()=>closeOverlay('ref-overlay');
+document.getElementById('btn-examples').onclick  = ()=>openOverlay('ex-overlay');
+document.getElementById('btn-ex-close').onclick  = ()=>closeOverlay('ex-overlay');
+
+// ── File save / load ───────────────────────────────────────────────────────────
+// Uses File System Access API (Chrome/Edge) with fallback to <a download> / <input type="file">.
+// Nothing is written to localStorage or the DOM implicitly — all writes require explicit user action.
+
+function defaultFileName(){
+  const src = editor.getValue();
+  for(const line of src.split('\n')){
+    const l = line.trim();
+    if(l && !l.startsWith(';'))
+      return l.slice(0, 30).replace(/[^\w\s\-]/g, '').trim().replace(/\s+/g, '-') || 'program';
+  }
+  return 'program';
+}
+
+async function saveToFile(){
+  const code = editor.getValue();
+  const blob = new Blob([code], { type: 'text/plain' });
+  const name = defaultFileName() + '.logo';
+  if(window.showSaveFilePicker){
+    try{
+      const fh = await window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{ description: 'Logo program', accept: {'text/plain': ['.logo', '.txt']} }]
+      });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+      log('Saved: ' + fh.name, 'ok');
+    } catch(e){
+      if(e.name !== 'AbortError') log('Save failed: ' + e.message, 'err');
+    }
+  } else {
+    // Fallback: trigger browser download
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+    log('Downloaded: ' + name, 'ok');
+  }
+}
+
+async function loadFromFile(){
+  if(window.showOpenFilePicker){
+    try{
+      const [fh] = await window.showOpenFilePicker({
+        types: [{ description: 'Logo program', accept: {'text/plain': ['.logo', '.txt']} }],
+        multiple: false
+      });
+      const file = await fh.getFile();
+      const text = await file.text();
+      editor.setValue(text);
+      editor.focus();
+      log('Loaded: ' + fh.name, 'ok');
+    } catch(e){
+      if(e.name !== 'AbortError') log('Load failed: ' + e.message, 'err');
+    }
+  } else {
+    // Fallback: hidden file input
+    const inp    = document.createElement('input');
+    inp.type     = 'file';
+    inp.accept   = '.logo,.txt,text/plain';
+    inp.onchange = async function(){
+      const file = inp.files[0];
+      if(!file) return;
+      const text = await file.text();
+      editor.setValue(text);
+      editor.focus();
+      log('Loaded: ' + file.name, 'ok');
+    };
+    inp.click();
+  }
+}
+
+document.getElementById('btn-save-file').onclick = saveToFile;
+document.getElementById('btn-load-file').onclick = loadFromFile;
+
+// ── Options ───────────────────────────────────────────────────────────────────
+(function(){
+  const btn    = document.getElementById('opt-btn');
+  const overlay= document.getElementById('opt-overlay');
+  const closeBtn=document.getElementById('btn-opt-close');
+
+  btn.onclick   = ()=>openOverlay('opt-overlay');
+  closeBtn.onclick = ()=>closeOverlay('opt-overlay');
+
+  // Save PNG button — composites current canvas state and triggers browser download
+  document.getElementById('save-btn').onclick = () => {
+    const a=document.createElement('a');
+    a.download='logo-drawing.png';
+    a.href=canvas.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+
+  // Font size pills
+  document.querySelectorAll('.opt-pill[data-fs]').forEach(function(pill){
+    pill.onclick = function(){
+      document.querySelectorAll('.opt-pill[data-fs]').forEach(p=>p.classList.remove('active'));
+      pill.classList.add('active');
+      document.documentElement.style.setProperty('--fs-base', pill.dataset.fs);
+    };
+  });
+
+  document.querySelectorAll('.opt-pill[data-canvas]').forEach(function(pill){
+    pill.onclick = function(){
+      document.querySelectorAll('.opt-pill[data-canvas]').forEach(p=>p.classList.remove('active'));
+      pill.classList.add('active');
+      canvasStyle = pill.dataset.canvas;
+      render();
+    };
+  });
+
+  document.querySelectorAll('.opt-pill[data-turtle]').forEach(function(pill){
+    pill.onclick = function(){
+      document.querySelectorAll('.opt-pill[data-turtle]').forEach(p=>p.classList.remove('active'));
+      pill.classList.add('active');
+      turtleStyle = pill.dataset.turtle;
+      render();
+    };
+  });
+})();
+
+// ── Canvas resize (debounced) ─────────────────────────────────────────────────
+// resizeCanvas is called at startup and on every window resize.
+// Guard: if the panel has not been laid out yet (clientWidth/clientHeight = 0),
+// skip and schedule a retry via requestAnimationFrame. This prevents the
+// "drawImage on a 0×0 canvas" InvalidStateError that fires when the script
+// runs before the browser has completed first layout.
+function resizeCanvas(){
+  const p=document.getElementById('canvas-panel');
+  const w=p.clientWidth, h=p.clientHeight;
+  if(w===0 || h===0){
+    // Panel not laid out yet — retry next paint
+    requestAnimationFrame(resizeCanvas);
+    return;
+  }
+  canvas.width=w; canvas.height=h;
+  buildGrains();
+  buildBgCache();
+  rebuildTrailCanvas();
+  render();
+}
+let _resizeTimer=null;
+window.addEventListener('resize',function(){
+  clearTimeout(_resizeTimer);
+  _resizeTimer=setTimeout(resizeCanvas,150);
+});
+window.addEventListener('keydown',function(e){
+  if(e.key==='Escape') OVERLAYS.forEach(id=>closeOverlay(id));
+});
+resizeCanvas();
+</script>
+</body>
+</html>
