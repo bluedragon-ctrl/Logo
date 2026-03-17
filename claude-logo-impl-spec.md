@@ -1,5 +1,5 @@
 # Claude Logo — Implementation Specification
-## Version 6.5 — March 2026
+## Version 7.2 — March 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
 
@@ -88,7 +88,8 @@ All code is in one HTML file. Sections in declaration order:
 |---|---|---|
 | `MAX_TRAIL_SEGS` | 50 000 | Cap on drawn segments. |
 | `MAX_CIRCLE_R` | 2 000 | Prevents runaway animated draws. |
-| `MAX_EXPR_DEPTH` | 64 | Expression-context recursion guard. |
+| `MAX_STACK_FRAMES` | 10 000 | Stack overflow guard in `runStack` — halts deep mutual recursion before JS crashes. |
+| `MAX_EXPR_DEPTH` | 64 | Expression-context recursion guard (kept for API compat; currently unused). |
 | `MAX_LOG_LINES` | 500 | Console line cap. |
 | `MAX_LABELS` | 500 | LABEL store cap. |
 | `INSTANT_FLUSH` | 150 | Move steps between paint yields in instant mode. |
@@ -176,28 +177,31 @@ primary ::= "-" expr                  (unary minus; depth-guarded to MAX_EXPR_DE
 - `tstate` (optional, defaults to global `turtle`) is threaded so `TOWARDS`/`DISTANCE` in sub-expressions see a consistent turtle snapshot.
 - `depth` (optional, defaults to 0) guards unary minus against impractically deep chains.
 
-### 2.5 Trampoline Executor (`run`)
+### 2.5 Trampoline Executor (`runStack`)
 
-`run(tokens, startIdx, vars, rctx) → async`
+`runStack(stack, rctx) → async`
 
-Maintains an explicit frame stack. No JS call frame is consumed per Logo procedure call — removes all recursion depth limits for statement-context execution.
+**Single shared implementation** for all Logo control-flow. Both `run()` (top-level entry) and `runExpr()` (expression-context entry) are thin wrappers that create an initial frame and call `runStack`. No JS call frame is consumed per Logo procedure call — removes all recursion depth limits for statement-context execution.
+
+A stack overflow guard at the top of the while loop throws `"Stack overflow: Logo recursion too deep (> MAX_STACK_FRAMES frames)"` if the stack exceeds `MAX_STACK_FRAMES` (10 000) frames.
 
 #### 2.5.1 Frame Shapes
 
 | Frame type | Fields and semantics |
 |---|---|
-| Exec frame | `{ tokens, idx, vars, procBoundary?, outputVal? }` — Normal sequential execution. `procBoundary=true` marks a procedure entry point; STOP unwinds to here; OUTPUT stores its return value in `outputVal` then also unwinds. |
-| Repeat frame | `{ isRepeat:true, body, vars, remaining }` — Pushes a fresh exec frame for body while `remaining > 0`, then pops self. |
+| Exec frame | `{ tokens, idx, vars, procBoundary?, outputVal?, stopFired? }` — Normal sequential execution. `procBoundary=true` marks a procedure entry point; STOP unwinds to here (sets `stopFired`); OUTPUT stores its return value in `outputVal` then also unwinds. |
+| Repeat frame | `{ isRepeat:true, body, vars, remaining, total }` — Pushes a fresh exec frame for body while `remaining > 0`, then pops self. `total` holds the original `n` so `REPCOUNTMAX` is available as `bodyVars['REPCOUNTMAX']`. |
 | While frame | `{ isWhile:true, cond, body, vars }` — `cond` is a `token[]` evaluated from index 0 each iteration via `evalExpr`. Pushes body exec frame while cond ≠ 0. |
-| For frame | `{ isFor:true, varName, end, step, body, vars, nextVal }` — `nextVal` holds the value for the next body execution. `frame.vars[varName]` is set before each body frame is pushed. FOR uses `Object.assign` (copy), not `Object.create`, so `MAKE` inside FOR body does not affect outer scope. |
+| For frame | `{ isFor:true, varName, end, step, eps, body, vars, nextVal }` — `nextVal` holds the value for the next body execution. `eps` is an epsilon tolerance (`Math.abs(step) * 1e-9`) applied to the active check to absorb IEEE-754 drift. `frame.vars[varName]` is set before each body frame is pushed. FOR uses `Object.assign` (copy), not `Object.create`, so `MAKE` inside FOR body does not affect outer scope. |
 
 #### 2.5.2 Flow Control
 
 | Command | Mechanism |
 |---|---|
-| `STOP` | Pops frames until a `procBoundary` frame is found, then pops that frame too. |
-| `OUTPUT` | Single-pass scan to find `procBoundary` frame; stores value in `outputVal`; unwinds like STOP. Throws if no `procBoundary` found. |
-| `BREAK` | In `run()`: pops frames until a loop frame (`isRepeat`/`isWhile`/`isFor`) is found, then pops it. Throws `"BREAK used outside a loop"` if a `procBoundary` is encountered first. |
+| `STOP` | Scans from the top of the stack to find the nearest `procBoundary` frame; sets `stopFired = true` on it; truncates stack to that frame; pops the boundary frame. `runExpr` detects `stopFired` and re-throws `STOP_SIGNAL` so it propagates out of expression-context calls. |
+| `OUTPUT` | Single-pass scan to find `procBoundary` frame; stores value in `outputVal`; truncates stack to that frame; pops it. `runExpr` reads `outputVal` to surface the return value to `evalExpr`. Throws if no `procBoundary` found. |
+| `BREAK` | Scans from top, pops frames until a loop frame (`isRepeat`/`isWhile`/`isFor`) is found, then pops it. Throws `"BREAK used outside a loop"` if a `procBoundary` is encountered first. |
+| `CONTINUE` | Scans from top to find the nearest loop frame; discards all exec frames above it; does NOT pop the loop frame — control returns to its top-of-loop handler on the next iteration. Throws `"CONTINUE used outside a loop"` if a `procBoundary` is encountered first. |
 | `IF` / `IFELSE` | Handled inline: evaluates condition, calls `extractBlock`, conditionally pushes exec frame. |
 | `REPEAT` / `WHILE` / `FOR` | Push a typed control frame. The control frame handler at the top of the main loop pushes body exec frames per iteration. |
 | User procedure (statement) | Evaluates parameter expressions in caller's scope; creates child scope via `Object.create(frame.vars)`; pushes `procBoundary` exec frame for procedure body. |
@@ -216,13 +220,13 @@ FOR loops use `Object.assign({}, parentVars)` — a flat copy. `MAKE` inside a F
 
 `runExpr(tokens, vars, depth, rctx) → async`
 
-Lightweight recursive executor used by `evalExpr` when a user procedure appears as an expression value (`FD DOUBLE 50`). Uses throw/catch for STOP, OUTPUT, and BREAK instead of stack unwinding, because expression-level call depth is bounded (~3–5 frames in practice). `MAX_EXPR_DEPTH=64` guards pathological cases.
+**Thin wrapper over `runStack`.** Creates a boundary exec frame (`{ procBoundary: true, tokens, idx: 0, vars }`) and calls `runStack([boundary], rctx)`. After `runStack` returns, `runExpr` inspects the boundary frame:
+- If `stopFired` is set, re-throws `STOP_SIGNAL` so it propagates to the caller.
+- If `outputVal` is set, stores it as the return value (surface via `evalExpr` catch).
 
-- `STOP_SIGNAL = { __stop__: true }` (frozen) — thrown by STOP; propagates up through `runExpr`.
-- `BREAK_SIGNAL = { __break__: true }` (frozen) — thrown by BREAK; caught by the nearest loop body's `try/catch` inside `runExpr`. If it escapes a procedure call site (crosses a `procBoundary`), it is converted to a plain `Error`.
-- `OUTPUT` throws `{ __output__: true, value }` — caught by `evalExpr` to extract the return value.
+All loop constructs (`REPEAT`, `FOR`, `WHILE`), BREAK, CONTINUE, STOP, and OUTPUT are handled identically in `runStack` — there is no duplicated logic.
 
-`runExpr` supports all loop constructs (`REPEAT`, `FOR`, `WHILE`) using native JS `for`/`while` loops internally. This duplicates the loop logic from `run()` by design — the alternative (calling `run()` from `runExpr()`) would mix the two control-flow models and complicate BREAK/STOP propagation. The duplication is small and explicitly commented in the source.
+`MAX_EXPR_DEPTH=64` limits how deeply `evalExpr` may recurse when calling `runExpr` for user procedures appearing as expression values (`FD DOUBLE 50`).
 
 ### 2.7 Token Resolution
 
@@ -233,21 +237,30 @@ Lightweight recursive executor used by `evalExpr` when a user procedure appears 
 | `:name` or `"name` | Variable lookup in the `vars` prototype chain. Throws if undefined or non-finite (NaN, Infinity). |
 | `XCOR` / `YCOR` | `tstate.x` / `tstate.y` (defaults to global `turtle`). |
 | `HEADING` | `((tstate.angle % 360) + 360) % 360` — normalised to [0, 360). |
+| `PENDOWN?` / `PD?` | `turtle.pen ? 1 : 0`. |
+| `PENUP?` / `PU?` | `turtle.pen ? 0 : 1`. |
+| `SCRWIDTH` | `canvas.width` — full canvas width in Logo pixel units. |
+| `SCRHEIGHT` | `canvas.height` — full canvas height in Logo pixel units. |
+| `REPCOUNT` | Reads `vars['REPCOUNT']`. Throws `"REPCOUNT used outside a REPEAT loop"` if absent. |
+| `REPCOUNTMAX` | Reads `vars['REPCOUNTMAX']`. Throws `"REPCOUNTMAX used outside a REPEAT loop"` if absent. Both are injected into the body scope by the repeat frame handler before each iteration. |
 | `~digits` | `-digits` — negative literal form produced by the tokeniser preprocessor. |
 | Bare number string | `parseFloat`. Throws on NaN (unknown token). |
 
 `tstate` defaults to the global turtle object. Pass a snapshot for pure evaluation.
 
+**Note:** The query tokens listed above (`XCOR`, `YCOR`, `HEADING`, `PENDOWN?`, `PU?`, `SCRWIDTH`, `SCRHEIGHT`, `REPCOUNT`, `REPCOUNTMAX`) are each handled by an explicit `if` branch inside `resolveToken`. A future `QUERY_TOKENS` map would centralise these, making new query tokens a one-line addition.
+
 ### 2.8 Control-Flow Sentinels
 
-Two frozen sentinel objects are used for non-local exits within `runExpr`:
+One frozen sentinel object is used for non-local exits from `runExpr`:
 
 | Sentinel | Object | Thrown by | Caught by |
 |---|---|---|---|
-| `STOP_SIGNAL` | `{ __stop__: true }` | `STOP` command handler | RUN button handler; proc-call sites in `evalExpr`/`runExpr` convert escaping signal to plain `Error` |
-| `BREAK_SIGNAL` | `{ __break__: true }` | `BREAK` command handler | Loop body `try/catch` in `runExpr`; proc-call sites convert escaping signal to `"BREAK used outside a loop"` error |
+| `STOP_SIGNAL` | `{ __stop__: true }` | `runExpr` (when it detects `boundary.stopFired` after `runStack` returns) | RUN button handler; `evalExpr` proc-call sites re-throw it upward |
 
-Both signals are `Object.freeze`'d to prevent accidental mutation.
+`BREAK` and `CONTINUE` are handled entirely within `runStack`'s stack-scan mechanism and never produce a thrown sentinel. `OUTPUT` delivers its value via `boundary.outputVal` on the boundary exec frame rather than by throwing.
+
+`STOP_SIGNAL` is `Object.freeze`'d to prevent accidental mutation.
 
 ### 2.9 Command Dispatch Table
 
@@ -501,7 +514,7 @@ Static HTML table of all commands grouped by category, including a `▸ COLORS` 
 
 #### 4.7.2 Examples
 
-Built dynamically from the `EXAMPLES` array (25 entries). Each entry shows title, description, and a `<pre>` code preview. Clicking loads the code into the editor and closes the overlay. `escHtml()` applied to all example content.
+Built dynamically from the `EXAMPLES` array (28 entries). Each entry shows title, description, and a `<pre>` code preview. Clicking loads the code into the editor and closes the overlay. `escHtml()` applied to all example content.
 
 #### 4.7.3 Options
 
@@ -603,7 +616,7 @@ Push a typed control frame with a unique boolean discriminator:
 stack.push({ isMyLoop: true, body, vars: frame.vars, /* state */ });
 ```
 
-Add a handler at the top of the `run()` while loop, before the exec-frame code:
+Add a handler at the top of the `runStack()` while loop, before the exec-frame code:
 
 ```js
 if (frame.isMyLoop) {
@@ -616,9 +629,9 @@ if (frame.isMyLoop) {
 }
 ```
 
-If the loop should be breakable with `BREAK`, handle `isMyLoop` in the BREAK scan loop alongside `isRepeat`/`isWhile`/`isFor`.
+If the loop should be breakable with `BREAK` or `CONTINUE`, handle `isMyLoop` in the respective stack-scan sections alongside `isRepeat`/`isWhile`/`isFor`.
 
-Also add the loop body handler in `runExpr()` — it duplicates the same logic using native JS loops. See the source comment block in `runExpr()` for the design rationale.
+Because `runStack` is the single shared trampoline, **no duplicate implementation in `runExpr` is needed** — the change applies to both top-level and expression-context execution automatically.
 
 ### 6.3 Adding a New Math Function
 

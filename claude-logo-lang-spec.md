@@ -1,5 +1,5 @@
 # Claude Logo — Language Specification
-## Version 6.5 — March 2026
+## Version 7.2 — March 2026
 
 Claude Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -68,6 +68,8 @@ FD :y + :x         ; forward 52
 | `HEADING` | Current heading in degrees, normalised to [0, 360). |
 | `TOWARDS x y` | Heading (degrees CW from north) from the turtle to point (x, y). |
 | `DISTANCE x y` | Euclidean distance from the turtle to point (x, y). |
+| `SCRWIDTH` | Canvas width in Logo units (origin at centre; same unit as `XCOR`). |
+| `SCRHEIGHT` | Canvas height in Logo units (origin at centre; same unit as `YCOR`). |
 
 ### 2.2 Drawing
 
@@ -84,6 +86,7 @@ FD :y + :x         ; forward 52
 | `CLEARSCREEN` / `CS` | Clear the canvas, reset the turtle to the origin and heading 0, and clear the trail and all labels. |
 | `HIDETURTLE` / `HT` | Hide the turtle sprite. |
 | `SHOWTURTLE` / `ST` | Show the turtle sprite. |
+| `DOT` | Place a single dot at the turtle's current position in the current pen colour and width. Does not animate; does not move the turtle. |
 
 ### 2.3 Control Flow
 
@@ -98,8 +101,10 @@ FD :y + :x         ; forward 52
 | `STOP` | Exit the current procedure immediately. Has no effect at top level. |
 | `OUTPUT val` / `OP val` | Return `val` from the current procedure. Must be inside a procedure. |
 | `BREAK` | Exit the innermost enclosing loop (`REPEAT`, `FOR`, or `WHILE`) immediately. Cannot cross a procedure boundary — using `BREAK` outside any loop throws an error. |
+| `CONTINUE` | Skip the rest of the current loop body and jump to the next iteration of the innermost enclosing loop (`REPEAT`, `FOR`, or `WHILE`). Cannot cross a procedure boundary — using `CONTINUE` outside any loop throws an error. |
 | `WAIT n` | Pause execution for n seconds. n must be ≥ 0; capped at 30 s. |
 | `REPCOUNT` | Current iteration index (1-based) of the innermost `REPEAT` loop. Throws if used outside a `REPEAT`. |
+| `REPCOUNTMAX` | Total iteration count of the current `REPEAT` loop (the value of n passed to `REPEAT`). Useful to scale `REPCOUNT` to a fraction: `:REPCOUNT / :REPCOUNTMAX`. Throws if used outside a `REPEAT`. |
 | `SPEED n` | Set the animation speed from within a program (n = 1–4). 1 = slow animated, 4 = instant. Matches the OPTIONS speed slider. Values outside 1–4 are clamped with a warning. |
 
 ### 2.4 Procedures
@@ -272,7 +277,7 @@ These are documented design decisions, not bugs.
 | **Unary functions take one token** | `SQRT :a + :b` computes `(SQRT :a) + :b`, not `SQRT (:a + :b)`. Assign the inner expression to a variable first. |
 | **Right-recursive binary chain** | `a - b + c` evaluates as `a - (b + c)`. |
 | **FOR vs REPEAT/WHILE scoping** | `MAKE` inside a `FOR` body does not affect outer variables. `MAKE` inside `REPEAT`/`WHILE` does. |
-| **`REPCOUNT` in nested loops** | `REPCOUNT` returns the index of the **innermost** `REPEAT` only. There is no way to access outer loop counts from a nested `REPEAT`. Use `FOR` with a named variable if you need the outer index. |
+| **`REPCOUNT` / `REPCOUNTMAX` in nested loops** | Both return values for the **innermost** `REPEAT` only. There is no way to access outer loop counts from a nested `REPEAT`. Use `FOR` with a named variable if you need the outer index. |
 | **`LOCAL :var` not implemented** | There is no way to declare a local variable except as a procedure parameter. |
 | **`FILL` / `SAVE` / `LOAD` not implemented** | These UCBLogo commands are not available. |
 
@@ -299,6 +304,7 @@ The source line shown is the most recently executed line, which is where the pro
 | `RANDOM n` with n ≤ 0 | Error |
 | `OUTPUT` outside a procedure | Error |
 | `BREAK` outside a loop | `BREAK used outside a loop` |
+| `CONTINUE` outside a loop | `CONTINUE used outside a loop` |
 | `FOR` step = 0 | Error (prevents infinite loop) |
 | Missing `]` | `Expected ] — block was never closed` |
 | `WAIT n < 0` | Error |
@@ -315,7 +321,7 @@ The source line shown is the most recently executed line, which is where the pro
 
 ## 9. Examples
 
-25 built-in examples are available from the EXAMPLES panel. They cover the full range of language features.
+28 built-in examples are available from the EXAMPLES panel. They cover the full range of language features.
 
 | Title | Features demonstrated |
 |---|---|
@@ -342,6 +348,8 @@ The source line shown is the most recently executed line, which is where the pro
 | WHILE — Unwinding Spiral | `WHILE`, `SETCOLOR` with expressions |
 | FOR — Starburst | `FOR` with explicit step 15 |
 | FOR — Colour Spectrum | `FOR`, `SETPOS`, `SETWIDTH`, `HT` |
-| Colour Wheel | Named colours, `LABEL`, `SETHEADING`, six spokes |
+| Named Colours — Colour Wheel | Named colours, `LABEL`, `SETHEADING`, six spokes |
 | Deep Recursion — Dragon Curve | Recursive procedures, `SQRT` in expressions, 12 levels deep |
-| REPCOUNT — Expanding Spiral | `REPCOUNT` as distance and turn angle inside `REPEAT` |
+| SPEED — Slow to Fast | `SPEED` command changing animation rate mid-run |
+| REPCOUNT — Expanding Spiral | `REPCOUNT`, `REPCOUNTMAX` inside `REPEAT` |
+| DOT — Sine Wave Scatter | `DOT`, `SCRWIDTH`, `SCRHEIGHT`, point-plotting without motion |

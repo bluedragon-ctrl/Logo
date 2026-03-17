@@ -91,42 +91,46 @@ rebuildTrailCanvas()                                   → void
 
 ---
 
-## Section map (v3.2, approximate line numbers)
+## Section map (v7.2, accurate line numbers)
 
-Grep for the `// ──` marker to jump precisely. Line numbers shift slightly between versions.
+Grep for the `// ──` marker to jump precisely.
 
 | Line | Section marker | Contents |
 |------|---------------|----------|
-| 743 | `// ── Utilities` | `escHtml` |
-| 751 | `// ── Canvas setup` | `canvas`, `ctx`, dimensions |
-| 768 | `// ── Sprite colour palette` | palette constants |
-| 780 | `// ── Sprite drawing helpers` | `drawShell`, `drawLeg`, `drawHead`, `drawBelly`, `buildSprite` |
-| 893 | `// ── Background: sand texture` | `buildGrains`, `buildBgCache`, `drawBackground` |
-| 921 | `// ── Trail storage` | typed arrays, `trailPush`, `trailPushIfRoom`, `rebuildTrailCanvas` |
-| 1033 | `// ── Render pipeline` | `toCanvas`, `paintSegment`, `spriteCenter`, `render` |
-| 1057 | `// ── Turtle state` | `mkTurtle`, `turtle` global |
-| 1071 | `// ── Run context` | `makeRunContext`, `activeRctx` |
-| 1095 | `// ── Run-state indicator` | `btnRun`, `setRunning` |
-| 1121 | `// ── Console / log` | `log`, `MAX_LOG_LINES` |
-| 1200 | `// ── Token resolution` | `resolveToken`, `UNARY`, `UNARY_FNS`, `BINARY2` |
-| 1228 | `// ── Expression evaluator` | `evalExpr` |
-| 1360 | `// ── Tokeniser` | `tokenize`, `LINE_SEN` |
-| 1392 | `// ── Block extractor` | `extractBlock` |
-| 1412 | `// ── Procedure store` | `extractProcedures`, `procs`, `globalVars` |
-| 1451 | `// ── Control-flow sentinels` | `STOP_SIGNAL` |
-| 1463 | `// ── Command dispatch table` | `CMD` object + all leaf command handlers |
-| 1587 | `// ── runExpr` | `runExpr` |
-| 1640 | `// ── run(…): trampoline executor` | `run` |
-| 1846 | *(after `run`)* | `move`, `rotate`, `circle`, `MAX_CIRCLE_R` |
-| 1926 | `// ── Examples` | `EXAMPLES` array |
-| 2065 | `// ── Code editor` | `editor` IIFE, `renderLines`, `getValue`, `beautify` button wiring |
-| 2233 | `// ── Splitter` | drag-resize panel splitter |
-| 2341 | `// ── beautify(src)` | `beautify` pure function |
-| 2606 | `// ── Copy code button` | copy handler |
-| 2632 | `// ── Button handlers` | `btn-run`, `btn-stop`, `btn-clear` onclick |
-| 2670 | `// ── Overlay management` | `openOverlay`, `closeOverlay` |
-| 2689 | `// ── Options` | font-size options, speed-slider wiring |
-| 2708 | `// ── Canvas resize` | `resizeCanvas`, debounce |
+| 618 | `// ── Utilities` | `escHtml` |
+| 626 | `// ── Canvas setup` | `canvas`, `ctx`, dimensions |
+| 643 | `// ── Sprite colour palette` | palette constants |
+| 655 | `// ── Sprite drawing helpers` | `drawShell`, `drawLeg`, `drawHead`, `drawBelly`, `buildSprite` |
+| 768 | `// ── Background: sand texture` | `buildGrains`, `buildBgCache`, `drawBackground` |
+| 807 | `// ── Trail storage` | typed arrays, `trailPush`, `trailPushIfRoom`, `rebuildTrailCanvas` |
+| 835 | `// ── Label store` | `labelStore`, `paintLabel`, `MAX_LABELS` |
+| 958 | `// ── Render pipeline` | `toCanvas`, `paintSegment`, `spriteCenter`, `render` |
+| 1004 | `// ── Turtle state` | `mkTurtle`, `turtle` global |
+| 1018 | `// ── Run context` | `makeRunContext`, `activeRctx` |
+| 1048 | `// ── Run-state indicator` | `btnRun`, `setRunning` |
+| 1073 | `// ── Console / log` | `log`, `MAX_LOG_LINES` |
+| 1158 | `// ── Token resolution` | `resolveToken`, `UNARY`, `UNARY_FNS`, `BINARY2` |
+| 1211 | `// ── Expression evaluator` | `evalExpr` |
+| 1364 | `// ── Tokeniser` | `tokenize`, `LINE_SEN` |
+| 1402 | `// ── Block extractor` | `extractBlock` |
+| 1422 | `// ── Procedure store` | `extractProcedures`, `procs`, `globalVars` |
+| 1461 | `// ── Control-flow sentinels` | `STOP_SIGNAL` |
+| 1482 | `// ── Command dispatch table` | `CMD` object + all leaf command handlers |
+| 1709 | `// ── runExpr` | `runExpr` — thin wrapper over `runStack` |
+| 1730 | `// ── runStack` | `runStack` — single shared trampoline, all control-flow |
+| 1972 | `// ── run(…)` | `run` — top-level entry point (thin wrapper) |
+| 1993 | *(after `run`)* | `move`, `rotate`, `circle` |
+| 2083 | `// ── Examples` | `EXAMPLES` array |
+| 2242 | `// ── Code editor` | `editor` IIFE, `renderLines`, `getValue` |
+| 2412 | `// ── Splitter` | drag-resize panel splitter |
+| 2519 | `// ── beautify(src)` | `beautify` pure function |
+| 2791 | `// ── Copy code button` | copy handler |
+| 2807 | `// ── Beautify button` | beautify button wiring |
+| 2875 | `// ── Button handlers` | `btn-run`, `btn-stop`, `btn-clear` onclick |
+| 2973 | `// ── Overlay management` | `openOverlay`, `closeOverlay` |
+| 2991 | `// ── File save / load` | `saveToFile`, `loadFromFile` |
+| 3069 | `// ── Options` | font-size options, speed-slider wiring |
+| 3120 | `// ── Canvas resize` | `resizeCanvas`, debounce |
 
 ---
 
@@ -134,15 +138,15 @@ Grep for the `// ──` marker to jump precisely. Line numbers shift slightly b
 
 | Task | Read these sections |
 |------|-------------------|
-| Add a new CMD command | `// ── Command dispatch table` (L1463) — read one nearby handler as pattern |
-| Add a math function | `// ── Token resolution` (L1200) — `UNARY` set + `UNARY_FNS` map |
-| Add a loop construct | `// ── run(…): trampoline executor` (L1640) — `isRepeat`/`isFor` pattern |
-| Change animation behaviour | `move` / `rotate` / `circle` (L1846) |
-| Change error reporting | `// ── Expression evaluator` (L1228) + `// ── Button handlers` (L2632) — `rctx.execLine` |
-| Change STOP / CLR behaviour | `// ── Button handlers` (L2632) + `// ── Run context` (L1071) |
-| Change trail rendering | `// ── Trail storage` (L921) + `// ── Render pipeline` (L1033) |
-| Change editor / syntax highlight | `// ── Code editor` (L2065) |
-| Change beautify formatting | `// ── beautify(src)` (L2341) — pure function, safe to edit in isolation |
+| Add a new CMD command | `// ── Command dispatch table` (L1482) — read one nearby handler as pattern |
+| Add a math function | `// ── Token resolution` (L1158) — `UNARY` set + `UNARY_FNS` map |
+| Add a loop construct | `// ── runStack` (L1730) — `isRepeat`/`isFor` pattern; one place only |
+| Change animation behaviour | `move` / `rotate` / `circle` (L1993) |
+| Change error reporting | `// ── Expression evaluator` (L1211) + `// ── Button handlers` (L2875) — `rctx.execLine` |
+| Change STOP / CLR behaviour | `// ── Button handlers` (L2875) + `// ── Run context` (L1018) |
+| Change trail rendering | `// ── Trail storage` (L807) + `// ── Render pipeline` (L958) |
+| Change editor / syntax highlight | `// ── Code editor` (L2242) |
+| Change beautify formatting | `// ── beautify(src)` (L2519) — pure function, safe to edit in isolation |
 
 ---
 
@@ -150,14 +154,16 @@ Grep for the `// ──` marker to jump precisely. Line numbers shift slightly b
 
 | Constant | Value | Location | Purpose |
 |---|---|---|---|
-| `MAX_TRAIL_SEGS` | 50 000 | trail storage section | Cap on drawn segments |
-| `MAX_CIRCLE_R` | 2 000 | `circle()` | Prevents runaway animation |
-| `MAX_EXPR_DEPTH` | 64 | `runExpr()` | Expression-context recursion guard |
-| `MAX_LOG_LINES` | 500 | `log()` | Console line cap |
-| `INSTANT_FLUSH` | 150 | `move()` | Steps between paint yields in speed=4 (instant) mode |
-| `INLINE_THRESHOLD` | 8 | `beautify()` | Max tokens for inline `[ block ]` |
-| `SPRITE_SIZE` | 64 px | canvas setup | Turtle sprite canvas dimensions |
-| `SPRITE_OFFSET` | 18.8 px | canvas setup | Nose-to-centre distance for sprite placement |
+| `MAX_TRAIL_SEGS` | 50 000 | trail storage section (L807) | Cap on drawn segments |
+| `MAX_CIRCLE_R` | 2 000 | `circle()` (L2071) | Prevents runaway animation |
+| `MAX_STACK_FRAMES` | 10 000 | `runStack()` (L1476) | Stack overflow guard — halts deep mutual recursion |
+| `MAX_EXPR_DEPTH` | 64 | control-flow sentinels section (L1477) | Expression-context recursion guard |
+| `MAX_LOG_LINES` | 500 | `log()` (L1073) | Console line cap |
+| `MAX_LABELS` | 500 | label store section (L835) | LABEL store cap |
+| `INSTANT_FLUSH` | 150 | `move()` (L1993) | Steps between paint yields in speed=4 (instant) mode |
+| `INLINE_THRESHOLD` | 8 | `beautify()` (L2519) | Max tokens for inline `[ block ]` |
+| `SPRITE_SIZE` | 64 px | canvas setup (L626) | Turtle sprite canvas dimensions |
+| `SPRITE_OFFSET` | 18.8 px | canvas setup (L626) | Nose-to-centre distance for sprite placement |
 
 ---
 
@@ -211,7 +217,7 @@ Severity markers in the spec review use 🔴 (bug) / 🟡 (design) / 🟢 (polis
 3. Throw a descriptive error on domain violations. Mirror the existing pattern: `throw new Error('MYFN argument must be > 0, got ' + a)`.
 
 ### Adding a loop construct
-Push a typed frame with a unique boolean discriminator. Handle it at the top of the `run()` while loop before the exec-frame block. See `claude-logo-impl-spec.md` Section 2.5 and the `isRepeat` / `isWhile` / `isFor` / `isFor` pattern in the source. Also add the loop body handler in `runExpr()` — see Section 2.6 for rationale.
+Push a typed frame with a unique boolean discriminator. Handle it at the top of the `runStack()` while loop before the exec-frame block. See `claude-logo-impl-spec.md` Section 2.5 and the `isRepeat` / `isWhile` / `isFor` pattern in the source. **No duplicate implementation in `runExpr` is needed** — `runExpr` delegates to `runStack`, so the new construct automatically works in both top-level and expression contexts.
 
 ### Modifying the beautify function
 `beautify(src)` is a **pure function** — no globals read or written, no interpreter functions called. A bug here can only produce oddly formatted output; it cannot corrupt turtle or interpreter state. Test by verifying idempotency: `beautify(beautify(src)) === beautify(src)`.
