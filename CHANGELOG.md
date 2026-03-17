@@ -4,6 +4,19 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v6.9  2026-03-17
+**STABILISATION — code-review items 1–12**
+- * BUG: CS (CLEARSCREEN) did not clear `labelStore`. LABEL text survived a CS and was replayed by `rebuildTrailCanvas()` onto the freshly cleared canvas. Fix: CS now clears `labelStore` and resets `labelCapWarned`, matching the documented behaviour (trail + labels + dots cleared; variables/procs/console preserved). Distinct from CLR which resets everything.
+- * BUG: `resizeCanvas()` (v6.8) reset `turtle.x/y/angle` unconditionally, corrupting turtle position during active animations when the window was resized mid-run. Fix: position reset is now guarded by `if(!activeRctx)`.
+- * BUG: Infix `MOD` (e.g. `10 MOD 0`) produced silent `NaN` — JavaScript `x % 0 === NaN` — which propagated undetected through downstream arithmetic. The prefix form `MOD 10 0` already threw correctly. Fix: added zero-divisor check to the binary operator chain, consistent with the `/` guard on the line above.
+- * BUG: FOR loops with fractional steps accumulated IEEE-754 rounding error. `FOR :i 0 1 0.1` could fire one iteration too many or too few near the end value. Fix: epsilon tolerance (`Math.abs(step) * 1e-9`) stored in the loop frame and applied to the active check in both `run()` (trampoline) and `runExpr()` (recursive path).
+- * BUG: SETCOLOR out-of-range warning had a false negative for small negative inputs. `SETCOLOR -0.4 0 0` rounded to 0, so the comparison `clamped !== Math.round(original)` evaluated `0 !== 0 = false` and no warning fired. Fix: compare against the raw input value.
+- ~ CHANGE: `extractBlock` unclosed-bracket error now says "a [ was opened but never closed (check loop bodies and IF branches)" instead of the terse "Missing ]".
+- ~ CHANGE: `btn-run` onclick now has an explicit `if(activeRctx) return;` guard. Belt-and-suspenders: button is already `disabled` by `setRunning`, but the intent is now explicit.
+- ~ CHANGE: CLAUDE.md updated — CS vs CLR reset-scope table; SPEED command note (mid-run `SPEED n` writes `rctx.speed` directly); `resolveToken` registry pattern documented as future work; no-string-type added to Known Limitations; current version corrected.
+
+---
+
 ## v6.8  2026-03-16
 **BUG FIXES — DOT scatter example, turtle recenter on resize**
 - * BUG: "DOT — Sine Wave Scatter" example produced wrong output. Root cause: multi-operator MAKE expressions like `SCRWIDTH / 2 - 10` evaluate right-recursively as `SCRWIDTH / (2 - 10)` due to the known right-recursive binary chain. Fix: rewrote the example using one binary operator per MAKE statement, avoiding the right-recursion trap. Added a comment explaining the pattern.

@@ -18,7 +18,7 @@ Specification is split into two files:
 | `CHANGELOG.md` | Full version history. Add an entry here for every version bump. |
 | `CLAUDE.md` | This file. Read by Claude Code at session start. |
 
-Current version: **v6.5** (`claude-logo-v6.5.html`)
+Current version: **v6.9** (`claude-logo-v6.9.html`)
 
 ---
 
@@ -44,14 +44,14 @@ editor.getValue()
 |---|---|---|
 | `stopped` | `boolean` | Set to `true` by STOP/CLR buttons to halt the running program |
 | `execLine` | `{n, text}` | Tracks current source line for error messages |
-| `speed` | `number` (0–4) | Snapshot of the SPEED slider at run start. 0=slowest animated, 4=instant (no rAF) |
+| `speed` | `number` (1–4) | Snapshot of the SPEED slider at run start. The `SPEED n` command can update this mid-run (writes to both `rctx.speed` and the slider). Moving the slider manually mid-run has no effect. |
 | `procs` | `object` | Reference to the global `procs` store (populated before `run()` is called) |
 | `instantStepCount` | `number` | Counter for speed=4 (instant) periodic flush (reset to 0 when `INSTANT_FLUSH` reached in `move()`) |
 
 **Invariants to preserve:**
 - Every function in the interpreter chain (`run`, `runExpr`, `evalExpr`, all CMD handlers, `move`, `rotate`, `circle`) receives `rctx` as a parameter and uses it — never reads `stopped`, `execLine`, or `optSpeed.value` directly.
 - `activeRctx` (module-level) points to the live context while a program runs; STOP and CLR buttons write `activeRctx.stopped = true` to signal the halt. It is set to `null` after each run.
-- `rctx.speed` is fixed at run start — moving the slider mid-run has no effect on the current execution (by design).
+- `rctx.speed` starts from the slider at run time. Moving the slider manually mid-run has no effect, but the Logo `SPEED n` command updates `rctx.speed` immediately for the rest of the run.
 
 ---
 
@@ -254,16 +254,33 @@ No automated test suite. Ask if verification is need. If yes follow verification
 
 ---
 
+## CS vs CLR — reset scope reference
+
+| Reset scope | `CS` / `CLEARSCREEN` | `CLR` button |
+|---|---|---|
+| Trail segments | ✓ | ✓ |
+| Labels (`LABEL`) | ✓ | ✓ |
+| Turtle pose / pen / color / width | ✓ (`mkTurtle`) | ✓ (`mkTurtle`) |
+| Variables (`globalVars`) | ✗ | ✓ |
+| Procedures (`procs`) | ✗ | ✓ |
+| Console log | ✗ | ✓ |
+
+`resizeCanvas()` only resets turtle **position and heading** (not pen/color/width), and only when no run is active (`activeRctx === null`).
+
+---
+
 ## Known limitations (do not fix without reading the spec)
 
 These are documented design decisions, not bugs. See `claude-logo-lang-spec.md` Section 7 for full detail.
 
-- **No operator precedence.** `2 + 3 * 4` = 20. This is standard UCBLogo behaviour.
+- **No operator precedence.** `2 + 3 * 4` evaluates left-to-right as `(2+3)*4 = 20`. This is standard UCBLogo behaviour.
 - **Negative number literals.** Write `-100` with no space between `-` and the digits: `FD -100`, `SETPOS 0 -100`. Binary subtraction with spaces (`A - B`) still works. `FD 100 -10` (space before minus, digit directly after) now produces an error — it previously silently gave `FD 90`.
 - **FOR vs REPEAT/WHILE scoping.** `MAKE` inside `FOR` body does not affect outer scope; inside `REPEAT`/`WHILE` it does.
 - **Right-recursive binary chain.** `a - b + c` = `a - (b + c)`.
 - **`document.execCommand`** used in Tab/paste handlers and clipboard fallback. Deprecated per spec; functional in all current browsers.
-- **`REPCOUNT`**, **`LOCAL`**, **`LABEL`**, **`FILL`**, **`SAVE`/`LOAD`** not implemented.
+- **`REPCOUNT`**, **`LOCAL`**, **`FILL`**, **`SAVE`/`LOAD`** not implemented.
+- **No list or string type.** All values are `number`. `"word` syntax exists in the tokeniser but no command accepts or produces strings beyond `LABEL`/`PRINT`. Adding collection types would require changes to `evalExpr`, all type-checking code, and the trail pipeline.
+- **`resolveToken` special-case list.** Query tokens (`XCOR`, `YCOR`, `HEADING`, `PENDOWN?`, `PU?`, `SCRWIDTH`, `SCRHEIGHT`, `REPCOUNT`) are each handled by an explicit `if` branch inside `resolveToken`. The `DOT` command duplicates the "is this a value?" heuristic. A future `QUERY_TOKENS` map would centralise these, making new query tokens a one-line addition.
 
 ---
 
