@@ -4,6 +4,29 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v7.2  2026-03-17
+**REFERENCE PANEL — ▸ LOOPS section split from ▸ CONTROL**
+- ~ CHANGE: The ▸ CONTROL reference section split into ▸ LOOPS (REPEAT / REPCOUNT / REPCOUNTMAX / WHILE / FOR / BREAK / CONTINUE) and ▸ CONTROL (IF / IFELSE / STOP / OUTPUT / TO / WAIT / SPEED / comment). Loops were half the entries; grouping them makes the panel easier to scan.
+
+## v7.1  2026-03-17
+**CODE REVIEW FIXES — runStack hardening + CONTINUE + REPCOUNTMAX**
+- * BUG: `depth` guard in `runExpr` was dead code — `evalExpr` always passed `depth=0` so the check `depth > MAX_EXPR_DEPTH` never fired. Deep mutual recursion (`TO BOOM OUTPUT BOOM END / FD BOOM`) would silently consume JS async frames until a crash. Fix: added `MAX_STACK_FRAMES = 10000` guard at the top of `runStack`'s while loop; any Logo recursion deeper than 10 000 frames throws a clean `Stack overflow` error.
+- ~ CHANGE: STOP, OUTPUT, and BREAK in `runStack` replaced double-pass scan (find-then-unwind) with a single index scan + `stack.length = k` truncation. Each of the three handlers is now one scan + one assignment; no repeated `stack.pop()` calls.
+- + ADDITION: `CONTINUE` command — skips to the next iteration of the innermost loop (REPEAT / FOR / WHILE). Mirrors BREAK's scan logic but keeps the loop frame (`stack.length = k + 1`). CONTINUE respects procedure boundaries: it cannot escape a proc.
+- + ADDITION: `REPCOUNTMAX` — the total iteration count of the current REPEAT, available inside the body alongside `REPCOUNT`. Stored as `total` on the isRepeat frame at setup; injected into `bodyVars` each iteration. Exposed via `resolveToken` with the same out-of-loop guard as REPCOUNT.
+- ~ CHANGE: Comment "User procedure call (statement context)" corrected to remove "statement context" — `runStack` handles proc calls from any context (top-level and expression-context via `runExpr`).
+- ~ CHANGE: Stale comment "same fix as runExpr FOR" removed from FOR eps line — there is only one FOR implementation now.
+- ~ CHANGE: CMD dispatch table comment updated to list CONTINUE and to say "runStack()" instead of "run() and runExpr()".
+- - REMOVAL: `MAX_EXPR_DEPTH` constant is now unused (kept declared with a comment for reference). The `depth` parameter to `runExpr` is retained in the signature for caller compatibility but is not checked.
+
+## v7.0  2026-03-17
+**UNIFIED TRAMPOLINE — interpreter refactor**
+- ~ CHANGE: All Logo control-flow (REPEAT, WHILE, FOR, IF, IFELSE, STOP, BREAK, OUTPUT, user proc calls) now lives in a single `runStack(stack, rctx)` function. Both `run()` (top-level statements) and `runExpr()` (expression-context proc calls) are thin wrappers over `runStack`. The previous design duplicated every loop construct in two places; adding a new loop construct now requires touching only `runStack`.
+- - REMOVAL: `runExpr()` recursive self-calls for loop bodies, IF/IFELSE bodies, and nested proc calls — all handled by the trampoline. `runExpr()` is now ~10 lines.
+- - REMOVAL: `BREAK_SIGNAL` sentinel object and all associated throw/catch plumbing. BREAK is handled entirely via stack unwinding inside `runStack`; BREAK at a proc boundary throws a plain `Error` directly.
+- ~ CHANGE: `STOP` inside an expression-context proc (called as a value from `evalExpr`) now sets `boundary.stopFired` on the proc frame instead of throwing `STOP_SIGNAL` through the JS call stack. `runExpr()` reads this flag and re-throws `STOP_SIGNAL` after `runStack` returns — same observable behaviour, cleaner mechanism.
+- ~ CHANGE: The interpreter architecture comment block updated from "v2.6 TRAMPOLINE" to "v3.0 UNIFIED TRAMPOLINE" with revised frame-shape and flow-control documentation.
+
 ## v6.9  2026-03-17
 **STABILISATION — code-review items 1–12**
 - * BUG: CS (CLEARSCREEN) did not clear `labelStore`. LABEL text survived a CS and was replayed by `rebuildTrailCanvas()` onto the freshly cleared canvas. Fix: CS now clears `labelStore` and resets `labelCapWarned`, matching the documented behaviour (trail + labels + dots cleared; variables/procs/console preserved). Distinct from CLR which resets everything.
