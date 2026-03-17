@@ -4,6 +4,14 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v7.0  2026-03-17
+**UNIFIED TRAMPOLINE — interpreter refactor**
+- ~ CHANGE: All Logo control-flow (REPEAT, WHILE, FOR, IF, IFELSE, STOP, BREAK, OUTPUT, user proc calls) now lives in a single `runStack(stack, rctx)` function. Both `run()` (top-level statements) and `runExpr()` (expression-context proc calls) are thin wrappers over `runStack`. The previous design duplicated every loop construct in two places; adding a new loop construct now requires touching only `runStack`.
+- - REMOVAL: `runExpr()` recursive self-calls for loop bodies, IF/IFELSE bodies, and nested proc calls — all handled by the trampoline. `runExpr()` is now ~10 lines.
+- - REMOVAL: `BREAK_SIGNAL` sentinel object and all associated throw/catch plumbing. BREAK is handled entirely via stack unwinding inside `runStack`; BREAK at a proc boundary throws a plain `Error` directly.
+- ~ CHANGE: `STOP` inside an expression-context proc (called as a value from `evalExpr`) now sets `boundary.stopFired` on the proc frame instead of throwing `STOP_SIGNAL` through the JS call stack. `runExpr()` reads this flag and re-throws `STOP_SIGNAL` after `runStack` returns — same observable behaviour, cleaner mechanism.
+- ~ CHANGE: The interpreter architecture comment block updated from "v2.6 TRAMPOLINE" to "v3.0 UNIFIED TRAMPOLINE" with revised frame-shape and flow-control documentation.
+
 ## v6.9  2026-03-17
 **STABILISATION — code-review items 1–12**
 - * BUG: CS (CLEARSCREEN) did not clear `labelStore`. LABEL text survived a CS and was replayed by `rebuildTrailCanvas()` onto the freshly cleared canvas. Fix: CS now clears `labelStore` and resets `labelCapWarned`, matching the documented behaviour (trail + labels + dots cleared; variables/procs/console preserved). Distinct from CLR which resets everything.
