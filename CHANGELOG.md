@@ -4,6 +4,42 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v6.9  2026-03-17
+**STABILISATION — code-review items 1–12**
+- * BUG: CS (CLEARSCREEN) did not clear `labelStore`. LABEL text survived a CS and was replayed by `rebuildTrailCanvas()` onto the freshly cleared canvas. Fix: CS now clears `labelStore` and resets `labelCapWarned`, matching the documented behaviour (trail + labels + dots cleared; variables/procs/console preserved). Distinct from CLR which resets everything.
+- * BUG: `resizeCanvas()` (v6.8) reset `turtle.x/y/angle` unconditionally, corrupting turtle position during active animations when the window was resized mid-run. Fix: position reset is now guarded by `if(!activeRctx)`.
+- * BUG: Infix `MOD` (e.g. `10 MOD 0`) produced silent `NaN` — JavaScript `x % 0 === NaN` — which propagated undetected through downstream arithmetic. The prefix form `MOD 10 0` already threw correctly. Fix: added zero-divisor check to the binary operator chain, consistent with the `/` guard on the line above.
+- * BUG: FOR loops with fractional steps accumulated IEEE-754 rounding error. `FOR :i 0 1 0.1` could fire one iteration too many or too few near the end value. Fix: epsilon tolerance (`Math.abs(step) * 1e-9`) stored in the loop frame and applied to the active check in both `run()` (trampoline) and `runExpr()` (recursive path).
+- * BUG: SETCOLOR out-of-range warning had a false negative for small negative inputs. `SETCOLOR -0.4 0 0` rounded to 0, so the comparison `clamped !== Math.round(original)` evaluated `0 !== 0 = false` and no warning fired. Fix: compare against the raw input value.
+- ~ CHANGE: `extractBlock` unclosed-bracket error now says "a [ was opened but never closed (check loop bodies and IF branches)" instead of the terse "Missing ]".
+- ~ CHANGE: `btn-run` onclick now has an explicit `if(activeRctx) return;` guard. Belt-and-suspenders: button is already `disabled` by `setRunning`, but the intent is now explicit.
+- ~ CHANGE: CLAUDE.md updated — CS vs CLR reset-scope table; SPEED command note (mid-run `SPEED n` writes `rctx.speed` directly); `resolveToken` registry pattern documented as future work; no-string-type added to Known Limitations; current version corrected.
+
+---
+
+## v6.8  2026-03-16
+**BUG FIXES — DOT scatter example, turtle recenter on resize**
+- * BUG: "DOT — Sine Wave Scatter" example produced wrong output. Root cause: multi-operator MAKE expressions like `SCRWIDTH / 2 - 10` evaluate right-recursively as `SCRWIDTH / (2 - 10)` due to the known right-recursive binary chain. Fix: rewrote the example using one binary operator per MAKE statement, avoiding the right-recursion trap. Added a comment explaining the pattern.
+- * BUG: Turtle position was not reset after canvas resize. After a window or font-size resize the turtle remained at its previous Logo coordinates. Fix: `resizeCanvas()` now resets `turtle.x/y/angle` to 0 (HOME) after each resize, keeping the turtle predictably at the canvas centre.
+- ~ CHANGE: Changing font size (SMALL/MEDIUM/LARGE in OPTIONS) now calls `resizeCanvas()` via `setTimeout(0)` so the canvas dimensions update to match the new panel width introduced in v6.7.
+
+---
+
+## v6.7  2026-03-16
+**UI — live line-number indicator, font-scaled left panel**
+- + ADDITION: Live `L:N` line-number indicator in the editor toolbar, left of the `≡` button. Updates on every keystroke (`input` event) and every cursor movement (`selectionchange` listener). Shows the 1-based line number of the current caret position. Implemented inside the editor IIFE using the existing `getCaretOffset()` and `getValue()` functions; no interpreter changes.
+- + ADDITION: Left panel width now scales with font size via `calc(384px * var(--fs-base))` — 384 px at SMALL, 538 px at MEDIUM, 691 px at LARGE. Switching font size in OPTIONS clears any residual inline width style so the CSS calc value takes effect immediately.
+
+---
+
+## v6.6  2026-03-16
+**BUG FIX + GRAPH DRAWING PRIMITIVES — MAKE scoping, DOT, SCRWIDTH/SCRHEIGHT**
+- * BUG: `MAKE :STEP :STEP + 1` (and any MAKE mutation) inside a `REPEAT` body stopped working in v6.5. Root cause: the REPCOUNT feature created a child scope (`Object.create(outerVars)`) for each REPEAT iteration body; `MAKE` wrote to that child scope, which was discarded at the end of the iteration. Fix: added `const REPEAT_SCOPE = Symbol('repeatScope')` to mark REPEAT body scopes. `CMD['MAKE']` now walks the prototype chain through REPEAT-marked scopes to write to the correct defining scope. FOR uses `Object.assign` (flat copy, no prototype chain) so MAKE inside FOR correctly stays local — no change there. Procedure scopes use `Object.create` but are not marked with `REPEAT_SCOPE`, so procedure-local MAKE is also unaffected. Broken examples restored: Spiral, Sunburst, Rainbow Spiral, Comments.
+- + ADDITION: `SCRWIDTH` and `SCRHEIGHT` — read-only bare tokens (like `XCOR`/`YCOR`) that return the current canvas pixel dimensions. Since the Logo origin is at the canvas centre, `SCRWIDTH / 2` is the rightmost x coordinate. Useful for writing programs that scale to any window size.
+- + ADDITION: `DOT` — draw a filled circle dot at the turtle's current position. `DOT x y` draws at (x, y) without moving the turtle. Diameter = current pen width (`SETWIDTH`). Color = current pen color (`SETCOLOR`). Always draws regardless of pen up/down state. Stored as a zero-length trail segment so dots survive canvas resize. New "DOT — Sine Wave Scatter" example added.
+
+---
+
 ## v6.5  2026-03-16
 **ADDITION — `REPCOUNT`**
 - + ADDITION: `REPCOUNT` returns the current iteration index (1-based) inside a `REPEAT` loop. Implemented by injecting `REPCOUNT` as an own property of a child vars scope before each body execution in both `run()` and `runExpr()`, so it is visible inside the body without polluting the enclosing scope. Resolved as a bare token (no colon) via `resolveToken`, like `XCOR`/`YCOR`. Throws `"REPCOUNT used outside a REPEAT loop"` if used outside any REPEAT. New "REPCOUNT — Expanding Spiral" example added.
