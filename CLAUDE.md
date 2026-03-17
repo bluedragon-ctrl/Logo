@@ -18,7 +18,7 @@ Specification is split into two files:
 | `CHANGELOG.md` | Full version history. Add an entry here for every version bump. |
 | `CLAUDE.md` | This file. Read by Claude Code at session start. |
 
-Current version: **v7.1** (`claude-logo-v7.1.html`)
+Current version: **v7.2** (`claude-logo-v7.2.html`)
 
 ---
 

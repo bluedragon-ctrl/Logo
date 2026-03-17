@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v7.2  2026-03-17
+**REFERENCE PANEL — ▸ LOOPS section split from ▸ CONTROL**
+- ~ CHANGE: The ▸ CONTROL reference section split into ▸ LOOPS (REPEAT / REPCOUNT / REPCOUNTMAX / WHILE / FOR / BREAK / CONTINUE) and ▸ CONTROL (IF / IFELSE / STOP / OUTPUT / TO / WAIT / SPEED / comment). Loops were half the entries; grouping them makes the panel easier to scan.
+
 ## v7.1  2026-03-17
 **CODE REVIEW FIXES — runStack hardening + CONTINUE + REPCOUNTMAX**
 - * BUG: `depth` guard in `runExpr` was dead code — `evalExpr` always passed `depth=0` so the check `depth > MAX_EXPR_DEPTH` never fired. Deep mutual recursion (`TO BOOM OUTPUT BOOM END / FD BOOM`) would silently consume JS async frames until a crash. Fix: added `MAX_STACK_FRAMES = 10000` guard at the top of `runStack`'s while loop; any Logo recursion deeper than 10 000 frames throws a clean `Stack overflow` error.
