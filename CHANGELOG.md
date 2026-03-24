@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v7.3  2026-03-24
+**ITCH.IO FIX — save/load fall back to download when File System API is blocked**
+- * BUG: On itch.io (and any cross-origin iframe host), `showSaveFilePicker` / `showOpenFilePicker` exist on `window` but throw a `SecurityError` when called. The `catch` block logged the error instead of falling back to the `<a download>` / `<input type="file">` path. Fix: on any non-AbortError, both `saveToFile` and `loadFromFile` now execute the download/file-input fallback rather than reporting a failure.
+
 ## v7.2  2026-03-17
 **REFERENCE PANEL — ▸ LOOPS section split from ▸ CONTROL**
 - ~ CHANGE: The ▸ CONTROL reference section split into ▸ LOOPS (REPEAT / REPCOUNT / REPCOUNTMAX / WHILE / FOR / BREAK / CONTINUE) and ▸ CONTROL (IF / IFELSE / STOP / OUTPUT / TO / WAIT / SPEED / comment). Loops were half the entries; grouping them makes the panel easier to scan.
