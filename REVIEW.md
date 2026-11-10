@@ -1,5 +1,7 @@
 # Claude Logo — Project Review (v7.3, 2026-11-10)
 
+> **Status: addressed in v8.0** (see `CHANGELOG.md`). All bugs B1–B11 are fixed, plus two found while fixing them: no line numbers for top-level errors, and blocks starting on the next line failing inside procedures. Sections 2–3 are done. From §4, precedence and parentheses, UCBLogo `MAKE` + `LOCAL`, tail calls, HiDPI, editor undo, `QUERY_TOKENS` and the duplicate-code cleanups are done. Still open items are listed in `TODO.md`. This document is kept as a record of the v7.3 state.
+
 Purpose: get the project ready for the next round of development. This covers the
 current app (`claude-logo-v7.3.html`), the docs, and the repo/deploy setup.
 Each bug marked **[verified]** was reproduced in headless Chromium (see `tests/run-examples.js`).

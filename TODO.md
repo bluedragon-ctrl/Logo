@@ -1,23 +1,19 @@
 # Claude Logo — TODO
 
-See `REVIEW.md` (v7.3 project review, 2026-11-10) for details on each item.
+The v7.3 review (`REVIEW.md`) was fully addressed in v8.0. Remaining ideas, roughly by value:
 
 ## Pending
 
-### v7.4 — bug fixes
-- [ ] B1 FOR scope drops inherited variables (FOR inside REPEAT / procedure)
-- [ ] B2 STOP does not interrupt WAIT; RUN silently ignored until timer ends
-- [ ] B3 Direct-mode command can run concurrently with RUN (guard `activeRctx`)
-- [ ] B4 Clear-on-run leaves LABEL text (`labelStore` not reset)
-- [ ] B5 Parse errors (e.g. missing END) not shown on RUN
-- [ ] B6 Expression-context recursion ends in raw JS stack overflow
-
-### v7.5 — docs
-- [ ] Lang spec: precedence section (actual: right-recursive, `2 + 3 * 4 = 14`)
-- [ ] Impl spec: rewrite interpreter chapter for unified `runStack`
-- [ ] CLAUDE.md: section map, example count (28), known-limitations list, DOM-dependency claim
-- [ ] Archive `claude-logo-spec-v4.1.md`, `plan-graph-drawing-features.md`
-
 ### Repo
-- [ ] Git tags per release; prune/move old `claude-logo-v*.html`
-- [ ] Use `node tests/run-examples.js` as the standard verification step
+- [ ] After merging v8.0 to `main`: tag releases (`git tag v8.0`, optionally older ones from history)
+
+### Language
+- [ ] Short-circuit `AND` / `OR` (needs a "skip" parse mode so the right side is consumed without evaluating)
+- [ ] `FOREVER`, `SETXY` / `SETX` / `SETY`, `FILL`
+- [ ] Optional `WRAP` / `WINDOW` edge modes (currently always stops with OUCH)
+- [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
+
+### Internals
+- [ ] Inject `log` / `render` / canvas size into the interpreter (`rctx.io`) so the core can run in Node tests without a browser
+- [ ] Editor: re-render only the changed line instead of the whole editor on every keystroke (performance on long programs)
+- [ ] Bundle or self-host the VT323 font (only remaining network dependency)

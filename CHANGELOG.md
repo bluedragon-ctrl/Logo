@@ -4,6 +4,49 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.0  2026-11-10
+**REVIEW RELEASE — operator precedence, UCBLogo scoping, 13 bug fixes, HiDPI, editor undo**
+
+Breaking language changes (older programs may need edits):
+- ~ CHANGE: Expressions use standard precedence and are left-associative: `* / MOD` before `+ -` before comparisons before `AND` before `OR`. `2 + 3 * 4` = 14, `10 - 2 - 3` = 5 (was 11), `- 3 + 4` = 1 (was -7), `IF :A + 1 > 5` now compares `(:A + 1)`. New precedence-climbing parser (`parseBinary` / `parseUnary` / `parsePrimary`).
+- ~ CHANGE: `MAKE` inside a procedure updates the nearest existing variable (caller's or global) and creates a global if none exists (UCBLogo dynamic scoping). Previously it always created a procedure-local variable. Recursive procedures that use MAKE for working variables must switch to `LOCALMAKE` (the Dragon Curve example was updated).
+- ~ CHANGE: `PRINT "word` prints the word (previously read a variable named word).
+- ~ CHANGE: `TO` can no longer redefine built-in words (`TO FD` is an error).
+- ~ CHANGE: A procedure that OUTPUTs, called as a command, is an error ("You don't say what to do with …"); `STOP` in a procedure used as a value is an error instead of silently ending the program.
+
+Bug fixes:
+- * BUG: FOR inside a REPEAT body or a procedure could not see outer/global variables (`Object.assign` copied only own properties). FOR now uses a prototype-chain scope holding only the loop variable.
+- * BUG: STOP did not interrupt WAIT; RUN looked enabled but clicks were ignored for up to 30 s. WAIT now uses a cancellable sleep (`rctx.wake`, `haltRun()`).
+- * BUG: A direct-mode command could start while a program ran, overwriting `activeRctx` so the program could no longer be stopped. Direct mode now refuses while running and keeps the typed text.
+- * BUG: "Clear screen on run" left old LABEL text. RUN, CS and CLR now share `clearScreen()`.
+- * BUG: Parse errors on RUN (e.g. missing END) were not shown. `parseProgram()` reports them with the line number.
+- * BUG: Runaway recursion in procedures used as values (`TO BOOM OUTPUT BOOM END`) crashed with a raw JS stack overflow. `MAX_EXPR_DEPTH` (500) is now enforced by `deeper()`.
+- * BUG: REPCOUNT leaked into procedures called from a REPEAT, and `MAKE "REPCOUNT` could fake it outside a loop. REPEAT metadata now lives under a Symbol and stops at procedure scopes.
+- * BUG: SETPOS could move the turtle off the canvas silently. It now stops at the edge with OUCH, like FD. Instant-mode FD clipping was coordinate-wise (distorted diagonals); both now use exact segment clipping (`clipToCanvas`).
+- * BUG: `RANDOM 0.5` always returned 0; RANDOM now requires n ≥ 1 (fractional n is floored).
+- * BUG: CLR during a run could let the in-flight step draw on the cleared canvas. CLR now halts first and resets after the run has unwound (`rctx.onFinish`).
+- * BUG: Errors in top-level code showed no line number (sentinels were dropped by `extractProcedures`). Kept now.
+- * BUG: Inside procedures a `[ block ]` starting on the next line failed ("Expected [ but got __L…"), e.g. a two-line IFELSE. `extractBlock` and argument parsing now skip line sentinels.
+- * BUG: A WHILE/arithmetic loop that never moved the turtle froze the page and could not be stopped. `runStack` now yields to the browser every ~40 ms.
+- * BUG: Pressing STOP while a procedure-as-value was running reported "did not OUTPUT a value". Now ends quietly.
+
+Additions and improvements:
+- + ADDITION: Parentheses `( … )` in expressions, may span lines. Negative sign also for variables and groups: `SETPOS 0 -:Y`, `-(:A + 1)`.
+- + ADDITION: `LOCAL :a :b …` and `LOCALMAKE :x value`.
+- + ADDITION: Tail-call elimination: a procedure call as the last step replaces the caller's frame, so recursive loops are unbounded (self-recursion also reuses the scope chain level).
+- + ADDITION: `PR` alias for PRINT; `LABEL :X` / `LABEL (expr)` draws a number; quoted words keep their case (`LABEL "Hello`); `SETCOLOR "red` accepted.
+- + ADDITION: Editor undo/redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y). Previously Ctrl+Z did nothing because highlighting re-renders the editor. Loading an example or file is undoable.
+- + ADDITION: HiDPI canvas: sharp lines on retina screens / zoom; PNG export at device resolution. Geometry uses logical `CW`/`CH`.
+- + ADDITION: Examples "Precedence & Parentheses", "Global Counter & LOCALMAKE", "Tail Recursion — Endless Spiral" (31 total). OUTPUT and DOT examples simplified thanks to parentheses/precedence.
+- + ADDITION: `tests/run-examples.js` headless test (examples, beautify idempotency, 31 language cases, 4 UI checks).
+- ~ CHANGE: Animated moves paint sub-steps but store one trail segment per move (was ~1.2 per pixel), so the 50 000-segment cap goes much further.
+- ~ CHANGE: SETPOS, DOT and LABEL are paced like other drawing at animated speeds (visible progress instead of a frozen page).
+- ~ CHANGE: SPEED accepts 0–4, matching the slider (was 1–4).
+- ~ CHANGE: Friendlier errors: extra values (`FD 100 -10`), value-producing words used as commands, commands used as values, stray `)`/`]`/END, built-in redefinition, missing `)`. Numbers print without float noise (`0.1 + 0.2` → 0.3).
+- ~ CHANGE: Labels are repainted once the VT323 web font has loaded.
+- ~ CHANGE: Shared `runProgram()` for RUN and direct mode; `QUERY_TOKENS` table replaces the special-case chain in `resolveToken` and DOT's value heuristic; save/load fallbacks deduplicated.
+- ~ CHANGE: Repo layout: previous versions moved to `versions/` (still deployed, old URLs keep working), superseded docs to `docs/archive/`. Specs and CLAUDE.md rewritten to match the code.
+
 ## v7.3  2026-03-24
 **ITCH.IO FIX — save/load fall back to download when File System API is blocked**
 - * BUG: On itch.io (and any cross-origin iframe host), `showSaveFilePicker` / `showOpenFilePicker` exist on `window` but throw a `SecurityError` when called. The `catch` block logged the error instead of falling back to the `<a download>` / `<input type="file">` path. Fix: on any non-AbortError, both `saveToFile` and `loadFromFile` now execute the download/file-input fallback rather than reporting a failure.

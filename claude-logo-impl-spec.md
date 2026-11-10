@@ -1,100 +1,102 @@
 # Claude Logo — Implementation Specification
-## Version 6.5 — March 2026
+## Version 8.0 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
 
 | Property | Value |
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). No server required. |
-| Delivery | Single `.html` file. All JS, CSS, and HTML inline. |
-| External dependencies | Google Fonts (VT323) — purely cosmetic; degrades gracefully offline. |
-| Max trail segments | 50 000 (configurable via `MAX_TRAIL_SEGS`). |
-| Max recursion depth | Unlimited — trampoline executor; no JS call-stack growth per Logo procedure call. |
-| Expression call depth | 64 levels (`MAX_EXPR_DEPTH`) for expression-context procedure calls. |
+| Delivery | Single `.html` file. All JS, CSS, and HTML inline. No build step. |
+| External dependencies | Google Fonts (VT323) — cosmetic; degrades gracefully offline. |
+| Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
+| Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
+| Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
+| Tests | `node tests/run-examples.js` — headless Chromium via Playwright (dev tooling only). |
 
 ---
 
 ## 1. Architecture Overview
 
-The application is one JavaScript execution context. All state is module-level. There is no framework, no module bundler, no class hierarchy. Five logical layers in declaration order:
+The application is one JavaScript execution context. All state is module-level. There is no framework, no bundler, no class hierarchy. Five logical layers in declaration order:
 
 | Layer | Responsibility |
 |---|---|
-| Rendering | Canvas compositing, sprite generation, background and trail painting. |
+| Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
 | Turtle state | Position, heading, pen, colour, width. Single mutable object reset by CS / CLR / RUN. |
-| Interpreter | Tokeniser → procedure extractor → trampoline executor → expression evaluator. |
-| Editor | `contenteditable` IIFE with syntax highlighting, caret preservation, tab/paste handling. |
-| UI shell | Splitter, overlays, buttons, options, canvas resize, file save/load. |
+| Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
+| Editor | `contenteditable` IIFE: syntax highlighting, caret preservation, own undo/redo, tab/paste. |
+| UI shell | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, file save/load. |
 
-**The interpreter has zero DOM dependencies.** It reads only `rctx` and the `procs` map. This invariant must be preserved for testability.
+**DOM coupling of the interpreter (honest statement).** The interpreter core — `tokenize`, `extractBlock`, `extractProcedures`, the expression parser, `runStack` — reads only its arguments, `rctx` and the `procs` map. The leaf layer is not DOM-free: CMD handlers and `move`/`rotate` call `log()`, `render()` and paint onto `trailCanvas`; `SCRWIDTH`/`SCRHEIGHT` read `CW`/`CH`; `SPEED` writes the slider (guarded by `typeof optSpeed`); `CT` clears `#console`. Keep new code in the core DOM-free; route side effects through these few functions so a future split (§6.6) only needs to inject them (e.g. `rctx.io = { log, render }`).
 
 ### 1.1 Data Flow (RUN)
 
 ```
-editor.getValue()
-  → tokenize(src)               → token[]
-  → extractProcedures(tokens)   → { topLevel, newProcs }
-  → makeRunContext(speed, procs) → rctx
-  → run(topLevel, 0, {}, rctx)  → async, drives move() / rotate() / circle()
-  → move(dist, rctx)            → trailPush() + paintSegment() + render()
+btn-run → parseProgram(editor.getValue())
+            → tokenize(src)               → token[]  (with LINE_SEN line sentinels)
+            → extractProcedures(tokens)   → { topLevel, newProcs }
+        → registerProcs(newProcs)         → procs
+        → runProgram(topLevel)
+            → makeRunContext(speed, procs) → rctx ; activeRctx = rctx
+            → run(topLevel, 0, globalVars, rctx)
+                → runStack(stack, rctx)    → CMD handlers / control flow
+                    → evalExpr(...)        → parseBinary / parseUnary / parsePrimary
+                    → move / rotate / circle → paintLine / trailPush… / render()
+            → finally: activeRctx = null, setRunning(false), rctx.onFinish?.()
 ```
 
-No state is shared between runs except canvas contents (when "Clear screen on run" is unchecked).
+Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` / `runProgram`, keeps `globalVars` between commands, and refuses to start while a program runs.
 
 ### 1.2 File Layout
 
-All code is in one HTML file. Sections in declaration order:
+Sections in declaration order (grep `// ──` to jump):
 
 | Section | Contents |
 |---|---|
 | Release notes comment | One-line pointer to `CHANGELOG.md`. |
-| `<style>` | All CSS. VT323 font import. Layout, overlays, animations, log colours. |
-| HTML body | Panel div, canvas div, overlays, option controls. No inline scripts. |
-| `<script>` — Utilities | `escHtml()`. |
-| Canvas setup | `canvas`, `ctx`, `SPRITE_SIZE`, `SPRITE_OFFSET` constants. |
-| Palette | Colour constants for turtle sprite. |
-| Sprite helpers | `drawShell`, `drawLeg`, `drawHead`, `drawBelly`, `buildSprite`, `drawSimpleTurtle`. |
-| Background | `buildGrains`, `buildBgCache`, `drawBackground`. |
-| Trail storage | `trailF32`, `trailU8`, `trailLen`, `trailCapWarned`, `paintSegment`, `trailPush`, `trailPushIfRoom`, `rebuildTrailCanvas`. |
-| Render pipeline | `toCanvas`, `spriteCenter`, `render`. |
+| `<style>` | All CSS. VT323 import. Layout, overlays, animations, log colours. |
+| HTML body | Left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. |
+| Utilities | `escHtml()`. |
+| Canvas setup | `canvas`, `ctx`, `con`, `CW`/`CH`/`DPR`, `SPRITE_SIZE`, `SPRITE_OFFSET`. |
+| Sprite palette / helpers | Colour constants, `drawShell`, `drawLeg`, `drawHead`, `drawBelly`, `buildSprite`. |
+| Background | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`, `turtleStyle`. |
+| Trail storage | Typed arrays, `paintLine`, `paintSegment`, `trailPush`, `trailPushIfRoom`, `trailPushQuiet`, `clearScreen`. |
+| Label store | `labelStore`, `MAX_LABELS`, `paintLabel`, `rebuildTrailCanvas`. |
+| Render pipeline | `toCanvas`, `spriteCenter`, `drawSimpleTurtle`, `render`. |
 | Turtle state | `mkTurtle`, `turtle`, `walkTick`, `isMoving`. |
-| Run context | `makeRunContext`, `activeRctx`. |
-| Run-state indicator | `setRunning`. |
-| Console / log | `log()`, `MAX_LOG_LINES`, cached DOM refs. |
-| Token resolution | `resolveToken`, `UNARY`, `UNARY_FNS`, `BINARY2`. |
-| Expression evaluator | `evalExpr`. |
-| Tokeniser | `tokenize`, `LINE_SEN`. |
-| Block extractor | `extractBlock`. |
-| Procedure store | `extractProcedures`, `procs`, `globalVars`. |
-| Control-flow sentinels | `STOP_SIGNAL`, `BREAK_SIGNAL`. |
-| Command dispatch table | `CMD` object + all leaf command handlers. |
-| `runExpr` | Expression-context executor. |
-| `run` | Trampoline executor. |
-| Motion functions | `move`, `rotate`, `circle`, `MAX_CIRCLE_R`. |
-| Label store | `labelStore`, `labelCapWarned`, `MAX_LABELS`, `paintLabel`. |
-| Examples | `EXAMPLES` array, `buildExamples` IIFE. |
-| Editor | Editor IIFE (`getValue`, `setValue`, caret, highlight, tab, paste). |
-| Splitter | Drag, touch, collapse/expand IIFE. |
-| Beautify | `beautify(src)` pure function + `INLINE_THRESHOLD` constant. |
-| Button handlers | Copy, beautify, RUN, STOP, CLR. |
-| Overlay management | `openOverlay`, `closeOverlay`, keyboard Escape. |
-| Options | Font size pills IIFE, speed slider, canvas/turtle style wiring. |
-| Canvas resize | `resizeCanvas`, debounced window resize listener. |
-| File save / load | `saveToFile`, `loadFromFile`, `defaultFileName`. |
+| Run context | `makeRunContext`, `activeRctx`, `haltRun`. |
+| Direct mode state / Run-state indicator / Console | `directHistory`, `setRunning`, `INSTANT_FLUSH`, `log`, `MAX_LOG_LINES`, `optSpeed`. |
+| INTERPRETER | Header comment, scope helpers (`setVar`, `procScopeOf`, `repeatInfo`, `varName`), `formatNum`. |
+| Token resolution | `QUERY_TOKENS`, `resolveToken`. |
+| Expression evaluator | `UNARY`, `BINARY2`, `BINOP_PREC`, `UNARY_FNS`, `BINARY2_FNS`, `applyBinop`, `evalExpr`, `parseBinary`, `parseUnary`, `parsePrimary`, `skipSen`, `noteLine`, `deeper`. |
+| Tokeniser / Block extractor / Procedure store | `LINE_SEN`, `tokenize`, `extractBlock`, `procs`, `CONTROL_WORDS`, `extractProcedures`. |
+| Control-flow sentinels / Responsiveness | `STOP_SIGNAL`, `MAX_STACK_FRAMES`, `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`. |
+| Command dispatch table | `CMD` + all leaf handlers, `COLOR_NAMES`, `wordArg`, `isValueStart`. |
+| runExpr / runStack / run | Executors. |
+| Motion | `clipToCanvas`, `ouch`, `move`, `rotate`, `circle`, `MAX_CIRCLE_R`. |
+| Examples | `EXAMPLES` (31 entries), `buildExamples`. |
+| Code editor | Editor IIFE. |
+| Splitter | Drag / touch / LOG toggle IIFE. |
+| beautify(src) | Pure formatter + `INLINE_THRESHOLD`. |
+| Copy / Beautify buttons | |
+| Program execution | `registerProcs`, `parseProgram`, `runProgram`. |
+| Direct mode execution / Button handlers | `runDirectCommand`, RUN / STOP / CLR (`resetAll`). |
+| Direct mode UI / Overlays / File save-load / Options / Canvas resize | |
 
 ### 1.3 Key Constants
 
 | Constant | Value | Purpose |
 |---|---|---|
-| `MAX_TRAIL_SEGS` | 50 000 | Cap on drawn segments. |
-| `MAX_CIRCLE_R` | 2 000 | Prevents runaway animated draws. |
-| `MAX_EXPR_DEPTH` | 64 | Expression-context recursion guard. |
-| `MAX_LOG_LINES` | 500 | Console line cap. |
+| `MAX_TRAIL_SEGS` | 50 000 | Cap on stored segments. |
 | `MAX_LABELS` | 500 | LABEL store cap. |
-| `INSTANT_FLUSH` | 150 | Move steps between paint yields in instant mode. |
+| `MAX_CIRCLE_R` | 2 000 | Caps \|r\| to prevent runaway animated draws. |
+| `MAX_STACK_FRAMES` | 10 000 | `runStack` frame stack cap (non-tail recursion). |
+| `MAX_EXPR_DEPTH` | 500 | Expression nesting cap (protects the JS call stack). |
+| `MAX_LOG_LINES` | 500 | Console line cap. |
+| `INSTANT_FLUSH` | 150 | Instant-mode steps between paint yields. |
+| `STEPS_PER_FRAME` | [1, 4, 16, 64] | Move sub-steps / instant commands per frame, by speed 0–3. |
 | `INLINE_THRESHOLD` | 8 | Max tokens for inline `[ block ]` in beautify. |
-| `SPRITE_SIZE` | 64 px | Turtle sprite canvas dimensions. |
-| `SPRITE_OFFSET` | 18.8 px | Nose-to-centre distance for animated sprite placement. |
+| `SPRITE_SIZE` / `SPRITE_OFFSET` | 64 px / 18.8 px | Turtle sprite canvas size / nose-to-centre distance. |
 
 ---
 
@@ -102,312 +104,203 @@ All code is in one HTML file. Sections in declaration order:
 
 ### 2.1 RunContext (`rctx`)
 
-`rctx` is a plain object created by `makeRunContext(speed, procs)` at the start of every RUN. It bundles all per-run mutable state — previously spread across globals and DOM reads.
+Created by `makeRunContext(speed, procsMap)` for every RUN / direct command.
 
-| Field | Type | Purpose |
-|---|---|---|
-| `stopped` | `boolean` | Kill-switch. Set `true` by STOP/CLR buttons via `activeRctx`. |
-| `execLine` | `{n, text}` | Most recently executed source line — appended to error messages. |
-| `speed` | `0–4` integer | Animation speed resolved once at RUN start from the slider. 0 = slowest animated; 4 = instant. |
-| `procs` | `object` | Reference to the global `procs` store populated before `run()` is called. |
-| `instantStepCount` | `number` | Counter for periodic canvas flush in instant mode (resets at `INSTANT_FLUSH`). |
+| Field | Purpose |
+|---|---|
+| `stopped` | Kill switch. Set by `haltRun()` (STOP / CLR). Checked by `runStack`, `move`, `rotate`, `circle`. |
+| `execLine` | `{ n, text }` of the current source line, from LINE_SEN sentinels. Appended to error messages. |
+| `speed` | 0–4. Snapshot of the slider; `SPEED n` changes it mid-run (and moves the slider). |
+| `procs` | The live procedure map. |
+| `globals` | Root scope of this run (set by `run()`); `MAKE` falls back to it. |
+| `exprDepth` | Current expression nesting; checked by `deeper()` against `MAX_EXPR_DEPTH`. |
+| `instantStepCount`, `tickCount`, `steps`, `lastYield` | Yield bookkeeping (§2.9). |
+| `wake` | Set while `WAIT` sleeps; `haltRun()` calls it to end the sleep at once. |
+| `onFinish` | Optional callback run by `runProgram` after full unwind (CLR uses it). |
 
-**Invariants:**
-- Every function in the interpreter chain (`run`, `runExpr`, `evalExpr`, all CMD handlers, `move`, `rotate`, `circle`) receives `rctx` as a parameter — never reads `stopped`, `execLine`, or the speed DOM element directly.
-- `activeRctx` (module-level) points to the live context while a program runs; STOP and CLR write `activeRctx.stopped = true`. Set to `null` after each run.
-- `rctx.speed` is fixed at run start — moving the slider mid-run has no effect on the current execution. The `SPEED n` command updates both `rctx.speed` and the slider DOM element.
+**Invariants:** every interpreter function receives `rctx` and never reads `stopped`/`speed` from globals or the DOM. `activeRctx` points to the live context while a program runs and is reset to `null` in `runProgram`'s `finally`. Only one program runs at a time (RUN button disabled; direct mode refuses while `activeRctx` is set).
 
 ### 2.2 Tokeniser
 
-`tokenize(src) → token[]`
-
-Processes source line by line. For each non-empty line after comment stripping:
-1. Applies negative-literal preprocessing: `(whitespace/[ followed by -)(?=digit)` → replaces `-` with `~` (forming token `~100` for `-100`).
-2. Prepends a `LINE_SEN` sentinel.
-3. Splits the processed line with the token regex, uppercases all tokens, appends.
+`tokenize(src) → token[]`. Per source line: strip `;` comments, mark negative signs, split with
 
 ```
-Token regex: />=|<=|!=|[\[\]+\-*\/=><]|[^\s\[\]+\-*\/=><]+/g
+/>=|<=|!=|[\[\]()+\-*\/=><~]|[^\s\[\]()+\-*\/=><~]+/g
 ```
 
-Multi-character operators (`>=`, `<=`, `!=`) are matched before single characters. The `~digits` form is matched by the last alternative and resolved to a negative number by `resolveToken`.
+and push a sentinel `__L<line>:<trimmed source>` before the line's tokens (empty lines get none).
 
-**LINE_SEN sentinel format:**
-```
-__L<lineNumber>:<original source text>
-__L3:  REPEAT 4 [FD 100]
-```
-
-Sentinels are identifiable by `startsWith("__L")`. All other tokens are already uppercase. **LINE_SEN guard:** before processing a sentinel in `run()` or `runExpr()`, the code checks `indexOf(':') >= 0` and skips with `continue` if absent, preventing `NaN` from being stored in `rctx.execLine.n`.
+- **Case:** tokens are uppercased (OPT-4) except `"quoted words`, which keep source case for `LABEL`/`PRINT`. Variable names are uppercased by `varName()` when the `:`/`"` prefix is stripped.
+- **Negative sign:** `-` preceded by start-of-line, whitespace, `[` or `(` and directly followed by a digit, `.`, `:`, `(` or a letter becomes the token `~`. `~` is a unary minus that is never binary, so it also ends the previous expression: `SETPOS 0 -100` → `SETPOS 0 ~ 100` (two inputs). Plain `-` is binary in operator position and unary in operand position.
+- Sentinels (`startsWith(LINE_SEN)`) survive block and procedure slicing, so line tracking works everywhere, including top level.
 
 ### 2.3 Procedure Extractor
 
-`extractProcedures(tokens) → { topLevel: token[], newProcs: Object }`
-
-Scans the top-level token stream for `TO…END` blocks. Each block is removed from `topLevel` and stored in `newProcs` as `{ params: string[], body: token[] }`. `LINE_SEN` sentinels are preserved inside body arrays for line tracking inside procedure calls.
-
-Pure function — does not modify the global `procs` map. The RUN handler calls `Object.assign(procs, newProcs)` after parsing, making the mutation visible at the call site.
-
-Validation errors thrown:
-- `TO` with no following name token
-- `TO` name token is a punctuation character or operator
-- Missing `END` before end-of-token-stream
+`extractProcedures(tokens) → { topLevel, newProcs }` — pure. Moves `TO name :p… body END` out of the stream into `newProcs[name] = { params, body }`. Top-level sentinels are kept. Errors name the line: missing name, invalid name (must match `/^[A-Z_]/`), redefinition of a built-in (CMD, `CONTROL_WORDS`, functions, operators, queries, `REPCOUNT[MAX]`, `NOT`), `TO` inside a body (missing `END`), missing `END`, stray `END`.
 
 ### 2.4 Expression Evaluator
 
-`evalExpr(tokens, idx, vars, rctx, tstate, depth) → async { value, nextIdx }`
-
-Recursive descent. Consumes one expression starting at `tokens[idx]` and returns the numeric value and the index of the first unconsumed token. `async` because user-procedure primaries call `runExpr()` which may animate.
-
-Grammar (no operator precedence — left-to-right):
+`evalExpr(tokens, idx, vars, rctx, tstate) → { value, nextIdx }` consumes one expression. Internally a precedence-climbing recursive-descent parser over a small state object `p = { tokens, idx, vars, rctx, tstate, paren }`:
 
 ```
-expr    ::= primary (BINOP expr)*
-primary ::= "-" expr                  (unary minus; depth-guarded to MAX_EXPR_DEPTH)
-          | BINARY2_FN expr expr       (TOWARDS, DISTANCE, MOD, POWER, MAX, MIN)
-          | UNARY_FN  token            (SIN :x — single resolveToken arg)
-          | PROC_NAME expr*            (user proc as value, via runExpr)
-          | token                      (number literal, :var, XCOR/YCOR/HEADING)
+parseBinary(p, minPrec):  left = parseUnary(p)
+                          while next token is a BINOP with prec ≥ minPrec:
+                              right = parseBinary(p, prec + 1)     ← left-associative
+                              left  = applyBinop(op, left, right)
+parseUnary(p):  skip sentinels (an operand is required, so a line break can't end here)
+                '-' | '~'  → -parseUnary
+                NOT        → parseBinary(p, 3) === 0 ? 1 : 0      ← NOT :a = 1 → NOT(:a = 1)
+                UNARY fn   → fn(parseUnary)                       ← SIN :x * 2 → (SIN :x) * 2
+                else       → parsePrimary
+parsePrimary(p): '(' parseBinary(p,1) ')'   (sentinels skipped inside parens: may span lines)
+                 BINARY2 fn  parseBinary(p,1) parseBinary(p,1)
+                 user proc   args = parseBinary(p,1) × params → runExpr
+                 token       → resolveToken
 ```
 
-**Key design notes:**
-- Unary functions (`SIN`, `COS`, `SQRT`, `FLOOR`, `CEILING`, …) take one token argument via `resolveToken`, not a recursive `evalExpr` call. This gives `SIN :x * 150` the parse `(SIN :x) * 150`.
-- User procedures in expression context use `runExpr()` (recursive, bounded by `MAX_EXPR_DEPTH=64`). `OUTPUT` throws `{ __output__: true, value }` which `evalExpr` catches to extract the return value.
-- `tstate` (optional, defaults to global `turtle`) is threaded so `TOWARDS`/`DISTANCE` in sub-expressions see a consistent turtle snapshot.
-- `depth` (optional, defaults to 0) guards unary minus against impractically deep chains.
+Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD` 5. Unary forms bind tighter than any binary operator. `AND`/`OR` are not short-circuit. A non-finite result throws "Number too large". `deeper(p, fn)` wraps every recursive construct (unary chains, parens, procedures-as-values) and throws a Logo error at `MAX_EXPR_DEPTH` instead of hitting the JS stack limit (Chromium survives > 4 000 levels; 500 leaves margin for other engines).
 
-### 2.5 Trampoline Executor (`run`)
+### 2.5 Trampoline Executor (`runStack`)
 
-`run(tokens, startIdx, vars, rctx) → async`
-
-Maintains an explicit frame stack. No JS call frame is consumed per Logo procedure call — removes all recursion depth limits for statement-context execution.
+`runStack(stack, rctx)` is the single implementation of all control flow; `run()` (top level) and `runExpr()` (procedure as a value) are wrappers. It loops while the stack is non-empty and `!rctx.stopped`, looking at the top frame.
 
 #### 2.5.1 Frame Shapes
 
-| Frame type | Fields and semantics |
-|---|---|
-| Exec frame | `{ tokens, idx, vars, procBoundary?, outputVal? }` — Normal sequential execution. `procBoundary=true` marks a procedure entry point; STOP unwinds to here; OUTPUT stores its return value in `outputVal` then also unwinds. |
-| Repeat frame | `{ isRepeat:true, body, vars, remaining }` — Pushes a fresh exec frame for body while `remaining > 0`, then pops self. |
-| While frame | `{ isWhile:true, cond, body, vars }` — `cond` is a `token[]` evaluated from index 0 each iteration via `evalExpr`. Pushes body exec frame while cond ≠ 0. |
-| For frame | `{ isFor:true, varName, end, step, body, vars, nextVal }` — `nextVal` holds the value for the next body execution. `frame.vars[varName]` is set before each body frame is pushed. FOR uses `Object.assign` (copy), not `Object.create`, so `MAKE` inside FOR body does not affect outer scope. |
+| Frame | Fields | Handler |
+|---|---|---|
+| Exec | `tokens, idx, vars` [+ `procBoundary, procName, stmtCall, outputVal, stopFired`] | Reads the next token; dispatches. Popped when exhausted. |
+| Repeat | `isRepeat, body, vars, remaining, iteration, total` | Pushes a body frame with a fresh iteration scope carrying `[REPEAT_SCOPE] = { count, max }`, or pops. |
+| While | `isWhile, cond, body, vars` | Evaluates `cond` (token array) each time; pushes body or pops. |
+| For | `isFor, varName, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal`, or pops. `eps = |step| × 1e-9` absorbs float drift. |
+
+`procBoundary` marks a procedure body. `stmtCall: true` when called as a command (pushed by `runStack`), absent when called by `runExpr`.
 
 #### 2.5.2 Flow Control
 
-| Command | Mechanism |
+| Word | Behaviour |
 |---|---|
-| `STOP` | Pops frames until a `procBoundary` frame is found, then pops that frame too. |
-| `OUTPUT` | Single-pass scan to find `procBoundary` frame; stores value in `outputVal`; unwinds like STOP. Throws if no `procBoundary` found. |
-| `BREAK` | In `run()`: pops frames until a loop frame (`isRepeat`/`isWhile`/`isFor`) is found, then pops it. Throws `"BREAK used outside a loop"` if a `procBoundary` is encountered first. |
-| `IF` / `IFELSE` | Handled inline: evaluates condition, calls `extractBlock`, conditionally pushes exec frame. |
-| `REPEAT` / `WHILE` / `FOR` | Push a typed control frame. The control frame handler at the top of the main loop pushes body exec frames per iteration. |
-| User procedure (statement) | Evaluates parameter expressions in caller's scope; creates child scope via `Object.create(frame.vars)`; pushes `procBoundary` exec frame for procedure body. |
-| Leaf command | Dispatched via `CMD[cmd](tokens, idx, vars, rctx) → nextIdx`. Unknown command throws to halt. |
+| `STOP` | Unwind to the nearest `procBoundary` (set `stopFired`, truncate the stack there); at top level, clear the stack. |
+| `OUTPUT` / `OP` | Evaluate, find the nearest boundary. `stmtCall` boundary → error ("You don't say what to do with …"). Otherwise store `outputVal` and truncate. No boundary → error. |
+| `BREAK` / `CONTINUE` | Scan down to the innermost loop frame (`isLoopFrame`); hitting a `procBoundary` first → error. BREAK truncates to `k` (drops the loop), CONTINUE to `k + 1` (keeps it). |
+| `IF` / `IFELSE` | Evaluate, `extractBlock` (skips sentinels, so a block may start on the next line), push the chosen body with the same `vars`. |
+| `REPEAT` / `WHILE` / `FOR` | Parse, push the typed control frame. |
+| User procedure | Evaluate the arguments in the caller's scope, apply the **tail-call rule**, push `{ tokens: body, vars: scope, procBoundary, procName, stmtCall: true }`. |
+| Leaf command | `frame.idx = await CMD[cmd](tokens, idx, vars, rctx)`. |
+| Anything else | Specific error (extra value, operator, value-producing word used as a command, unknown command). |
+
+**Tail-call rule:** before pushing a statement-level procedure frame, pop every top frame that has nothing left to run (`skipSen(tokens, idx) >= tokens.length`), stopping at loop frames and at expression boundaries (`procBoundary && !stmtCall`, which `runExpr` must keep to read `outputVal`). For direct self-recursion the new scope is based on the popped invocation's parent scope instead of chaining onto it, so endless recursive loops run in constant stack and memory.
+
+**Responsiveness:** every 500 iterations `runStack` checks `Date.now() - rctx.lastYield`; after 40 ms without a yield it awaits a macrotask. Programs that never move the turtle therefore stay stoppable and do not freeze the page.
 
 #### 2.5.3 Variable Scoping
 
-Procedure calls use `Object.create(parentVars)` for the local scope:
-- Variable reads walk the prototype chain — the procedure sees the caller's variables.
-- `MAKE` writes create own properties at the local level; the caller's scope is unaffected.
-- Memory per frame is O(param count), not O(all visible variables).
+Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
-FOR loops use `Object.assign({}, parentVars)` — a flat copy. `MAKE` inside a FOR body does not propagate out. This is a known, intentional inconsistency with REPEAT/WHILE.
+| Scope | Created by | Shape |
+|---|---|---|
+| Globals | RUN / CLR (`globalVars = {}`) | root; `rctx.globals` |
+| Procedure | statement call / `parsePrimary` | `Object.create(callerScope)`, own params, `[PROC_SCOPE] = name` |
+| REPEAT iteration | repeat frame | `Object.create(scope)`, `[REPEAT_SCOPE] = { count, max }` |
+| FOR | `FOR` | `Object.create(scope)`, own loop variable |
 
-### 2.6 Expression-Context Executor (`runExpr`)
+- Reads: `name in vars` / `vars[name]` walk the chain.
+- `setVar` (MAKE): first scope in the chain that owns the name, else `rctx.globals`.
+- `procScopeOf` (LOCAL / LOCALMAKE target): nearest scope with own `PROC_SCOPE`, else globals. `LOCAL` stores `undefined` (read → "has no value yet").
+- `repeatInfo` (REPCOUNT): nearest own `REPEAT_SCOPE`, stopping at a `PROC_SCOPE`. Symbols keep this metadata out of the variable namespace.
 
-`runExpr(tokens, vars, depth, rctx) → async`
+### 2.6 Procedures as Values (`runExpr`)
 
-Lightweight recursive executor used by `evalExpr` when a user procedure appears as an expression value (`FD DOUBLE 50`). Uses throw/catch for STOP, OUTPUT, and BREAK instead of stack unwinding, because expression-level call depth is bounded (~3–5 frames in practice). `MAX_EXPR_DEPTH=64` guards pathological cases.
-
-- `STOP_SIGNAL = { __stop__: true }` (frozen) — thrown by STOP; propagates up through `runExpr`.
-- `BREAK_SIGNAL = { __break__: true }` (frozen) — thrown by BREAK; caught by the nearest loop body's `try/catch` inside `runExpr`. If it escapes a procedure call site (crosses a `procBoundary`), it is converted to a plain `Error`.
-- `OUTPUT` throws `{ __output__: true, value }` — caught by `evalExpr` to extract the return value.
-
-`runExpr` supports all loop constructs (`REPEAT`, `FOR`, `WHILE`) using native JS `for`/`while` loops internally. This duplicates the loop logic from `run()` by design — the alternative (calling `run()` from `runExpr()`) would mix the two control-flow models and complicate BREAK/STOP propagation. The duplication is small and explicitly commented in the source.
+`runExpr(name, proc, scope, rctx) → number` runs the body on its own one-frame stack (`procBoundary` without `stmtCall`) through `runStack`, then: `rctx.stopped` → throw `STOP_SIGNAL` (quiet end after the STOP button); no `outputVal` → error "did not OUTPUT a value". Called from `parsePrimary` inside `deeper()`.
 
 ### 2.7 Token Resolution
 
-`resolveToken(tok, vars, tstate) → number`
+`resolveToken(tok, vars, tstate) → number` handles single value tokens: `QUERY_TOKENS` (a `Map` of name → `ts => value`: `XCOR YCOR HEADING PENDOWN? PD? PENUP? PU? SCRWIDTH SCRHEIGHT`), `REPCOUNT`/`REPCOUNTMAX`, `:var`/`"var`, and strict number literals (`/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/`). Errors distinguish unknown variables, queries written with a colon, commands used as values, stray brackets/operators and unknown tokens. Adding a query is one `QUERY_TOKENS` entry; `DOT`/`LABEL` argument detection (`isValueStart`) uses the same table.
 
-| Token form | Resolution |
-|---|---|
-| `:name` or `"name` | Variable lookup in the `vars` prototype chain. Throws if undefined or non-finite (NaN, Infinity). |
-| `XCOR` / `YCOR` | `tstate.x` / `tstate.y` (defaults to global `turtle`). |
-| `HEADING` | `((tstate.angle % 360) + 360) % 360` — normalised to [0, 360). |
-| `~digits` | `-digits` — negative literal form produced by the tokeniser preprocessor. |
-| Bare number string | `parseFloat`. Throws on NaN (unknown token). |
+### 2.8 Control-Flow Sentinel
 
-`tstate` defaults to the global turtle object. Pass a snapshot for pure evaluation.
+`STOP_SIGNAL` (frozen) is the only thrown control signal. Thrown by `ouch()` (canvas edge — the message is already logged) and by `runExpr` after the STOP button. `runProgram` treats it as a quiet end. Logo `STOP`/`OUTPUT`/`BREAK`/`CONTINUE` never throw; `runStack` unwinds its own stack.
 
-### 2.8 Control-Flow Sentinels
+### 2.9 Yielding and Pacing
 
-Two frozen sentinel objects are used for non-local exits within `runExpr`:
+| Helper | Used by | Behaviour |
+|---|---|---|
+| `nextFrame(rctx)` | `move`, `rotate`, `tick` | Await `requestAnimationFrame`. |
+| `macroYield(rctx)` | instant `move`, `tick`, `runStack` | Await `setTimeout(0)` — lets the browser paint and handle clicks. |
+| `sleep(ms, rctx)` | `WAIT` | Cancellable timer; `rctx.wake` ends it early. |
+| `tick(rctx)` | `SETPOS`, `DOT`, `LABEL` | Animated speeds: `render()` and one frame per `STEPS_PER_FRAME[speed]` calls. Instant: counts toward `INSTANT_FLUSH`. |
 
-| Sentinel | Object | Thrown by | Caught by |
-|---|---|---|---|
-| `STOP_SIGNAL` | `{ __stop__: true }` | `STOP` command handler | RUN button handler; proc-call sites in `evalExpr`/`runExpr` convert escaping signal to plain `Error` |
-| `BREAK_SIGNAL` | `{ __break__: true }` | `BREAK` command handler | Loop body `try/catch` in `runExpr`; proc-call sites convert escaping signal to `"BREAK used outside a loop"` error |
+All update `rctx.lastYield`.
 
-Both signals are `Object.freeze`'d to prevent accidental mutation.
+### 2.10 Command Dispatch Table
 
-### 2.9 Command Dispatch Table
+`CMD['NAME'] = async (t, i, v, rctx) => nextIdx`. Aliases share the function (`CMD['FD'] = CMD['FORWARD']`). Flow-control words (`CONTROL_WORDS`) are handled in `runStack`. Helpers: `wordArg` (a `"word` argument with case kept), `isValueStart` (can a token start an expression — used where the argument is optional or may be text), `skipSen` (handlers that peek at raw tokens skip sentinels first, so arguments may sit on the next line; `DOT` deliberately does not, so `DOT` alone on a line takes no inputs).
 
-All leaf commands are registered in the `CMD` object. Signature:
+### 2.11 Error Handling
 
-```js
-CMD['MYCOMMAND'] = CMD['MC'] = async (tokens, idx, vars, rctx) => nextIdx;
-```
-
-`tokens[idx]` is the first token after the command name. The handler calls `evalExpr` (or `resolveToken` for single-token args) to consume arguments and returns the index of the first unconsumed token.
-
-**Adding a command:**
-1. Register in `CMD` with all aliases.
-2. Call `evalExpr` for each argument (or `resolveToken` for single-token). Pass `rctx` through.
-3. Add input validation and clamping consistent with the error taxonomy in the language spec.
-4. Add the command to the `#ref-body` HTML commands table.
-5. Add an example to `EXAMPLES` if it demonstrates something not already covered.
-
-### 2.10 Error Handling
-
-All interpreter errors are plain JavaScript `Error` objects caught by the RUN button handler. The catch block appends the source line from `rctx.execLine`:
-
-```
-✘ Division by zero
-  line 7:  MAKE :r :x / :y
-```
-
-The error taxonomy (throw vs. warn+clamp) is documented in the language spec Section 8.
+Errors are plain `Error`s with Logo-level messages. `runProgram` logs `✗ message` plus `line N: source` from `rctx.execLine`. Parse errors (from `extractProcedures`) are reported by `parseProgram` before anything runs. Warnings (clamps, caps) are logged and execution continues.
 
 ---
 
 ## 3. Visuals
 
-### 3.1 Coordinate System
+### 3.1 Coordinate System and HiDPI
 
-Logo uses a Cartesian system with origin at canvas centre. Y increases upward. Canvas pixels have origin top-left, Y increases downward. Conversion:
-
-```
-canvas_x = canvas.width  / 2 + logo_x
-canvas_y = canvas.height / 2 - logo_y
-```
-
-Motion formulae (Logo world coords, y up):
+`CW`/`CH` are the logical canvas size in CSS pixels = Logo units. The backing store is `CW×DPR` by `CH×DPR` device pixels (`DPR = devicePixelRatio`, re-read on every resize, so browser zoom is handled). The main canvas, `trailCanvas` and `bgCache` all draw through `setTransform(DPR,0,0,DPR,0,0)`, so **all drawing code works in logical units — always use `CW`/`CH`, never `canvas.width/height`** for geometry. Saved PNGs are at device resolution.
 
 ```
-dx = sin(heading_radians) × dist
-dy = cos(heading_radians) × dist
+canvas_x = CW / 2 + logo_x          dx = sin(heading) × dist
+canvas_y = CH / 2 - logo_y          dy = cos(heading) × dist
 ```
 
-`TOWARDS` uses `atan2(dx, dy)` (north=0 azimuth convention).
+`TOWARDS` uses `atan2(dx, dy)` (north = 0, clockwise).
 
 ### 3.2 Render Pipeline
 
-`render()` composites three layers per frame via painter's algorithm (back to front):
-
-| Layer | Source | Update frequency |
-|---|---|---|
-| Background | `bgCache` off-screen canvas | Rebuilt on window resize only. |
-| Trail | `trailCanvas` off-screen canvas | One segment appended per move step (`paintSegment`). Fully rebuilt on resize or CS. |
-| Turtle sprite | `spr` off-screen canvas | Rebuilt by `buildSprite` only when `tick`, `moving`, or `penDown` changes (cache guard). |
-
-Each layer is a separate off-screen canvas composited with a single `ctx.drawImage()` call. The turtle is drawn only when `turtle.visible` is true.
+`render()` resets the transform, then composites back to front: background (`bgCache` blit or white fill), `trailCanvas` blit, turtle (if visible). Context state is re-applied per frame (`imageSmoothingEnabled = false` keeps the sprite crisp) because resizing a canvas resets it.
 
 ### 3.3 Background
 
-Radial gradient (amber centre → brown edge) with 1 600 randomised grain dots to mimic a sandy surface. An alternative **white** canvas style is available via OPTIONS → CANVAS STYLE. Grain positions are in absolute pixel coordinates and regenerated on every resize.
-
-| Constant | Value | Purpose |
-|---|---|---|
-| Grain count | 1 600 | Visual density without noticeable render cost. |
-| Grain radius | 0.3 – 1.9 px | Randomised per grain. |
-| Grain alpha | 0.07 – 0.35 | Randomised per grain. |
-| Grain colours | `#9a6a18` / `#f2dc8a` | Two tones, 50% each at random. |
+Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates) painted once into `bgCache` (`buildBgCache`) and rebuilt on resize. WHITE style fills instead.
 
 ### 3.4 Trail Storage
 
-Two pre-allocated typed arrays, never reallocated after startup:
+Two pre-allocated typed arrays: `trailF32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `trailU8` (r, g, b). ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
 
-| Array | Type | Layout | Memory at cap |
-|---|---|---|---|
-| `trailF32` | `Float32Array` | Segment i: [x1, y1, x2, y2, w] at i×5…i×5+4 | ~1 000 KB |
-| `trailU8` | `Uint8Array` | Segment i: [r, g, b] at i×3…i×3+2 | ~150 KB |
+| Function | Purpose |
+|---|---|
+| `paintLine(...)` | Paint a segment/dot onto `trailCanvas` without storing it. |
+| `trailPush(...)` | Store (no cap check). |
+| `trailPushIfRoom(...)` | Cap check + store + paint. Used by instant moves, SETPOS, DOT. |
+| `trailPushQuiet(...)` | Cap check + store, no paint — for segments already painted step by step. |
+| `rebuildTrailCanvas()` | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
+| `clearScreen()` | Reset trail, labels and turtle; rebuild. Used by CS, RUN-with-clear and CLR. |
 
-Coordinates stored in Logo world space. `toCanvas()` conversion is inlined in `paintSegment()` and `rebuildTrailCanvas()` with `hw`/`hh` hoisted outside loops.
-
-**Invariants:**
-- `0 ≤ trailLen ≤ MAX_TRAIL_SEGS` always.
-- `trailCapWarned` set `true` on first rejected segment; cap message not repeated.
-- Both reset on CS, CLR, and RUN (when "clear on run" is checked).
-- `rebuildTrailCanvas()` batches state changes: `strokeStyle` and `lineWidth` are only written when their value changes from the previous segment. After redrawing the trail, all `labelStore` entries are replayed via `paintLabel()`.
+`0 ≤ trailLen ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`trailCapWarned`).
 
 ### 3.5 Label Store
 
-`LABEL text` draws text at the turtle's current position onto `trailCanvas` and stores the entry in `labelStore[]` as `{ x, y, text, r, g, b }`. On resize, `rebuildTrailCanvas()` replays all labels after redrawing trail segments.
-
-`labelStore` is capped at `MAX_LABELS` (500). Both `labelStore` and `labelCapWarned` are reset by CS, CLR, and RUN.
+`labelStore[]` of `{ x, y, text, r, g, b }`, capped at `MAX_LABELS`. `paintLabel` draws 16 px VT323. Labels are replayed by `rebuildTrailCanvas`, including once `document.fonts.ready` resolves (so labels drawn before the web font loaded are repainted).
 
 ### 3.6 Turtle Sprite
 
-Two styles selectable via OPTIONS → TURTLE STYLE:
+**ANIMATED (default):** procedurally generated 64×64 sprite (`buildSprite(walkTick, isMoving, pen)`, cached), drawn facing east and rotated by `(heading − 90)°`, centred `SPRITE_OFFSET` ahead of the pen position (`spriteCenter()`). Animation variables derive from `walkTick` (16-bit counter): leg `swing`, `headExt`, `blink`, `pulse`.
 
-**ANIMATED (default):** Procedurally generated sprite drawn into a 64×64 px off-screen canvas (`spr`). Regenerated only when `tick`, `moving`, or `penDown` changes (cache guard).
+**TRIANGLE:** small triangle at the pen position with a pen-state dot.
 
-Draw order (back to front):
-1. Rear legs (two ellipses, opposite-phase swing from front legs)
-2. Belly plate (`drawBelly` — concentric ellipses)
-3. Shell (`drawShell` — radial gradient + hexagonal suture pattern)
-4. Tail stub or pen-down indicator dot
-5. Head (`drawHead` — radial gradient + two eyes with blink)
+### 3.7 Motion
 
-The sprite is drawn facing **east**. On the main canvas it is rotated by `(heading − 90)°` so heading 0 (north) points it upward.
-
-**TRIANGLE:** Small filled green triangle drawn directly to the canvas at the turtle's position. No `SPRITE_OFFSET`. Tip points toward current heading. Pen-state indicator dot at centre (red = down, brown = up).
-
-#### 3.6.1 Animation Variables
-
-| Variable | Formula | Purpose |
+| Speed | Move sub-steps / frame | Degrees / frame |
 |---|---|---|
-| `swing` | `sin(tick × 0.32)` | Leg displacement. 0 when not moving. |
-| `headExt` | `1.5 + sin(tick × 0.32)` | Head protrudes ~1 px further while walking. |
-| `blink` | `sin(tick × 0.05)` | Period ≈125 ticks. Triggers eye close when > 0.92. |
-| `eyeOpen` | `1` or `max(0.15, …)` | Vertical scale of eye ellipses. Ignored while moving. |
-| `pulse` | `sin(tick × 0.18)` | Pen-dot glow oscillation when pen is down. |
+| 0 (slowest) | 1 | 3 |
+| 1 | 4 | 12 |
+| 2 | 16 | 48 |
+| 3 | 64 | 192 |
+| 4 (instant) | whole move, no frame | whole turn |
 
-`walkTick` is a 16-bit cyclic counter (`& 0xFFFF` per step) shared between animated and instant modes.
-
-`SPRITE_OFFSET = 18.8 px`: the logical turtle position (pen tip) is 18.8 px behind the nose along the heading direction. `spriteCenter()` computes the visual midpoint:
-
-```js
-[turtle.x + Math.sin(a) * SPRITE_OFFSET,
- turtle.y + Math.cos(a) * SPRITE_OFFSET]
-```
-
-### 3.7 Motion Rendering
-
-#### 3.7.1 Speed Levels
-
-`rctx.speed` resolved once from `opt-speed` slider value (0–4) at RUN start.
-
-| Speed | Move steps per rAF | Rotation degrees per rAF | Feel |
-|---|---|---|---|
-| 0 (SLOW) | 1 | 3° | Smooth step-by-step |
-| 1 | 4 | 12° | |
-| 2 | 16 | 48° | |
-| 3 | 64 | 192° | |
-| 4 (FAST) | instant path | instant | Former "instant mode" |
-
-The `SPEED n` command updates both `rctx.speed` (effective immediately) and the `opt-speed` DOM element (so the next run starts at the same speed).
-
-#### 3.7.2 Animated Mode (speed 0–3)
-
-`move(dist, rctx)` splits the displacement into `Math.ceil(|dist| × 1.2)` sub-steps. The 1.2 factor gives slightly sub-pixel steps, reducing staircase artefacts on diagonals. One rAF is yielded every `SPF = [1,4,16,64][speed]` steps. The final step snaps to the exact destination to prevent accumulated float drift.
-
-`rotate(deg, rctx)` splits into `Math.ceil(|deg| / DPF)` steps where `DPF = [3,12,48,192][speed]`. Snaps to `start + deg` after the loop.
-
-`circle(r, rctx)` approximates a circle as a regular polygon: `steps = max(36, round(r))`. Each step calls `move(chord)` then `rotate(360/steps)`.
-
-#### 3.7.3 Instant Mode (speed = 4)
-
-`move()` writes one segment to the typed arrays and returns without yielding a rAF. `rotate()` updates `turtle.angle` directly. Every `INSTANT_FLUSH` (150) move steps, `render()` + `setTimeout(0)` is called to paint partial progress and keep the CSS run-indicator animation alive.
+- **`move(dist, rctx)`** computes the end point and clips it with `clipToCanvas` (exact segment/rectangle intersection). Animated: `round(len × 1.2)` sub-steps interpolated from the start point, each painted with `paintLine`; one `nextFrame` per `STEPS_PER_FRAME[speed]` steps; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch()` (log OUCH, throw `STOP_SIGNAL`).
+- **`SETPOS`** uses the same clipping and `ouch()`, then `tick()`.
+- **`rotate(deg, rctx)`** animates in `round(|deg| / DPF)` frames; snaps to `start + deg` unless stopped.
+- **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
 
 ---
 
@@ -415,252 +308,149 @@ The `SPEED n` command updates both `rctx.speed` (effective immediately) and the 
 
 ### 4.1 Layout
 
-Horizontal flex container split into two panels:
-
-| Panel | ID | Width | Contents |
-|---|---|---|---|
-| Left panel | `#panel` | 384 px fixed | Title, code editor, splitter, console, button rows. |
-| Right panel | `#canvas-panel` | `flex: 1` | Main canvas, options overlay, commands overlay, examples overlay. |
-
-The left panel is a vertical flex column. `#split` contains the code editor (`#code-wrap`), the drag splitter (`#splitter`), the console label row, and the console (`#console`). Code editor and console share available height via a JS-managed drag splitter.
+Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, code editor, splitter, console, direct-mode panel and buttons; right panel `#canvas-panel` (`flex: 1`) with the canvas and overlays.
 
 ### 4.2 Code Editor
 
-`contenteditable` div managed by a self-contained IIFE. Public API: `{ getValue, setValue, focus }`.
+`contenteditable` IIFE. Public API `{ getValue, setValue, focus }`.
 
-#### 4.2.1 getValue()
+- **getValue()** walks child nodes (DIV / P / BR / text models), joins with `\n`, strips trailing empty lines.
+- **Highlighting:** every `input` event re-renders all lines (`renderLines`, comments in `<span class="comment">`, `escHtml`) and restores the caret by character offset (`getCaretOffset` / `setCaretOffset`, div by div).
+- **Undo / redo:** re-rendering wipes the browser's native undo stack, so the editor keeps its own history of `{ src, caret }` (max 300). Typing within 800 ms coalesces into one step; `setValue()` (examples, LOAD, beautify) always makes its own step, so loading an example can be undone. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y and `beforeinput` `historyUndo`/`historyRedo` are intercepted.
+- **Tab / paste:** Tab inserts two spaces; paste inserts `text/plain` only (both via `execCommand('insertText')`).
+- **L:N indicator** updates on input and `selectionchange`.
 
-Walks `el.childNodes`. Handles `DIV`, `P`, `BR`, and `TEXT_NODE` models across Chrome/Edge/Safari/Firefox. After joining lines with `\n`, trailing empty lines are stripped — this prevents the browser's guard `<div><br></div>` from producing a spurious trailing `\n` in every `getValue()` call.
+### 4.3 Splitter and Console Toggle
 
-#### 4.2.2 Syntax Highlighting
-
-Re-applied on every keystroke (`onInput`):
-1. `getValue()` reads plain text.
-2. `getCaretOffset()` records caret character offset (div-by-div, +1 per div boundary).
-3. `renderLines(src)` splits on `\n`. Each line becomes a `<div>`. Comment text is `<span class="comment">`. `escHtml()` applied to all text.
-4. `setCaretOffset(offset)` restores caret by reversing the div-walk.
-
-Caret preservation: `getCaretOffset` measures within each div separately to avoid the inter-div newline ambiguity that plagued earlier range-based approaches.
-
-#### 4.2.3 Tab and Paste
-
-Tab key is trapped (`preventDefault`) and inserts two spaces via `document.execCommand("insertText")`. Paste is intercepted to strip HTML: only `text/plain` from the clipboard is passed through.
-
-### 4.3 Splitter
-
-6 px drag bar (`#splitter`) between code editor and console. Resizes `#code-wrap` via `style.height`. Mouse and touch events both handled.
-
-`applyDragGuarded()` auto-expands the console if dragged while collapsed — re-anchors `startY` and `startCodeH` after auto-expand to prevent a jump.
-
-#### 4.3.1 Console Collapse
-
-Toggled by a CSS-styled checkbox (`#console-chk`). `collapse()` removes the console from flex layout: sets `flex:none`, `height:0`, `minHeight:0`, `overflow:hidden`; expands the code editor to fill all space. `expand()` reverses this, restoring the saved code height or defaulting to 50%.
+6 px drag bar resizing `#code-wrap` (mouse + touch). The LOG button hides/shows the console; dragging while hidden re-shows it (`applyDragGuarded`).
 
 ### 4.4 Console / Log
 
-`log(msg, cls)` appends a `<div class="cls">` to `#console`. Filtered by class via OPTIONS checkboxes. PRINT (class `"print"`) bypasses all filters and auto-expands the console if hidden.
+`log(msg, cls)` appends `<div class=cls>`, capped at `MAX_LOG_LINES`.
 
-| Class | Colour | Filter | Contents |
-|---|---|---|---|
-| `op` | `#fa4` (orange) | MOTION | FD, BK, RT, LT, CIRCLE values. |
-| `info` | `#8af` (blue) | INFO | MAKE, procedure definitions, SETCOLOR, SETWIDTH, HOME, SETHEADING. |
-| `ok` | `#6f9` (green) | STATUS | Done, Stopped. |
-| `err` | `#f84` (red-orange) | ERRORS | Runtime errors. Always visible. |
-| `print` | `#ff9` (yellow) | Always shown | PRINT output. Auto-expands console. |
-
-Capped at 500 lines (`MAX_LOG_LINES`). Oldest entries removed before appending when cap is reached. DOM references for `logFilters`, `optSpeed`, and `consoleChk` are cached at startup.
-
-### 4.5 Button Bar
-
-| Button | Action |
-|---|---|
-| RUN (▶) | Clears console, `globalVars`. Optionally clears canvas (`opt-clear-on-run`). Clears and re-parses `procs`. Creates `rctx`. Tokenises and runs editor content. Disables itself, shows pulsing state, re-enables on completion. |
-| STOP (■) | Sets `activeRctx.stopped = true`. Sets `isMoving = false`. Calls `render()`. Logs "■ Stopped." |
-| CLR | Clears trail, label store, resets turtle, clears `globalVars`, clears `procs`, clears console, renders. |
-| ? COMMANDS | Opens commands reference overlay. |
-| ✦ EXAMPLES | Opens examples overlay. |
-
-### 4.6 Code Label Buttons
-
-| Button | Symbol | Action |
+| Class | Filter (OPTIONS) | Contents |
 |---|---|---|
-| Beautify | `≡` | Runs `beautify(src)` on editor content; sets result if changed. Flashes green ✓ for 1.2 s. |
-| Copy | `⎘` | Writes editor content to clipboard via `navigator.clipboard.writeText()`. Falls back to textarea + `execCommand("copy")` on non-HTTPS. |
-| LOG | `LOG` | Toggles console visibility. |
-| SAVE | `SAVE` | Saves editor content to a `.logo` file. Uses File System Access API (Chrome/Edge) with `<a download>` fallback. |
-| LOAD | `LOAD` | Opens a `.logo` or `.txt` file into the editor. Uses `<input type="file">`. |
-| ⚙ | `⚙` | Toggles OPTIONS overlay. |
+| `op` | MOTION (off by default) | FD, BK, RT, LT, SETH, SETPOS, CIRCLE, WAIT. |
+| `info` | INFO (off by default) | MAKE, CALL, IF, definitions, colour/width, "Screen cleared." |
+| `ok` | STATUS (on) | Done, Saved/Loaded. |
+| `err` | always shown | Errors, "■ Stopped.", busy notice. |
+| `print` | always shown, opens console | PRINT, OUCH. |
+| `cmd` | always shown | Direct-mode command echo. |
 
-### 4.7 Overlays
+### 4.5 Buttons and Direct Mode
 
-Three overlays: commands reference (`#ref-overlay`), examples (`#ex-overlay`), options (`#opt-overlay`). Only one open at a time. `openOverlay(id)` toggles the target and closes others. Escape key closes all.
+| Control | Action |
+|---|---|
+| RUN | Ignored while running. Clears console and `globalVars`; `clearScreen()` if "clear screen on run"; clears `procs`; `parseProgram` (errors stop here); `registerProcs`; `runProgram`. |
+| STOP | `haltRun()` (sets `stopped`, ends a WAIT) and logs "■ Stopped." The run unwinds within a frame; `runProgram` re-enables RUN. |
+| CLR | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
+| ⌘ DIRECT | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
+| ≡ / ⎘ / LOG / SAVE / LOAD / ⚙ | Beautify, copy, console toggle, save/load `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes), options. |
 
-#### 4.7.1 Commands Reference
+### 4.6 Overlays and Options
 
-Static HTML table of all commands grouped by category, including a `▸ COLORS` section with colour swatches for all 16 named colours. Positioned top-right of the canvas panel.
-
-#### 4.7.2 Examples
-
-Built dynamically from the `EXAMPLES` array (25 entries). Each entry shows title, description, and a `<pre>` code preview. Clicking loads the code into the editor and closes the overlay. `escHtml()` applied to all example content.
-
-#### 4.7.3 Options
+One overlay at a time (`openOverlay` toggles, Escape closes all): commands reference (static `#ref-body` tables), examples (built from `EXAMPLES`), options:
 
 | Section | Controls |
 |---|---|
-| ▸ FONT SIZE | Three pills (SMALL / MEDIUM / LARGE) setting `--fs-base` CSS variable (1 / 1.4 / 1.8). All font sizes use `calc(Npx * var(--fs-base))`. |
-| ▸ CONSOLE LOG FILTERS | Four checkboxes: MOTION, INFO, STATUS, ERRORS (classes `op`/`info`/`ok`/`err`). Off by default for MOTION and INFO; on for STATUS and ERRORS. |
-| ▸ BEHAVIOUR | CLEAR SCREEN ON RUN checkbox (default on); SPEED slider (0=SLOW … 4=FAST, default 0). |
-| ▸ CANVAS STYLE | PARCHMENT (default) or WHITE. Switching calls `buildBgCache()` + `render()` immediately. |
-| ▸ TURTLE STYLE | ANIMATED (default) or TRIANGLE. Switching calls `render()` immediately. |
+| SAVE | Save canvas as PNG (device resolution). |
+| FONT SIZE | SMALL / MEDIUM / LARGE → `--fs-base` 1 / 1.4 / 1.8; triggers `resizeCanvas`. |
+| CONSOLE LOG FILTERS | MOTION, INFO, STATUS, ERRORS. |
+| BEHAVIOUR | Clear screen on run (on); SPEED slider 0–4 (default 0). |
+| CANVAS STYLE / TURTLE STYLE | PARCHMENT / WHITE; ANIMATED / TRIANGLE. |
 
-### 4.8 Beautify Function
+### 4.7 Beautify
 
-`beautify(src)` is a **pure function** (string → string). It does not call `tokenize()`, `run()`, or any interpreter code. A bug here can produce oddly formatted output but cannot corrupt interpreter state.
+`beautify(src)` is a **pure function**; it never calls interpreter code. Invariant: `beautify(beautify(src)) === beautify(src)`.
 
-**Idempotency invariant:** `beautify(beautify(src)) === beautify(src)` for all valid input.
+| Pass | Purpose |
+|---|---|
+| 1 | Split lines into code / comment / blank. |
+| 2 | Mark negative signs exactly like `tokenize()` (`-` → `~`, kept glued to its operand), lex (parentheses included), uppercase everything except `"words`. |
+| 3 | Emit line records: `TO`/`END` indent, `[` inline-or-expand (`shouldInline`: no nested `[` and ≤ `INLINE_THRESHOLD` tokens). |
+| 4 | Render with `joinToks` (`~x` → `-x`, bare `~` glued to the next token, no space after `(` or before `)`), re-attach comments, keep one blank line after `END`/`]` at depth 0. |
 
-Four-pass algorithm, each O(n):
+### 4.8 Canvas Resize
 
-| Pass | Output | Purpose |
-|---|---|---|
-| 1 | `rawLines[] { code, comment, blank }` | Split each source line on `";"` to separate code from comment. |
-| 2 | `stream[] { tok (uppercased), li }` | Preprocess negative literals (`-digit` → `~digit`), lex tokens with the same regex as the interpreter, tag with source line index. |
-| 3 | `outLines[] { toks[], sourceLi, depth }` | Walk stream; emit output line records. `TO`/`END` expand with indent. `[` triggers `shouldInline()` heuristic. |
-| 4 | `final[] string[]` | Render `outLines` to strings, converting `~digits` tokens back to `-digits`. Interleave comment-only lines. Inject blank separators after `END` or `]` at depth 0 only. |
-
-**Inline heuristic (`shouldInline`):** A block stays inline if it contains no nested `[` AND has ≤ `INLINE_THRESHOLD` (8) non-bracket tokens. Both conditions required.
-
-**Blank line rule:** A blank line is preserved only when: (a) source line index jumped by > 1, (b) output is at depth 0, (c) the previous output line ends with `END` or `]`, and (d) at least one of the gap lines was actually blank in the source.
-
-**Negative literal round-trip:** Pass 2 mirrors the interpreter's preprocessing so `-100` is kept as a single token (not split into `-` + `100`). Pass 4 converts `~100` back to `-100` for output, ensuring `SETPOS 0 -100` is preserved correctly.
-
-### 4.9 Canvas Resize
-
-`resizeCanvas()` called at startup and debounced on window resize (150 ms). Reads canvas-panel dimensions, resizes main canvas and off-screen canvases, calls `buildGrains()` + `buildBgCache()` + `rebuildTrailCanvas()` + `render()`.
-
-Guard: if the panel has not yet been laid out (`clientWidth` or `clientHeight` = 0), returns immediately and retries via `requestAnimationFrame`.
+`resizeCanvas()` runs at startup and 150 ms after window resizes (and after font-size changes). It retries next frame while the panel is 0×0; sets `DPR`, `CW`, `CH`, the backing size and CSS size; rebuilds background and trail; re-centres the turtle only when no program runs.
 
 ---
 
 ## 5. Function Signatures (Quick Reference)
 
 ```
-// Interpreter entry points
-run(tokens, startIdx, vars, rctx)                        → async, void
-runExpr(tokens, vars, depth, rctx)                       → async, void  (throws STOP_SIGNAL / BREAK_SIGNAL / {__output__})
-evalExpr(tokens, idx, vars, rctx, tstate, depth)         → async, {value, nextIdx}
+// Interpreter
+run(tokens, startIdx, vars, rctx)                → async void   (sets rctx.globals)
+runStack(stack, rctx)                            → async void   (all control flow)
+runExpr(name, proc, scope, rctx)                 → async number (procedure as value)
+evalExpr(tokens, idx, vars, rctx, tstate?)       → async {value, nextIdx}
+CMD['NAME'] = async (tokens, idx, vars, rctx)    → nextIdx
+resolveToken(tok, vars, tstate?)                 → number
+tokenize(src)                                    → token[]
+extractBlock(tokens, idx)                        → {body, nextIdx}
+extractProcedures(tokens)                        → {topLevel, newProcs}
+skipSen(tokens, idx, rctx?)                      → idx
+setVar(vars, name, value, rctx) / procScopeOf(vars, rctx) / repeatInfo(vars)
 
-// CMD handler signature (all leaf commands)
-CMD['NAME'] = async (tokens, idx, vars, rctx) => nextIdx
+// Run context and execution
+makeRunContext(speed, procsMap)                  → rctx
+haltRun()                                        → void
+parseProgram(src)                                → {topLevel, newProcs} | null
+runProgram(tokens)                               → async void
 
-// Turtle motion
-move(dist, rctx)                                         → async, void
-rotate(deg, rctx)                                        → async, void
-circle(r, rctx)                                          → async, void
-
-// Run context
-makeRunContext(speed, procsMap)                           → {stopped, execLine, speed, procs, instantStepCount}
-
-// Tokeniser / parser
-tokenize(src)                                            → token[]
-extractBlock(tokens, idx)                                → {body, nextIdx}
-extractProcedures(tokens)                                → {topLevel, newProcs}
-resolveToken(tok, vars, tstate)                          → number
+// Motion and pacing
+move(dist, rctx) / rotate(deg, rctx) / circle(r, rctx) → async void
+clipToCanvas(x0, y0, x1, y1)                     → null | [x, y]
+tick(rctx) / nextFrame(rctx) / macroYield(rctx) / sleep(ms, rctx) → Promise
 
 // Rendering / trail
-render()                                                 → void
-trailPush(x1,y1,x2,y2,w,r,g,b)                         → void  (no cap check)
-trailPushIfRoom(x1,y1,x2,y2,w,r,g,b)                   → boolean
-rebuildTrailCanvas()                                     → void
-paintLabel(lab)                                          → void
-spriteCenter()                                           → [canvas_x, canvas_y]
-toCanvas(x, y)                                           → [canvas_x, canvas_y]
+render() · rebuildTrailCanvas() · clearScreen() · paintLabel(lab)
+paintLine(x1,y1,x2,y2,w,r,g,b) · trailPush(…) · trailPushIfRoom(…) → bool · trailPushQuiet(…) → bool
+toCanvas(x, y) → [cx, cy] · spriteCenter() → [x, y]
 ```
 
 ---
 
 ## 6. Extension Guide
 
-### 6.1 Adding a New Leaf Command
+Always add a regression case to `tests/run-examples.js` and run `node tests/run-examples.js`.
+
+### 6.1 Adding a Leaf Command
 
 ```js
 CMD['MYCOMMAND'] = CMD['MC'] = async (t, i, v, rctx) => {
   const { value: n, nextIdx } = await evalExpr(t, i, v, rctx);
-  // ... do something with n ...
+  // … validate (throw Error with a Logo-level message, or clamp + log a warning) …
   return nextIdx;
 };
 ```
 
-- For instant-mode compatibility, do not call `render()` directly inside CMD handlers that don't need it — `move()` and `rotate()` handle rendering internally.
-- Add all aliases: `CMD['MC'] = CMD['MYCOMMAND']`.
-- Add to the `#ref-body` HTML commands table.
+- If it draws without moving through `move()`, finish with `await tick(rctx)` so pacing and responsiveness match other commands.
+- If it reads a word argument, use `wordArg`; if an argument is optional, use `isValueStart`.
+- Add it to the `#ref-body` table and, if it shows something new, to `EXAMPLES`. Built-in names are automatically protected from `TO` redefinition.
 
-### 6.2 Adding a New Loop Construct
+### 6.2 Adding a Loop Construct
 
-Push a typed control frame with a unique boolean discriminator:
+Push a typed frame (`{ isMyLoop: true, body, vars, … }`) from the exec-frame dispatch, handle `frame.isMyLoop` at the top of the `runStack` loop (push a body frame or pop), and add it to `isLoopFrame` so BREAK / CONTINUE and the tail-call rule recognise it. Nothing else is needed — expression-context code uses the same `runStack`.
 
-```js
-stack.push({ isMyLoop: true, body, vars: frame.vars, /* state */ });
-```
+### 6.3 Adding a Math Function
 
-Add a handler at the top of the `run()` while loop, before the exec-frame code:
+- **One input:** add the name to `UNARY` and an implementation to `UNARY_FNS`. The argument is the single operand after the name (`parseUnary`), so `MYFN :x * 2` is `(MYFN :x) * 2`. Throw on domain errors: `throw new Error('MYFN: argument ' + a + ' must be > 0')`.
+- **Two inputs:** add to `BINARY2` and `BINARY2_FNS` (`(a, b, tstate) => …`).
+- **A query (no input):** one entry in `QUERY_TOKENS`.
+- **An infix operator:** add to `BINOP_PREC` and `applyBinop`, and to the tokenizer regex if it uses new characters (and to beautify's).
 
-```js
-if (frame.isMyLoop) {
-  if (/* condition */) {
-    stack.push({ tokens: frame.body, idx: 0, vars: frame.vars });
-  } else {
-    stack.pop();
-  }
-  continue;
-}
-```
+### 6.4 Canvas / Turtle Styles
 
-If the loop should be breakable with `BREAK`, handle `isMyLoop` in the BREAK scan loop alongside `isRepeat`/`isWhile`/`isFor`.
+Add a pill in the options HTML, a `case` in `drawBackground()` or `render()`, and wire the pill to set `canvasStyle` / `turtleStyle` and call `render()`.
 
-Also add the loop body handler in `runExpr()` — it duplicates the same logic using native JS loops. See the source comment block in `runExpr()` for the design rationale.
-
-### 6.3 Adding a New Math Function
-
-**Single-argument (unary):**
-
-```js
-UNARY.add('MYFN');
-UNARY_FNS['MYFN'] = a => { /* validate, compute */ };
-```
-
-The argument arrives via `resolveToken` (not recursive `evalExpr`). This is intentional — see Section 2.4.
-
-**Two-argument prefix:**
-
-Add to `BINARY2` Set and handle in the `switch` inside `evalExpr`.
-
-### 6.4 Adding a New Canvas Style
-
-1. Add a pill button in the `▸ CANVAS STYLE` opt-section.
-2. Add a `case 'MYSTYLE':` in `drawBackground()`.
-3. Wire the pill click to set `canvasStyle = 'MYSTYLE'` and call `buildBgCache()` + `render()`.
-
-### 6.5 Adding a New Turtle Style
-
-1. Add a pill button in the `▸ TURTLE STYLE` opt-section.
-2. Add a `drawMyTurtle()` function following the `drawSimpleTurtle()` pattern.
-3. Add a `case 'mystyle':` in the `render()` switch.
-4. Wire the pill click to set `turtleStyle = 'mystyle'` and call `render()`.
-
-### 6.6 Splitting Into Multiple Files
-
-The single-file structure is a delivery choice. Natural split boundaries:
+### 6.5 Splitting Into Multiple Files
 
 | File | Contents | DOM dependency |
 |---|---|---|
-| `interpreter.js` | `tokenize`, `extractBlock`, `extractProcedures`, `evalExpr`, `runExpr`, `run`, `CMD`, `resolveToken`, `globalVars`, `procs`, `makeRunContext` | **None** — fully testable in Node |
-| `turtle.js` | `mkTurtle`, `move`, `rotate`, `circle`, turtle state globals | Depends on trail.js, render.js |
-| `trail.js` | Typed arrays, `trailPush`, `paintSegment`, `rebuildTrailCanvas`, label store | Canvas only |
-| `render.js` | `canvas`, `ctx`, `buildSprite`, `drawSimpleTurtle`, `render`, `buildGrains`, `buildBgCache` | Canvas + DOM |
-| `editor.js` | Editor IIFE, `beautify`, `escHtml` | DOM |
-| `ui.js` | Button handlers, splitter, overlays, `log`, options, resize, examples, `setRunning`, file save/load | DOM |
-| `style.css` | All CSS from `<style>` block | — |
-| `index.html` | Shell HTML with `<script type="module">` imports | — |
-
-The `interpreter.js` layer having zero DOM dependencies is the most important invariant to preserve.
+| `interpreter.js` | tokenizer, extractor, parser, `runStack`, `run`, `runExpr`, scopes, `CMD` | none once `log`/`render`/canvas size are injected (see §1) |
+| `turtle.js` | `mkTurtle`, `move`, `rotate`, `circle`, `clipToCanvas` | trail + render |
+| `trail.js` | typed arrays, paint/push helpers, labels, `rebuildTrailCanvas` | canvas |
+| `render.js` | canvas setup, HiDPI, sprite, background, `render` | canvas + DOM |
+| `editor.js` | editor IIFE, `beautify`, `escHtml` | DOM |
+| `ui.js` | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files | DOM |
