@@ -1,9 +1,11 @@
 # Claude Logo — Language Specification
-## Version 6.5 — March 2026
+## Version 8.0 — November 2026
 
 Claude Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
 This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `claude-logo-impl-spec.md`.
+
+> **Changes in v8.0 that can affect older programs:** expressions now use standard operator precedence and are left-associative (§3), and `MAKE` inside a procedure now updates an existing outer/global variable instead of always creating a local one (§6). Use `LOCALMAKE` / `LOCAL` for procedure-private variables.
 
 ---
 
@@ -11,37 +13,47 @@ This document covers everything a **programmer** needs to write, understand, and
 
 A Logo program is a sequence of statements separated by whitespace and newlines. Statements are executed top-to-bottom. Procedure definitions (`TO … END`) are extracted before execution begins and are available for the entire run regardless of where they appear in the source.
 
+Line breaks are mostly insignificant: a command may take its inputs from the next line, and a `[ block ]` may start on the next line:
+
+```logo
+IFELSE :N > 5 [ SETCOLOR RED ]
+              [ SETCOLOR GREEN ]
+```
+
 ### 1.1 Comments
 
-A semicolon `;` starts a comment that extends to the end of the line. Comments are stripped before tokenisation and do not affect execution.
+A semicolon `;` starts a comment that extends to the end of the line.
 
 ```logo
 ; this entire line is a comment
 FD 100  ; inline comment after a command
 ```
 
-### 1.2 Numbers
+### 1.2 Values
 
-All values in Claude Logo are floating-point numbers. There are no strings, booleans, or lists as distinct types. Logical predicates return `1` (true) or `0` (false).
+All values are floating-point numbers. Logical predicates return `1` (true) or `0` (false). There are no list or string values; the only text is a **quoted word** (`"Hello`), accepted by `LABEL`, `PRINT`, and as a colour name for `SETCOLOR`. Quoted words keep their case.
 
-**Negative number literals:** Write the minus sign directly adjacent to the digits with no space:
+**Negative numbers:** a minus sign glued to the following number, variable or `(` — and separated by a space from what comes before — is a negative sign:
 
 ```logo
-SETPOS 0 -100      ; OK — -100 is a negative literal
-SETPOS 0 - 100     ; OK — 100 - 100 = 0 (binary subtraction)
-FD -50             ; OK — forward -50 (same as BK 50)
+SETPOS 0 -100      ; two inputs: 0 and -100
+SETPOS 0 -:Y       ; two inputs: 0 and the negative of :Y
+SETPOS 0 - 100     ; ONE input: 0 - 100 = -100  → SETPOS then lacks its y input
+FD 100 -10         ; error: -10 is an extra value. Subtraction needs spaces: FD 100 - 10
 ```
 
 ### 1.3 Variables
 
-Variables are assigned with `MAKE` and read with `:name` prefix. Variable names are case-insensitive.
+Variables are assigned with `MAKE` and read with the `:name` prefix. Names are case-insensitive. `"name` is accepted as the target of `MAKE` / `LOCAL` / `FOR`.
 
 ```logo
 MAKE :x 42
 FD :x              ; forward 42
-MAKE "y 10         ; double-quote prefix also works
+MAKE "y 10         ; double-quote prefix also works for MAKE
 FD :y + :x         ; forward 52
 ```
+
+See §6 for scoping rules.
 
 ---
 
@@ -55,54 +67,67 @@ FD :y + :x         ; forward 52
 | `BACK n` / `BK n` | Move backward n units (equivalent to `FD -n`). |
 | `RIGHT n` / `RT n` | Turn clockwise n degrees. |
 | `LEFT n` / `LT n` | Turn counter-clockwise n degrees. |
-| `SETHEADING n` / `SETH n` | Set absolute heading. 0 = north (up), 90 = east (right), 180 = south, 270 = west. Animates via the shorter arc (≤ 180°). |
-| `HOME` | Teleport to the origin (0, 0), heading 0° (north). Instant — no trail drawn. |
-| `SETPOS x y` | Teleport to position (x, y). Draws a trail segment if the pen is down. |
+| `SETHEADING n` / `SETH n` | Set absolute heading. 0 = north (up), 90 = east, 180 = south, 270 = west. Animates via the shorter arc (≤ 180°). |
+| `HOME` | Teleport to the origin (0, 0), heading 0°. Instant — no trail drawn. |
+| `SETPOS x y` | Move straight to (x, y) without changing heading. Draws a line if the pen is down. |
 
-**Turtle state queries (usable in expressions):**
+**Canvas edge:** if `FD`, `BK` or `SETPOS` would take the turtle off the canvas, it moves to the edge, the console shows `OUCH! Turtle went off the canvas.` and the program ends.
+
+**Turtle and canvas queries (usable in expressions):**
 
 | Expression | Returns |
 |---|---|
-| `XCOR` | Current x coordinate. |
-| `YCOR` | Current y coordinate. |
+| `XCOR` / `YCOR` | Current x / y coordinate. |
 | `HEADING` | Current heading in degrees, normalised to [0, 360). |
 | `TOWARDS x y` | Heading (degrees CW from north) from the turtle to point (x, y). |
-| `DISTANCE x y` | Euclidean distance from the turtle to point (x, y). |
+| `DISTANCE x y` | Distance from the turtle to point (x, y). |
+| `SCRWIDTH` / `SCRHEIGHT` | Canvas width / height in Logo units. The origin is the centre, so `SCRWIDTH / 2` is the right edge. |
 
 ### 2.2 Drawing
 
 | Command | Description |
 |---|---|
-| `PENUP` / `PU` | Raise the pen. Motion no longer draws a trail. |
-| `PENDOWN` / `PD` | Lower the pen. Motion draws a trail. |
-| `PENDOWN?` / `PD?` | Returns 1 if pen is down, 0 if up. |
-| `PENUP?` / `PU?` | Returns 1 if pen is up, 0 if down. |
-| `CIRCLE r` | Draw a circle of radius r centred at the turtle's current position. r is capped at 2000. |
-| `SETCOLOR r g b` / `SC r g b` | Set line colour. Each channel 0–255; out-of-range values are clamped with a warning. Also accepts a named colour — see Section 4. |
-| `SETWIDTH n` / `SW n` | Set line width in pixels. Clamped to 0.5–100 with a warning. |
-| `LABEL text` | Draw text at the turtle's current position in the current pen colour. Text persists across canvas resize. `text` is the next token; multi-word labels require separate LABEL calls. |
-| `CLEARSCREEN` / `CS` | Clear the canvas, reset the turtle to the origin and heading 0, and clear the trail and all labels. |
+| `PENUP` / `PU` | Raise the pen. Motion no longer draws. |
+| `PENDOWN` / `PD` | Lower the pen. Motion draws. |
+| `PENDOWN?` / `PD?` | 1 if pen is down, 0 if up. |
+| `PENUP?` / `PU?` | 1 if pen is up, 0 if down. |
+| `CIRCLE r` | Draw a circle of radius r, turning right, starting at the turtle position. Negative r draws the mirror image. \|r\| is capped at 2000. |
+| `DOT` | Filled dot at the turtle position. Diameter = pen width, colour = pen colour. Draws even with the pen up. |
+| `DOT x y` | Filled dot at (x, y); the turtle does not move. Inputs must start on the same line as `DOT`. |
+| `SETCOLOR r g b` / `SC r g b` | Set pen colour. Channels 0–255; out-of-range values are clamped with a warning. |
+| `SETCOLOR name` | Named colour, bare or quoted: `SETCOLOR RED`, `SETCOLOR "red` — see §4. |
+| `SETWIDTH n` / `SW n` | Set pen width in pixels. Clamped to 0.5–100 with a warning. |
+| `LABEL "text` | Draw text (case kept) at the turtle position in the pen colour. One word per LABEL. |
+| `LABEL value` | Draw a number: `LABEL :X`, `LABEL XCOR`, `LABEL (:A + 1)`. |
+| `CLEARSCREEN` / `CS` | Clear the trail, dots and labels; reset the turtle (position, heading, pen, colour, width). Variables, procedures and console are kept. |
 | `HIDETURTLE` / `HT` | Hide the turtle sprite. |
 | `SHOWTURTLE` / `ST` | Show the turtle sprite. |
 
-### 2.3 Control Flow
+### 2.3 Loops
 
 | Command | Description |
 |---|---|
-| `REPEAT n [body]` | Execute the body block n times. Negative n logs a warning and skips. |
-| `WHILE [cond] [body]` | Execute the body while the condition block evaluates to non-zero. The condition is re-evaluated before each iteration. |
-| `FOR :v start end [body]` | Count variable `:v` from `start` to `end`, step ±1 (sign auto-determined). Execute body each step. |
-| `FOR :v start end step [body]` | As above but with an explicit step size. Step 0 throws an error. |
-| `IF cond [body]` | Execute body if `cond` is non-zero. |
-| `IFELSE cond [t] [f]` | Execute the `t` block if `cond` is non-zero, otherwise execute the `f` block. |
-| `STOP` | Exit the current procedure immediately. Has no effect at top level. |
-| `OUTPUT val` / `OP val` | Return `val` from the current procedure. Must be inside a procedure. |
-| `BREAK` | Exit the innermost enclosing loop (`REPEAT`, `FOR`, or `WHILE`) immediately. Cannot cross a procedure boundary — using `BREAK` outside any loop throws an error. |
-| `WAIT n` | Pause execution for n seconds. n must be ≥ 0; capped at 30 s. |
-| `REPCOUNT` | Current iteration index (1-based) of the innermost `REPEAT` loop. Throws if used outside a `REPEAT`. |
-| `SPEED n` | Set the animation speed from within a program (n = 1–4). 1 = slow animated, 4 = instant. Matches the OPTIONS speed slider. Values outside 1–4 are clamped with a warning. |
+| `REPEAT n [body]` | Run body n times (n rounded). Negative n logs a warning and skips. |
+| `REPCOUNT` | Current iteration (1…n) of the innermost `REPEAT` in the current procedure. Error outside a `REPEAT`. |
+| `REPCOUNTMAX` | Total iteration count n of that `REPEAT`. |
+| `WHILE [cond] [body]` | Run body while cond is non-zero; cond is checked before each iteration. |
+| `FOR :v start end [body]` | Count `:v` from start to end in steps of ±1 (direction automatic). |
+| `FOR :v start end step [body]` | As above with an explicit step. Step 0 is an error. Fractional steps are safe (`FOR :i 0 1 0.1` runs 11 times). |
+| `BREAK` | Leave the innermost `REPEAT` / `FOR` / `WHILE`. Error outside a loop or across a procedure boundary. |
+| `CONTINUE` | Skip to the next iteration of the innermost loop. Same restrictions as `BREAK`. |
 
-### 2.4 Procedures
+### 2.4 Control
+
+| Command | Description |
+|---|---|
+| `IF cond [body]` | Run body if cond is non-zero. |
+| `IFELSE cond [then] [else]` | Run then if cond is non-zero, otherwise else. |
+| `STOP` | Leave the current procedure. At top level: end the program. |
+| `OUTPUT val` / `OP val` | Return val from the current procedure (see §2.5). |
+| `WAIT n` | Pause n seconds (n ≥ 0, capped at 30). The STOP button ends a WAIT immediately. |
+| `SPEED n` | Animation speed 0 (slowest) … 3 (fast) animated, 4 = instant — the same scale as the OPTIONS slider. Takes effect immediately and moves the slider. Outside 0–4: clamped with a warning. |
+
+### 2.5 Procedures
 
 ```logo
 TO name :param1 :param2
@@ -110,120 +135,102 @@ TO name :param1 :param2
 END
 ```
 
-- Parameter names use `:` prefix in the `TO` line.
-- Parameters are local to the procedure. Calling procedures inherit the caller's variables (prototype chain lookup) but `MAKE` inside a procedure does not affect the caller's scope.
-- Procedures can call themselves recursively. The trampoline executor prevents JavaScript stack overflow regardless of recursion depth.
-- `OUTPUT val` returns a value; `STOP` exits with no value.
+- Parameters are listed with `:` on the `TO` line and are private to each call.
+- Procedure names must start with a letter or `_` and cannot redefine built-in words (`TO FD` is an error).
+- A procedure used as a **command** must not `OUTPUT` — `F` alone, where F outputs, is an error ("You don't say what to do with …").
+- A procedure used as a **value** must `OUTPUT`; falling off the end or `STOP` is an error. Its inputs are full expressions: `FACT :N - 1` means `FACT (:N - 1)`.
+- **Recursion:** a procedure call that is the last thing a procedure does (tail call) can repeat forever — `TO SPIRAL :S  FD :S RT 89  SPIRAL :S + 1  END`. Other recursion (e.g. a tree or the Dragon curve) may nest up to 10 000 levels; recursion inside expressions (procedures used as values) up to 500 levels.
 
 ```logo
 TO SQUARE :size
   REPEAT 4 [ FD :size  RT 90 ]
 END
-
 SQUARE 100
-```
 
-```logo
 TO DOUBLE :n
   OUTPUT :n * 2
 END
-
 FD DOUBLE 50    ; forward 100
 ```
 
-### 2.5 Variables and Output
+### 2.6 Variables and Output
 
 | Command | Description |
 |---|---|
-| `MAKE :name val` | Assign `val` to variable `:name` in the current scope. |
-| `PRINT val` | Print the evaluated value to the console. Always visible; auto-expands the console if hidden. |
-| `CLEARTEXT` / `CT` | Clear the console output without affecting the canvas or interpreter state. |
+| `MAKE :name val` | Set a variable (see §6 for which one). |
+| `LOCALMAKE :name val` | Create a variable private to the current procedure and set it. |
+| `LOCAL :a :b …` | Declare variables private to the current procedure; give them values later with `MAKE`. Reading one before it has a value is an error. |
+| `PRINT val` / `PR val` | Print a value to the console (`0.1 + 0.2` prints `0.3`). Always shown, opens the console if hidden. |
+| `PRINT "word` | Print a word. |
+| `CLEARTEXT` / `CT` | Clear the console. |
 
 ---
 
 ## 3. Expressions
 
-All numeric contexts accept full expressions. Expressions are evaluated **left-to-right with no operator precedence** — this matches standard UCBLogo behaviour.
+Every numeric input accepts a full expression. Operators follow the usual maths rules: higher precedence binds tighter, equal precedence evaluates **left to right**, and parentheses group.
+
+| Precedence | Operators |
+|---|---|
+| highest | unary minus, math functions (`SIN`, `SQRT`, …) — bind to the single operand right after them |
+| 5 | `*` `/` `MOD` |
+| 4 | `+` `-` |
+| 3 | `=` `!=` `<` `>` `<=` `>=` |
+| 2 | `AND` |
+| 1 (lowest) | `OR` |
 
 ```logo
-MAKE :x 2 + 3 * 4    ; :x = 20  (not 14)
+PRINT 2 + 3 * 4        ; 14
+PRINT (2 + 3) * 4      ; 20
+PRINT 10 - 2 - 3       ; 5
+IF :A + 1 > 5 [ … ]    ; (:A + 1) > 5
+PRINT SIN 30 * 2       ; (SIN 30) * 2 = 1
+PRINT SQRT (9 + 16)    ; 5 — use ( ) to give a function a whole expression
+IF NOT :X = 5 [ … ]    ; NOT applies to the whole comparison
 ```
 
-### 3.1 Arithmetic Operators
+An expression inside `( )` may span several lines.
+
+### 3.1 Arithmetic
 
 | Operator | Description |
 |---|---|
-| `+` | Addition |
-| `-` | Subtraction (binary) or negation (unary, directly adjacent to digits) |
-| `*` | Multiplication |
-| `/` | Division. Throws on division by zero. |
-| `MOD` | Modulo. Infix: `10 MOD 3` → 1. Also prefix: `MOD 10 3`. |
+| `+` `-` `*` | Addition, subtraction, multiplication. `-` before an operand is negation. |
+| `/` | Division. Error on division by zero. |
+| `MOD` | Remainder. Infix `10 MOD 3` → 1, or prefix `MOD 10 3`. Error on zero divisor. |
 
-### 3.2 Comparison Operators
+### 3.2 Comparison and logic
 
-Return 1 (true) or 0 (false).
+Comparisons `>` `<` `=` `>=` `<=` `!=` return 1 or 0 (`=` is exact). `AND`, `OR` (infix) and `NOT` (prefix) treat 0 as false and anything else as true, and return 1 or 0. Both sides of `AND` / `OR` are always evaluated.
 
-| Operator | Meaning |
-|---|---|
-| `>` | Greater than |
-| `<` | Less than |
-| `=` | Equal |
-| `>=` | Greater than or equal |
-| `<=` | Less than or equal |
-| `!=` | Not equal |
+### 3.3 Math functions
 
-### 3.3 Logical Operators
-
-Operands are treated as: 0 = false, non-zero = true. Return 1 or 0.
-
-| Operator | Description |
-|---|---|
-| `AND` | Logical and |
-| `OR` | Logical or |
-| `NOT` | Logical not (unary) |
-
-### 3.4 Math Functions
-
-Single-argument math functions take one token as their argument (a number literal, a variable `:x`, or a turtle state query like `XCOR`). They do not accept a full sub-expression — use `MAKE` to compute intermediate values if needed.
-
-```logo
-MAKE :h SQRT :a * :a + :b * :b    ; WRONG — SQRT only consumes :a
-MAKE :sum :a * :a + :b * :b
-MAKE :h SQRT :sum                  ; correct
-```
+Single-input functions bind to the one operand that follows (number, variable, query, another function, or a `( … )` group).
 
 | Function | Description |
 |---|---|
-| `SIN n` | Sine. Argument in degrees. |
-| `COS n` | Cosine. Argument in degrees. |
-| `TAN n` | Tangent. Argument in degrees. |
-| `ARCSIN n` | Inverse sine. Argument in [−1, 1]; throws outside range. Result in degrees. |
-| `ARCCOS n` | Inverse cosine. Argument in [−1, 1]; throws outside range. Result in degrees. |
-| `ARCTAN n` | Arctangent. Unbounded argument. Result in degrees. |
-| `SQRT n` | Square root. n ≥ 0; throws on negative. |
-| `LN n` | Natural logarithm. n > 0; throws on ≤ 0. |
-| `LOG n` | Base-10 logarithm. n > 0; throws on ≤ 0. |
-| `EXP n` | eⁿ. Throws if result would overflow to Infinity (n > 709). |
-| `ABS n` | Absolute value. |
-| `INT n` | Truncate toward zero. |
-| `ROUND n` | Round to nearest integer. |
-| `FLOOR n` | Round down to nearest integer. |
-| `CEILING n` | Round up to nearest integer. |
-| `RANDOM n` / `RND n` | Random integer in [0, n−1]. n must be > 0. |
+| `SIN n` `COS n` `TAN n` | Trigonometry, n in degrees. |
+| `ARCSIN n` `ARCCOS n` | Inverse sine / cosine, n in [−1, 1], result in degrees. |
+| `ARCTAN n` | Arctangent, result in degrees. |
+| `SQRT n` | Square root, n ≥ 0. |
+| `LN n` / `LOG n` | Natural / base-10 logarithm, n > 0. |
+| `EXP n` | eⁿ (n ≤ 709). |
+| `ABS n` `INT n` `ROUND n` `FLOOR n` `CEILING n` | Absolute value, truncate toward zero, round, round down, round up. |
+| `RANDOM n` / `RND n` | Random whole number 0 … ⌊n⌋−1. n must be ≥ 1. |
 
-Two-argument prefix math functions (these do accept full sub-expressions for both arguments):
+Two-input prefix functions (each input is a full expression):
 
 | Function | Description |
 |---|---|
-| `POWER a b` | Exponentiation: a ^ b. |
-| `MAX a b` | Maximum of two values. |
-| `MIN a b` | Minimum of two values. |
+| `POWER a b` | aᵇ. Error if the result is not a real number (e.g. `POWER -8 0.5`). |
+| `MAX a b` / `MIN a b` | Larger / smaller value. |
+| `TOWARDS x y` / `DISTANCE x y` | See §2.1. |
+
+Results that overflow to infinity are an error ("Number too large").
 
 ---
 
 ## 4. Named Colours
-
-`SETCOLOR` accepts a colour name as a single token in place of three numeric r g b channels.
 
 | Name | RGB | Name | RGB |
 |---|---|---|---|
@@ -236,112 +243,118 @@ Two-argument prefix math functions (these do accept full sub-expressions for bot
 | `BLUE` | 50, 100, 220 | `BLACK` | 0, 0, 0 |
 | `BROWN` | 150, 80, 30 | `GOLD` | 255, 200, 0 |
 
-```logo
-SETCOLOR RED          ; named colour
-SETCOLOR 220 50 50    ; equivalent numeric form
-```
-
 ---
 
 ## 5. Coordinate System
 
-The origin (0, 0) is at the centre of the canvas. X increases to the right, Y increases upward (north).
-
-**Heading convention:** 0° = north (up), 90° = east (right), 180° = south, 270° = west. All headings are in degrees, clockwise positive. `SETHEADING`, `HOME`, `TOWARDS`, and `HEADING` use this convention.
+The origin (0, 0) is the centre of the canvas. X increases to the right, Y upward. One unit is one CSS pixel. Headings: 0° = north, clockwise positive.
 
 ---
 
 ## 6. Variable Scoping Rules
 
-| Context | Scope behaviour |
+Claude Logo uses **dynamic scoping**, like UCBLogo: a procedure can read the variables of whoever called it.
+
+| Situation | Behaviour |
 |---|---|
-| Top level | All `MAKE` calls create global variables in `globalVars`. |
-| Procedure call (statement context) | Procedure gets a new scope that inherits caller's variables. `MAKE` writes to the local scope and does not affect the caller. |
-| `REPEAT` / `WHILE` body | `MAKE` affects the enclosing scope (shared object). Variables set in a loop body are visible outside it. |
-| `FOR` body | `MAKE` does **not** affect the enclosing scope (copied object). This is an intentional inconsistency with `REPEAT`/`WHILE`. See Section 7. |
+| `MAKE :x …` | Updates the nearest existing `:x` — a parameter or `LOCAL` of the current procedure, of a calling procedure, a `FOR` variable, or a global. If no `:x` exists, a **global** is created. |
+| `LOCALMAKE :x …` / `LOCAL :x` | Creates `:x` in the current procedure (at top level: a global). It shadows outer variables of the same name until the procedure returns. |
+| Procedure parameters | Private to each call. `MAKE` of a parameter changes only that call's copy. |
+| `FOR :v …` | `:v` exists only inside the loop. Everything else behaves as outside the loop (a `MAKE` in the body updates outer variables). |
+| `REPEAT` / `WHILE` / `IF` bodies | No new scope. |
+
+```logo
+MAKE :COUNT 0
+TO TICK
+  LOCALMAKE :STEP 1          ; private
+  MAKE :COUNT :COUNT + :STEP ; updates the global
+END
+TICK TICK
+PRINT :COUNT                 ; 2
+```
+
+**Recursive procedures that need their own working variables must use `LOCALMAKE`** (or parameters) — with plain `MAKE`, all levels share one global.
 
 ---
 
 ## 7. Known Limitations
 
-These are documented design decisions, not bugs.
-
 | Area | Behaviour |
 |---|---|
-| **No operator precedence** | `2 + 3 * 4` = 20, not 14. Evaluation is strictly left-to-right. This matches standard UCBLogo. Use parentheses... actually Logo has no parentheses. Use `MAKE` for intermediate values. |
-| **Unary functions take one token** | `SQRT :a + :b` computes `(SQRT :a) + :b`, not `SQRT (:a + :b)`. Assign the inner expression to a variable first. |
-| **Right-recursive binary chain** | `a - b + c` evaluates as `a - (b + c)`. |
-| **FOR vs REPEAT/WHILE scoping** | `MAKE` inside a `FOR` body does not affect outer variables. `MAKE` inside `REPEAT`/`WHILE` does. |
-| **`REPCOUNT` in nested loops** | `REPCOUNT` returns the index of the **innermost** `REPEAT` only. There is no way to access outer loop counts from a nested `REPEAT`. Use `FOR` with a named variable if you need the outer index. |
-| **`LOCAL :var` not implemented** | There is no way to declare a local variable except as a procedure parameter. |
-| **`FILL` / `SAVE` / `LOAD` not implemented** | These UCBLogo commands are not available. |
+| **Numbers only** | No lists or strings; quoted words exist only for `LABEL`, `PRINT` and colour names. |
+| **No short-circuit logic** | `AND` / `OR` evaluate both sides: `:X != 0 AND 10 / :X > 1` still divides by zero when `:X` is 0. Use nested `IF`. |
+| **`REPCOUNT` is innermost only** | Use `FOR` with a named variable if you need an outer loop's count. |
+| **`HOME` does not draw** | Unlike UCBLogo, `HOME` never draws a line, even with the pen down. |
+| **Canvas edge ends the program** | There is no `WRAP` / `WINDOW` mode. |
+| **Not implemented** | `FILL`, `FOREVER`, `SETXY`/`SETX`/`SETY`, file commands (use the SAVE / LOAD buttons). |
 
 ---
 
 ## 8. Error Messages
 
-When a runtime error occurs, execution halts and the console shows:
+A runtime error halts the program and shows the line being executed:
 
 ```
-✘ <error message>
-  line 7:  REPEAT :n [FD 100 RT 90]
+✗ Unknown variable: :SIZE
+  line 7:  FD :SIZE
 ```
 
-The source line shown is the most recently executed line, which is where the problem occurred.
-
-| Condition | Message |
+| Condition | Message (abridged) |
 |---|---|
 | Unknown command | `Unknown command: FOO` |
-| Undefined variable | `Undefined variable: :x` |
-| Variable is NaN / Infinity | Error with variable name |
-| Division by zero | Error on division |
-| Math domain violation | Descriptive: e.g. `SQRT argument must be ≥ 0, got -5` |
-| `RANDOM n` with n ≤ 0 | Error |
-| `OUTPUT` outside a procedure | Error |
-| `BREAK` outside a loop | `BREAK used outside a loop` |
-| `FOR` step = 0 | Error (prevents infinite loop) |
-| Missing `]` | `Expected ] — block was never closed` |
-| `WAIT n < 0` | Error |
-| `CIRCLE` with non-finite radius | Error |
-| `:XCOR` / `:YCOR` / `:HEADING` with colon | Error — use bare `XCOR`, `YCOR`, `HEADING` |
-| `REPEAT n < 0` | Warning in console, execution skips the block. Does **not** halt. |
-| `SETCOLOR` channel out of [0, 255] | Warning — value clamped, execution continues. |
-| `SETWIDTH` out of [0.5, 100] | Warning — value clamped, execution continues. |
-| `WAIT n > 30` | Warning — capped to 30 s. |
-| `CIRCLE r > 2000` | Warning — capped to 2000. |
-| `SPEED n` outside 1–4 | Warning — value clamped. |
+| Value used as a command | `SIN produces a value — use it as an input, e.g. PRINT SIN 30` |
+| Extra value after a command | `Unexpected value -10 — the previous command already has all its inputs. …` |
+| Command used as a value | `RT is a command, not a value — a value was expected here` |
+| Undefined variable | `Unknown variable: :X` |
+| `LOCAL` variable read before set | `Variable :X has no value yet (declared with LOCAL)` |
+| `:XCOR` etc. with colon | `XCOR: use without colon (e.g. FD XCOR). …` |
+| Division / `MOD` by zero | `Division by zero` / `MOD: divisor must not be zero` |
+| Math domain | e.g. `SQRT: argument -5 must be >= 0` |
+| Overflow | `Number too large (overflow)` |
+| Missing `)` / `]` | `Missing ) — a ( was opened but never closed` / `Missing ] — …` |
+| Missing `[` | `Expected [ but got: …` |
+| Missing `END` / stray `END` | `Procedure F (line 3): missing END` / `END without a matching TO (line 9)` |
+| Redefining a built-in | `TO: FD is a built-in word and cannot be redefined` |
+| `OUTPUT` from a command call | `You don't say what to do with 5 — F OUTPUTs a value but was used as a command` |
+| No `OUTPUT` from a value call | `F did not OUTPUT a value, but was used where a value is needed` |
+| `OUTPUT` outside a procedure | `OUTPUT used outside a procedure` |
+| `BREAK` / `CONTINUE` outside a loop | `BREAK used outside a loop` |
+| `REPCOUNT` outside `REPEAT` | `REPCOUNT used outside a REPEAT loop` |
+| Deep recursion | `Stack overflow: … (> 10000 frames)` / `Expression nested too deeply (> 500 levels) …` |
+| `FOR` step 0, `WAIT` < 0, non-finite `CIRCLE` | Specific error |
+
+Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLOR` / `SETWIDTH` / `SPEED` clamped, `WAIT` > 30 s capped, `CIRCLE` radius capped, trail limit (50 000 segments) or label limit (500) reached.
 
 ---
 
 ## 9. Examples
 
-25 built-in examples are available from the EXAMPLES panel. They cover the full range of language features.
+31 built-in examples are available from the EXAMPLES panel.
 
 | Title | Features demonstrated |
 |---|---|
-| Square | `REPEAT`, `FD`, `RT` |
-| Triangle | `REPEAT`, geometry (120° exterior angle) |
-| Circle | `CIRCLE` command |
-| Star | `REPEAT`, non-90° turns (144°) |
-| Spiral | `REPEAT`, `MAKE`, variable step size |
+| Square, Triangle, Star | `REPEAT`, `FD`, `RT` |
+| Circle | `CIRCLE` |
+| Spiral, Sunburst | `REPEAT` with a growing variable |
 | Spinning Squares | Nested `REPEAT` |
-| Sunburst | `REPEAT` with growing variable, `FD`+`BK` |
 | Random Splatter | `RND`, `SETCOLOR`, `SETWIDTH`, `HT` |
 | Coloured Star | `SETCOLOR`, `SETWIDTH` |
-| Growing Circles | `CIRCLE`, `MAKE`, variable radius |
-| House | `TO…END` procedures, multiple procedure calls |
-| Flower | `CIRCLE` inside `REPEAT` |
-| Rainbow Spiral | `SETCOLOR` with `:r` `:g` `:b` variables |
-| Bouncing Counter | `IF`, `IFELSE`, `PRINT`, `SETCOLOR` |
-| Diamond | `SETPOS`, `PU`/`PD`, negative variable |
-| Compass Rose | `SETH`, `MAKE`, arithmetic in expressions |
-| Sine Wave | `SIN`, `SETPOS`, `PU`/`PD` |
-| STOP in Procedure | `STOP` early exit, recursive procedure |
-| OUTPUT — Return Values | `OUTPUT`/`OP`, `SQRT`, procedure composition |
-| Comments | `;` inline comments throughout |
-| WHILE — Unwinding Spiral | `WHILE`, `SETCOLOR` with expressions |
-| FOR — Starburst | `FOR` with explicit step 15 |
-| FOR — Colour Spectrum | `FOR`, `SETPOS`, `SETWIDTH`, `HT` |
-| Colour Wheel | Named colours, `LABEL`, `SETHEADING`, six spokes |
-| Deep Recursion — Dragon Curve | Recursive procedures, `SQRT` in expressions, 12 levels deep |
-| REPCOUNT — Expanding Spiral | `REPCOUNT` as distance and turn angle inside `REPEAT` |
+| Growing Circles, Flower | `CIRCLE` inside `REPEAT` |
+| House | `TO…END` procedures |
+| Rainbow Spiral, Comments | `SETCOLOR` with variables, `;` comments |
+| Bouncing Counter | `IF`, `IFELSE` across two lines, `PRINT` |
+| Diamond | `SETPOS`, `PU`/`PD`, negative values |
+| Compass Rose | `SETH`, arithmetic |
+| Sine Wave | `SIN`, `SETPOS` |
+| STOP in Procedure | `STOP`, recursion |
+| OUTPUT — Return Values | `OUTPUT`, `SQRT (…)` |
+| WHILE — Unwinding Spiral | `WHILE` |
+| FOR — Starburst, FOR — Colour Spectrum | `FOR` with step |
+| Deep Recursion — Dragon Curve | Recursion 12 levels deep, `LOCALMAKE` |
+| Named Colours — Colour Wheel | Named colours, `LABEL`, `SETHEADING` |
+| SPEED — Slow to Fast | `SPEED` inside a loop |
+| REPCOUNT — Expanding Spiral | `REPCOUNT` |
+| DOT — Sine Wave Scatter | `DOT`, `SCRWIDTH` / `SCRHEIGHT`, parentheses |
+| Precedence & Parentheses | Operator precedence, `( )` |
+| Global Counter & LOCALMAKE | `MAKE` from a procedure, `LOCALMAKE`, `LABEL "Word` |
+| Tail Recursion — Endless Spiral | Unbounded tail recursion, canvas edge |

@@ -22,10 +22,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble site (app files only)
+      - name: Assemble site (current app + archived versions)
         run: |
-          mkdir _site
+          mkdir -p _site/versions
           cp index.html claude-logo-v*.html _site/
+          cp versions/claude-logo-v*.html _site/versions/
+          # Old versions also at the site root so existing links keep working
+          cp versions/claude-logo-v*.html _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
