@@ -1,10 +1,11 @@
 # Claude Logo — Architecture Review & Modernisation Proposal
 
-*November 2026, based on v8.0. Status: proposal, nothing implemented yet.*
+*November 2026, based on v8.0. Status: agreed direction (see §5). Phase 0 in progress.*
 
 The goal is to turn a family project into a teaching tool used every week. That changes the priorities:
 - it must never lose a pupil's work,
-- it must work on locked-down school networks and offline,
+- it is delivered as a **hosted web page** (GitHub Pages first, possibly a real server later), not as a local file,
+- it must work on locked-down school networks,
 - it must be easy to change without breaking things, because changes will come more often.
 
 ---
@@ -13,11 +14,11 @@ The goal is to turn a family project into a teaching tool used every week. That 
 
 | Aspect | Today | Assessment |
 |---|---|---|
-| Delivery | One 160 KB HTML file (≈360 lines CSS, 250 HTML, 2 680 JS), opens from `file://` | 🟢 Big strength. Keep it as the **output**, but not as the **source**. |
+| Delivery | One 160 KB HTML file (≈360 lines CSS, 250 HTML, 2 680 JS), opens from `file://` | 🟡 Was a strength for a local app. Now that it is a hosted page, single-file delivery is no longer needed. |
 | Code structure | Clear layers marked with `// ──` comments, all in one global scope | 🟡 Good design, but the only boundary is discipline. Any function can touch any global (`turtle`, `globalVars`, `procs`, `CW`, `optSpeed`…). |
 | Interpreter | Tokens → trampoline `runStack` ⇄ precedence parser. Core is DOM-free; leaf commands call `log` / `render` / canvas directly | 🟢 The core is solid. 🟡 The leaf layer is tied to the DOM, so it can only be tested in a browser. |
 | Tests | One Playwright script: 31 examples, 31 language cases, 4 UI checks, ≈8 s | 🟢 Good regression net. 🟡 Every test drives the real UI through globals (`editor`, `activeRctx`, `EXAMPLES`…). No unit tests and no coverage. |
-| CI | Only the Pages deploy. **Tests do not run on PRs** | 🔴 Easy to fix and worth fixing first. |
+| CI | Only the Pages deploy, which has **never succeeded** (Pages not enabled in repo settings). **Tests do not run on PRs** | 🔴 Easy to fix and worth fixing first. |
 | Types | None. Frame shapes, tokens and scopes are documented only in comments | 🟡 The interpreter is a textbook fit for TypeScript discriminated unions. |
 | Versioning | Copy the whole HTML file into `versions/` on every bump; version string edited by hand in 5+ places | 🟡 Error-prone and duplicates git history. |
 | Editor | Hand-written contenteditable with its own undo and caret code; re-renders the whole document on every keystroke | 🟡 Works, but it is the most fragile code in the project and a lot to maintain. |
@@ -31,15 +32,14 @@ In short, the language and interpreter design is in good shape. What is missing 
 
 ## 2. Recommendations
 
-### 2.1 Split the source into modules and build a single file (recommended)
+### 2.1 Split the source into modules and build with Vite
 
-Keep "one self-contained HTML file that opens anywhere" as the **build output**. Make the **source** a normal module tree.
+Since the app is now a hosted page, there is no need to keep it in one file.
 
-- **Vite** + **`vite-plugin-singlefile`** → `dist/claude-logo.html` with all JS/CSS inlined. Inline `<script type="module">` works from `file://`, so offline / USB-stick / itch.io use keeps working.
-- `npm run dev` gives hot reload while you work. `npm run build` produces the file you ship.
-- The **cost** is the "no build step" principle. Node is needed to *develop*, not to *use* the app. For a project that will change often, that is the right trade.
-
-Without a build step, ES modules don't load from `file://` (CORS). Splitting the file without a bundler would therefore break the main delivery mode. That is why the bundler is part of this recommendation.
+- **Vite** with `base: '/Logo/'` (the GitHub Pages path) → `dist/` with hashed JS/CSS assets, deployed by the Pages workflow.
+- `npm run dev` gives hot reload while you work. `npm run build` produces the site.
+- A normal multi-file build also makes the later steps easy: self-hosted font, a service worker (PWA), and code-splitting if the app grows (e.g. load the editor separately).
+- If a real server comes later, the built frontend is served as-is. Server features (accounts, a teacher's view of pupils' programs) would sit behind small interfaces in the frontend, e.g. a `ProgramStore` with a `localStorage` implementation first and an HTTP implementation later.
 
 ### 2.2 TypeScript: yes, introduced gradually
 
@@ -54,7 +54,7 @@ Suggested path:
 2. Make `interpreter/` fully `strict` first, since it holds the most logic and has no DOM.
 3. Do the UI modules later. They benefit less.
 
-A lighter alternative is `// @ts-check` + JSDoc types checked by `tsc --noEmit`. It works without any build. But once you have a bundler, real TS is simpler.
+(Agreed: TypeScript, not JSDoc.)
 
 ### 2.3 Testing: Vitest for logic, Playwright for the UI
 
@@ -63,7 +63,7 @@ A lighter alternative is `// @ts-check` + JSDoc types checked by `tsc --noEmit`.
 | Unit | **Vitest** (Node, no browser) | `tokenize`, `extractProcedures`, `evalExpr`, scoping, `runStack` control flow, `beautify`, `clipToCanvas`, number formatting. Runs in under a second in watch mode. |
 | Interpreter integration | Vitest + a fake IO | Run each example `.logo` file headlessly and assert on the log output and the trail segments (e.g. "Square draws 4 segments and ends at the origin"). |
 | Visual regression (optional) | Vitest + snapshot of the trail array, or Playwright screenshots | Catches rendering changes. |
-| End-to-end | **`@playwright/test`** | STOP during WAIT, direct mode, resize, editor undo, save/load. Run against the **built** single file. |
+| End-to-end | **`@playwright/test`** | STOP during WAIT, direct mode, resize, editor undo, save/load. Run against the **built** site (`vite preview`). |
 
 **Prerequisite (already in TODO.md):** inject the side effects into the interpreter:
 
@@ -89,7 +89,7 @@ The existing `tests/run-examples.js` reaches into page globals. After modularisi
 
 ```
 claude-logo/
-├── index.html                 # Vite entry (markup only)
+├── index.html                 # Vite entry (markup only) — the app itself, no longer a redirect
 ├── src/
 │   ├── main.ts                # wires everything together
 │   ├── styles/                # app.css, overlays.css, …
@@ -101,7 +101,7 @@ claude-logo/
 │   │   ├── scope.ts           # setVar, procScopeOf, repeatInfo
 │   │   ├── commands/          # motion.ts, pen.ts, vars.ts, output.ts …
 │   │   ├── context.ts         # RunContext, LogoIO
-│   │   └── errors.ts          # message catalogue (→ localisation)
+│   │   └── errors.ts          # all error messages in one place
 │   ├── turtle/                # turtle state, move/rotate/circle, clipping
 │   ├── render/                # canvas, HiDPI, sprite, background, trail, labels
 │   ├── editor/                # editor, highlighting, undo
@@ -122,7 +122,7 @@ claude-logo/
 
 Notes:
 - **Examples as real `.logo` files** (imported with Vite's `?raw`) are easier to edit than JS string literals with `\n`. They can be opened in the app, and the test suite can pick them up automatically. This is also the natural home for lessons later (§3).
-- The **`versions/` folder** can stay frozen as-is for old links. New releases come from git tags: the Pages workflow builds `main` → `/`, and each tag `vX.Y` → `/versions/claude-logo-vX.Y.html`. That ends copying 160 KB per release and editing the version number in five places by hand. `index.html` stops being a redirect.
+- The **`versions/` folder** can stay frozen as-is for old links. New releases come from git tags: the Pages workflow builds `main` → `/`, and each tag `vX.Y` → `/versions/claude-logo-vX.Y.html`. That ends copying 160 KB per release and editing the version number in five places by hand.
 
 ### 2.5 Tooling and CI
 
@@ -141,7 +141,7 @@ const rctx = makeRunContext({ speed, session, io });
 
 Benefits: tests create a fresh session per case, CLR becomes `session = createSession()`, and two canvases side by side becomes possible (e.g. a "target picture" next to the pupil's).
 
-### 2.7 Editor: consider CodeMirror 6 (medium term)
+### 2.7 Editor: consider CodeMirror 6 (medium term, optional)
 
 The hand-written editor (caret save/restore, custom undo, full re-render per keystroke, `execCommand`) is the most fragile and least "Logo-specific" part of the code. **CodeMirror 6** (≈120–150 KB min, inlined by the build) gives you:
 - proper undo/redo, IME and mobile input, accessibility,
@@ -149,7 +149,7 @@ The hand-written editor (caret save/restore, custom undo, full re-render per key
 - line numbers, **error-line underline**, **current-line highlight while running** (great for teaching),
 - bracket matching for `[ ]` (pupils often get this wrong), autocomplete of commands and procedure names.
 
-The trade-off is a larger file and a dependency to keep up to date. Do this **after** the build split. With a bundler in place it becomes a contained change inside `src/editor/`.
+The trade-off is a larger download and a dependency to keep up to date. Do this **after** the build split. With a bundler in place it becomes a contained change inside `src/editor/`. Decide in phase 5; the main argument for it is the run-line highlight and step mode.
 
 ### 2.8 Interpreter evolution (optional, later)
 
@@ -157,7 +157,6 @@ The interpreter works on flat token arrays with `__L<n>:text` string sentinels f
 - precise error locations (underline the exact word),
 - a **step / trace mode** that highlights the running command,
 - static checks before running ("procedure SQUAR is not defined — did you mean SQUARE?"),
-- localised command names.
 
 Don't do this early. Typing and unit tests first make it a safe change later.
 
@@ -168,12 +167,12 @@ Don't do this early. Typing and unit tests first make it a safe change later.
 Ordered by value to a classroom, roughly:
 
 1. **Autosave** the editor to `localStorage` (and restore on load), plus a "recent programs" list. Prevents the most common classroom disaster.
-2. **Self-hosted font** → fully offline, no third-party requests (privacy / GDPR, filtered school networks).
+2. **Self-hosted font** → no third-party requests (privacy / GDPR, filtered school networks).
 3. **Share via link:** program compressed into the URL `#hash`. The teacher posts a link, pupils open it, and no accounts or server are needed.
-4. **Friendlier, localisable error messages:** move all messages into `errors.ts` as a catalogue. This enables UI and error text in the pupils' language. Optionally, localised command aliases.
+4. **Friendlier error messages:** collect all messages in `errors.ts`, review them for young readers, and add hints ("did you mean SQUARE?"). English only.
 5. **Step / slow mode with current-line highlight** (needs §2.7, ideally §2.8).
 6. **Lessons / challenges:** a lesson is a `.logo` file with front matter (goal text, starter code, optional target drawing). A "check" compares the pupil's trail with the target (made possible by the headless interpreter of §2.3).
-7. **PWA** (manifest + service worker) so it can be "installed" on school Chromebooks and works offline from the Pages URL.
+7. **PWA** (manifest + service worker) so it can be "installed" on school Chromebooks and keeps working when the network drops mid-lesson.
 8. Language items already in TODO (`FOREVER`, `SETXY`, `FILL`, `WRAP`), which are easier and safer to add with unit tests in place.
 
 ---
@@ -184,17 +183,19 @@ Each phase is a separate PR and leaves the app fully working. Phases 1–3 shoul
 
 | Phase | Content | Size | Risk |
 |---|---|---|---|
-| **0** | CI workflow that runs the existing `tests/run-examples.js` on PRs. Self-host the VT323 font. Add autosave to localStorage. | S | Low |
-| **1** | `package.json`, Vite + singlefile. Mechanical split of the HTML into `src/` modules (no logic changes). Examples → `.logo` files. Playwright test runs against `dist/`. Pages builds from source. | M | Medium: mostly moving code; the existing test suite is the safety net |
+| **0** | Get GitHub Pages live (enable Pages in repo settings). Run the tests in CI on every PR; deploy only after tests pass. `package.json` pinning Playwright. | S | Low |
+| **0b** | Self-host the VT323 font. Autosave to localStorage. (v8.1) | S | Low |
+| **1** | Vite build. Mechanical split of the HTML into `src/` modules (no logic changes). Examples → `.logo` files. Playwright test runs against the built site. Pages deploys `dist/`. | M | Medium: mostly moving code; the existing test suite is the safety net |
 | **2** | `LogoIO` injection + `Session` object. Vitest; move language cases to unit tests and add tokenizer/parser/beautify tests. ESLint boundary rule. | M | Low–medium |
 | **3** | TypeScript: interpreter strict first, then render/turtle, then UI. | M | Low (incremental) |
-| **4** | Teaching features: share link, error catalogue + localisation, lessons. | M–L | Low |
-| **5** | CodeMirror editor, run-line highlight, step mode. Optionally positioned tokens. | L | Medium |
+| **4** | Teaching features: share link, friendlier errors, lessons, PWA. | M–L | Low |
+| **5** | Run-line highlight and step mode; CodeMirror if it makes these easier. Optionally positioned tokens. | L | Medium |
 
-## 5. Decisions needed from the maintainer
+## 5. Decisions (agreed with the maintainer, November 2026)
 
-1. **Is a dev-time build step acceptable** (Node + Vite to develop, still one HTML file to use)? Everything in §2.1–2.5 assumes yes. If no, the fallback is `// @ts-check` + JSDoc, Vitest importing a script extracted from the HTML, and keeping the single source file.
-2. **Must the app keep working from `file://`** (USB stick, downloaded file, itch.io)? The proposed build keeps this. It rules out lazy-loaded chunks, which is fine at this size.
-3. **Keep old versions online?** Proposal: freeze `versions/` as-is and build future versions from tags.
-4. **Target languages** for the UI and error messages, if localisation is wanted.
-5. **CodeMirror vs. the custom editor:** about +150 KB in exchange for a much more robust editor.
+1. **Build step:** accepted (Node + Vite to develop).
+2. **Delivery:** a hosted web page, GitHub Pages first, possibly a server later. Opening the app from `file://` is no longer a requirement, so no single-file build.
+3. **Old versions:** keep `versions/` frozen and online; future versions come from git tags.
+4. **Language:** English only. No localisation work.
+5. **CodeMirror:** no strong preference. Decide in phase 5 on technical grounds.
+6. **TypeScript, Vitest and the file reorganisation:** agreed as proposed.

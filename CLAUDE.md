@@ -23,7 +23,8 @@ Specification is split into two files:
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (proposal, Nov 2026). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `index.html` | GitHub Pages entry point — redirects to the current version. |
-| `.github/workflows/pages.yml` | Deploys `index.html`, the current app and `versions/` to GitHub Pages on push to `main`. |
+| `.github/workflows/pages.yml` | Runs the tests on every PR and push; on `main`, after tests pass, deploys `index.html`, the current app and `versions/` to GitHub Pages. |
+| `package.json` | Dev tooling only (pins Playwright for the tests). The app itself has no dependencies. |
 
 Current version: **v8.0** (`claude-logo-v8.0.html`)
 
@@ -185,6 +186,8 @@ Push a typed frame with a unique boolean discriminator, handle it at the top of 
 ## Testing
 
 ```
+npm install                           # once (installs the pinned Playwright)
+npm test                              # = node tests/run-examples.js
 node tests/run-examples.js            # tests the version index.html points to
 node tests/run-examples.js path.html  # or a specific file
 ```

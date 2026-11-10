@@ -1,0 +1,11 @@
+{
+  "name": "claude-logo",
+  "private": true,
+  "description": "Browser-based Logo turtle graphics for teaching",
+  "scripts": {
+    "test": "node tests/run-examples.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
