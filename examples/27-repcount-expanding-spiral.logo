@@ -1,0 +1,11 @@
+;; title: REPCOUNT — Expanding Spiral
+;; desc: REPCOUNT gives the current iteration number (1..n) inside REPEAT
+; REPCOUNT — Expanding Spiral
+; Each step forward uses REPCOUNT as the distance,
+; and REPCOUNT * 3 as the turn angle for a tightening spiral
+SETWIDTH 1
+REPEAT 60 [
+  SETCOLOR REPCOUNT * 4 200 - REPCOUNT * 3 80
+  FD REPCOUNT * 2
+  RT REPCOUNT * 3
+]

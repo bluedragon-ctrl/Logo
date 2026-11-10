@@ -1,14 +1,261 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Claude Logo</title>
-<!-- GitHub Pages entry point. Update the target on every version bump. -->
-<meta http-equiv="refresh" content="0; url=claude-logo-v8.0.html">
-<link rel="canonical" href="claude-logo-v8.0.html">
-<script>location.replace('claude-logo-v8.0.html' + location.search + location.hash);</script>
+<script type="module" src="/src/main.js"></script>
 </head>
 <body>
-<p>Redirecting to <a href="claude-logo-v8.0.html">Claude Logo v8.0</a>…</p>
+
+<div id="panel">
+  <h1>🐢 CLAUDE LOGO <span style="color:#4a9;font-size:0.7em">v%APP_VERSION%</span></h1>
+  <div id="split">
+    <div id="code-label"><span>▸ CODE</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">LOG</button><button id="btn-save-file" title="Save program to file">SAVE</button><button id="btn-load-file" title="Load program from file">LOAD</button><button id="opt-btn" title="Options">⚙</button></span></div>
+    <div id="code-wrap">
+      <div id="editor"
+           contenteditable="true"
+           spellcheck="false"
+           autocorrect="off"
+           autocapitalize="none"
+           autocomplete="off"
+           data-placeholder="Type LOGO commands here..."></div>
+    </div>
+    <div id="splitter"></div>
+    <div id="console-label"><span>▸ CONSOLE</span></div>
+    <div id="console"></div>
+    <!-- Direct-mode input (inside #split so flex layout is shared) -->
+    <div id="direct-panel">
+      <div id="direct-row">
+        <span id="direct-prompt">&gt;</span>
+        <input id="direct-input" type="text"
+               autocomplete="off" autocorrect="off" autocapitalize="none"
+               spellcheck="false"
+               placeholder="Type a command… (Enter to run)">
+        <button id="btn-direct-run">▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button id="btn-run">▶ RUN</button>
+    <button id="btn-stop">■ STOP</button>
+    <button id="btn-clear" title="Clear screen &amp; reset turtle">CLR</button>
+    <button id="btn-direct-toggle" title="Toggle direct command input mode">⌘ DIRECT</button>
+  </div>
+  <div class="btn-row">
+    <button id="btn-ref">? COMMANDS</button>
+    <button id="btn-examples">✦ EXAMPLES</button>
+  </div>
+</div>
+
+<div id="canvas-panel">
+  <canvas id="c"></canvas>
+
+  <div id="opt-overlay">
+    <button class="close-btn" id="btn-opt-close">✕</button>
+    <h2>⚙ OPTIONS</h2>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ SAVE</div>
+      <button id="save-btn" title="Save canvas as PNG">&#x2913; SAVE AS PNG</button>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ FONT SIZE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-fs="1">SMALL</button>
+        <button class="opt-pill" data-fs="1.4">MEDIUM</button>
+        <button class="opt-pill" data-fs="1.8">LARGE</button>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ CONSOLE LOG FILTERS</div>
+      <label class="opt-check"><input type="checkbox" id="log-op"><span>MOTION (FD, RT…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-info"><span>INFO (MAKE, CALL…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-ok" checked><span>STATUS (Done, Stop)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-err" checked><span>ERRORS</span></label>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ BEHAVIOUR</div>
+      <label class="opt-check"><input type="checkbox" id="opt-clear-on-run" checked><span>CLEAR SCREEN ON RUN</span></label>
+      <div class="opt-speed-row">
+        <span class="opt-speed-label">SPEED</span>
+        <span class="opt-speed-end">SLOW</span>
+        <input type="range" id="opt-speed" min="0" max="4" value="0">
+        <span class="opt-speed-end">FAST</span>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ CANVAS STYLE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-canvas="parchment">PARCHMENT</button>
+        <button class="opt-pill" data-canvas="white">WHITE</button>
+      </div>
+    </div>
+
+    <div class="opt-section">
+      <div class="opt-label">▸ TURTLE STYLE</div>
+      <div class="opt-row">
+        <button class="opt-pill active" data-turtle="animated">ANIMATED</button>
+        <button class="opt-pill" data-turtle="triangle">TRIANGLE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ref-overlay">
+    <div id="ref-header">
+      <button class="close-btn" id="btn-ref-close">✕</button>
+      <h2>📋 COMMANDS</h2>
+    </div>
+    <div id="ref-body">
+
+    <div class="section-head">▸ MOTION</div>
+    <table>
+      <tr><td>FORWARD / FD n</td><td>move forward n pixels</td></tr>
+      <tr><td>BACK / BK n</td><td>move backward n pixels</td></tr>
+      <tr><td>RIGHT / RT n</td><td>turn right n degrees</td></tr>
+      <tr><td>LEFT / LT n</td><td>turn left n degrees</td></tr>
+      <tr><td>SETHEADING / SETH n</td><td>set absolute heading angle</td></tr>
+      <tr><td>HOME</td><td>return to center, heading 0</td></tr>
+      <tr><td>SETPOS x y</td><td>move straight to position x y (draws if pen down)</td></tr>
+      <tr><td>XCOR / YCOR</td><td>current x / y coordinate</td></tr>
+      <tr><td>HEADING</td><td>current heading in degrees</td></tr>
+      <tr><td>TOWARDS x y</td><td>angle needed to face x y</td></tr>
+      <tr><td>DISTANCE x y</td><td>distance to point x y</td></tr>
+      <tr><td>SCRWIDTH / SCRHEIGHT</td><td>canvas width / height in Logo units (origin at centre)</td></tr>
+    </table>
+
+    <div class="section-head">▸ DRAWING</div>
+    <table>
+      <tr><td>PENUP / PU</td><td>pen up — stop drawing</td></tr>
+      <tr><td>PENDOWN / PD</td><td>pen down — start drawing</td></tr>
+      <tr><td>PENDOWN? / PD?</td><td>1 if pen is down, 0 if up</td></tr>
+      <tr><td>PENUP? / PU?</td><td>1 if pen is up, 0 if down</td></tr>
+      <tr><td>CIRCLE r</td><td>draw circle, radius r px</td></tr>
+      <tr><td>DOT</td><td>filled dot at turtle position (size = pen width, color = pen color)</td></tr>
+      <tr><td>DOT x y</td><td>filled dot at (x, y) — no turtle movement</td></tr>
+      <tr><td>SETCOLOR / SC r g b</td><td>line color (0–255 each)</td></tr>
+      <tr><td>SETCOLOR / SC name</td><td>named colour — see ▸ COLORS section</td></tr>
+      <tr><td>SETWIDTH / SW n</td><td>line width in pixels</td></tr>
+      <tr><td>LABEL "text / LABEL value</td><td>draw text (case kept) or a number at turtle position  e.g. LABEL "Hello</td></tr>
+      <tr><td>CLEARSCREEN / CS</td><td>clear screen, reset turtle</td></tr>
+      <tr><td>CLEARTEXT / CT</td><td>clear console output</td></tr>
+      <tr><td>HIDETURTLE / HT</td><td>hide turtle</td></tr>
+      <tr><td>SHOWTURTLE / ST</td><td>show turtle</td></tr>
+    </table>
+
+    <div class="section-head">▸ LOOPS</div>
+    <table>
+      <tr><td>REPEAT n [...]</td><td>repeat block n times</td></tr>
+      <tr><td>REPCOUNT</td><td>current iteration index inside REPEAT (1 to n)</td></tr>
+      <tr><td>REPCOUNTMAX</td><td>total iteration count of the current REPEAT</td></tr>
+      <tr><td>WHILE [cond] [...]</td><td>loop while condition is true</td></tr>
+      <tr><td>FOR :v start end [...]</td><td>count loop (step defaults to ±1)</td></tr>
+      <tr><td>FOR :v start end step [...]</td><td>count loop with explicit step</td></tr>
+      <tr><td>BREAK</td><td>exit the innermost loop early (REPEAT / FOR / WHILE)</td></tr>
+      <tr><td>CONTINUE</td><td>skip to the next iteration of the innermost loop</td></tr>
+    </table>
+
+    <div class="section-head">▸ CONTROL</div>
+    <table>
+      <tr><td>IF cond [...]</td><td>run block if condition true</td></tr>
+      <tr><td>IFELSE c [...] [...]</td><td>if/else branches</td></tr>
+      <tr><td>STOP</td><td>exit current procedure early</td></tr>
+      <tr><td>OUTPUT / OP val</td><td>return value from procedure</td></tr>
+      <tr><td>TO name :in1 :in2 … / END</td><td>define a procedure (a call as the last step may repeat forever)</td></tr>
+      <tr><td>WAIT n</td><td>pause for n seconds</td></tr>
+      <tr><td>SPEED n</td><td>set animation speed 0 (slowest) – 4 (instant)</td></tr>
+      <tr><td>; comment</td><td>rest of line is ignored</td></tr>
+    </table>
+
+    <div class="section-head">▸ VARIABLES</div>
+    <table>
+      <tr><td>MAKE :x val</td><td>set x — updates an existing x (also from inside a procedure), else creates a global</td></tr>
+      <tr><td>MAKE "x val</td><td>same as MAKE :x</td></tr>
+      <tr><td>LOCALMAKE :x val</td><td>create x private to the current procedure</td></tr>
+      <tr><td>LOCAL :x :y …</td><td>declare private variables (set them later with MAKE)</td></tr>
+      <tr><td>:x</td><td>read variable x</td></tr>
+      <tr><td>PRINT / PR value</td><td>print value to console</td></tr>
+      <tr><td>PRINT "word</td><td>print a word</td></tr>
+    </table>
+
+    <div class="section-head">▸ MATH FUNCTIONS</div>
+    <table>
+      <tr><td>+ - * /</td><td>arithmetic — * and / before + and -, left to right</td></tr>
+      <tr><td>( … )</td><td>group: (2 + 3) * 4 = 20</td></tr>
+      <tr><td>-5  -:x</td><td>negative: minus glued to the value, e.g. SETPOS 0 -100</td></tr>
+      <tr><td>MOD a b</td><td>modulo (prefix or infix: a MOD b)</td></tr>
+      <tr><td>POWER a b</td><td>a raised to power b</td></tr>
+      <tr><td>MAX a b</td><td>larger of two values</td></tr>
+      <tr><td>MIN a b</td><td>smaller of two values</td></tr>
+      <tr><td>&gt; &lt; = &gt;= &lt;= !=</td><td>comparison (returns 1/0)</td></tr>
+      <tr><td>AND OR NOT</td><td>logical operators (1/0); comparisons before AND before OR</td></tr>
+      <tr><td>SIN n</td><td>sine of n degrees</td></tr>
+      <tr><td>COS n</td><td>cosine of n degrees</td></tr>
+      <tr><td>TAN n</td><td>tangent of n degrees</td></tr>
+      <tr><td>ARCSIN n</td><td>arcsine → degrees</td></tr>
+      <tr><td>ARCCOS n</td><td>arccosine → degrees</td></tr>
+      <tr><td>ARCTAN n</td><td>arctangent → degrees</td></tr>
+      <tr><td>SQRT n</td><td>square root</td></tr>
+      <tr><td>LN n</td><td>natural logarithm</td></tr>
+      <tr><td>LOG n</td><td>base-10 logarithm</td></tr>
+      <tr><td>EXP n</td><td>e raised to power n</td></tr>
+      <tr><td>ABS n</td><td>absolute value</td></tr>
+      <tr><td>INT n</td><td>truncate to integer</td></tr>
+      <tr><td>ROUND n</td><td>round to nearest integer</td></tr>
+      <tr><td>FLOOR n</td><td>round down to nearest integer</td></tr>
+      <tr><td>CEILING n</td><td>round up to nearest integer</td></tr>
+      <tr><td>RANDOM n / RND n</td><td>random integer 0 to n-1</td></tr>
+    </table>
+
+    <div class="section-head">▸ COLORS</div>
+    <table class="color-table">
+      <tr>
+        <td><span class="csw" style="background:rgb(220,50,50)"></span>RED</td>
+        <td><span class="csw" style="background:rgb(255,140,0)"></span>ORANGE</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(255,220,0)"></span>YELLOW</td>
+        <td><span class="csw" style="background:rgb(50,180,50)"></span>GREEN</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(100,255,50)"></span>LIME</td>
+        <td><span class="csw" style="background:rgb(0,220,220)"></span>CYAN</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(50,100,220)"></span>BLUE</td>
+        <td><span class="csw" style="background:rgb(0,0,150)"></span>NAVY</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,50,200)"></span>PURPLE</td>
+        <td><span class="csw" style="background:rgb(255,100,180)"></span>PINK</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(220,0,220)"></span>MAGENTA</td>
+        <td><span class="csw" style="background:rgb(255,255,255)"></span>WHITE</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,150,150)"></span>GRAY</td>
+        <td><span class="csw" style="background:rgb(0,0,0);border-color:#555"></span>BLACK</td>
+      </tr>
+      <tr>
+        <td><span class="csw" style="background:rgb(150,80,30)"></span>BROWN</td>
+        <td><span class="csw" style="background:rgb(255,200,0)"></span>GOLD</td>
+      </tr>
+    </table>
+
+    </div><!-- /ref-body -->
+  </div>
+
+  <div id="ex-overlay">
+    <button class="close-btn" id="btn-ex-close">✕</button>
+    <h2>✦ EXAMPLES</h2>
+    <div class="ex-hint">Click any example to load it into the editor</div>
+    <br>
+  </div>
+</div>
 </body>
 </html>

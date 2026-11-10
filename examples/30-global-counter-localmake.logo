@@ -1,0 +1,12 @@
+;; title: Global Counter & LOCALMAKE
+;; desc: MAKE inside a procedure updates the global; LOCALMAKE keeps a variable private
+; Global Counter & LOCALMAKE
+MAKE :COUNT 0
+TO STAR :SIZE
+  LOCALMAKE :ANGLE 144     ; private to STAR
+  REPEAT 5 [ FD :SIZE RT :ANGLE ]
+  MAKE :COUNT :COUNT + 1  ; updates the global counter
+END
+REPEAT 6 [ STAR 30 + REPCOUNT * 15 RT 60 ]
+PRINT :COUNT
+LABEL "Stars

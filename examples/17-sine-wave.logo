@@ -1,0 +1,12 @@
+;; title: Sine Wave
+;; desc: Draws a sine curve using SIN and SETPOS
+; Sine Wave
+MAKE :X - 180
+PU
+REPEAT 361 [
+  MAKE :Y SIN :X
+  MAKE :Y :Y * 180
+  SETPOS :X * 1.5 :Y
+  PD
+  MAKE :X :X + 1
+]

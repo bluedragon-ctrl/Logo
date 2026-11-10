@@ -7,8 +7,10 @@ The v7.3 review (`REVIEW.md`) was fully addressed in v8.0. Remaining ideas, roug
 Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phases 0–5).
 
 ### Deployment
-- [ ] Enable GitHub Pages: repository Settings → Pages → Source: "GitHub Actions" (both deploys so far failed with "Get Pages site failed — Not Found")
-- [ ] Self-host the VT323 font; autosave the editor to localStorage (v8.1)
+- [x] GitHub Pages enabled; CI runs tests on PRs (v8.0 → main)
+- [x] Embedded VT323 font; autosave to localStorage (v8.1)
+- [x] Phase 1: Vite build, split into `src/` modules, examples as `.logo` files (v8.2)
+- [ ] Next: phase 2 — `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule
 
 ### Repo
 - [ ] After merging v8.0 to `main`: tag releases (`git tag v8.0`, optionally older ones from history)

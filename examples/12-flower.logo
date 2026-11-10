@@ -1,0 +1,4 @@
+;; title: Flower
+;; desc: Petals made from circles using a variable angle
+; Flower
+REPEAT 12 [ CIRCLE 35 RT 30 ]

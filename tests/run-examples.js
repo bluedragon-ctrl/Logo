@@ -1,15 +1,40 @@
-// Headless smoke test for Claude Logo (dev tooling only — the app itself stays build-free).
-// Usage:  node tests/run-examples.js [claude-logo-vX.Y.html]
+// Headless smoke test for Claude Logo.
+// Usage:  npm test                                   (builds, then tests dist/)
+//         node tests/run-examples.js                 (tests the existing dist/ build)
+//         node tests/run-examples.js versions/claude-logo-v8.1.html   (an archived single-file version)
 // Needs Playwright + Chromium (pre-installed in Claude Code cloud sessions).
 // Runs every EXAMPLES entry at instant speed, checks for "✓ Done!", checks beautify
 // idempotency, runs the regression cases and UI checks below. Exit code 1 on any failure.
-const { chromium } = require('playwright');
-const path = require('path');
-const fs = require('fs');
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-function currentVersionFile() {
-  const m = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').match(/url=(claude-logo-v[\d.]+\.html)/);
-  return path.join(__dirname, '..', m[1]);
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIST = path.join(ROOT, 'dist');
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.png': 'image/png', '.svg': 'image/svg+xml' };
+
+// Serve dist/ on a local port (module scripts do not load from file://).
+// The site is served under /Logo/ like on GitHub Pages.
+function serveDist() {
+  if (!existsSync(path.join(DIST, 'index.html'))) {
+    console.error('dist/ not found — run "npm run build" first (or use "npm test").');
+    process.exit(2);
+  }
+  const server = createServer(async (req, res) => {
+    const url = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    if (!url.startsWith('/Logo/')) { res.writeHead(404).end(); return; }
+    let file = path.normalize(path.join(DIST, url.slice('/Logo/'.length)));
+    if (!file.startsWith(DIST)) { res.writeHead(403).end(); return; }
+    if (url.endsWith('/')) file = path.join(file, 'index.html');
+    try {
+      const body = await readFile(file);
+      res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' }).end(body);
+    } catch { res.writeHead(404).end(); }
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
 // Examples that are expected to end at the canvas edge rather than with "✓ Done!".
@@ -85,15 +110,32 @@ const UI_CHECKS = [
     const ok = await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).then(() => true, () => false);
     return [ok, ''];
   }],
+  ['autosave restores the program after a reload', async (page) => {
+    const src = '; autosave test\nREPEAT 3 [ FD 50 RT 120 ]';
+    await page.evaluate(c => editor.setValue(c), src);
+    await page.waitForTimeout(700);                       // > AUTOSAVE_DELAY_MS
+    await page.reload(); await page.waitForTimeout(300);
+    const got = await page.evaluate(() => editor.getValue());
+    const out = await page.evaluate(() => document.getElementById('console').textContent);
+    return [got === src && out.includes('Restored your program'), JSON.stringify(got)];
+  }],
 ];
 
 (async () => {
-  const file = path.resolve(process.argv[2] || currentVersionFile());
+  let url, server = null;
+  if (process.argv[2]) url = 'file://' + path.resolve(process.argv[2]);
+  else { server = await serveDist(); url = `http://127.0.0.1:${server.address().port}/Logo/`; }
+  const origin = server ? new URL(url).origin : null;
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.message));
-  await page.goto('file://' + file);
+  const externalRequests = [];
+  page.on('request', r => {
+    const u = r.url();
+    if (!/^(file|data|blob):/.test(u) && !(origin && u.startsWith(origin + '/'))) externalRequests.push(u);
+  });
+  await page.goto(url);
   await page.waitForTimeout(300);
 
   async function runProgram(code) {
@@ -108,6 +150,7 @@ const UI_CHECKS = [
   const report = (ok, label) => { if (!ok) failures++; console.log((ok ? 'ok   ' : 'FAIL ') + label); };
 
   const examples = await page.evaluate(() => EXAMPLES.map(e => [e.title, e.code]));
+  report(examples.length > 0, 'examples loaded: ' + examples.length);
   for (const [title, code] of examples) {
     const out = await runProgram(code);
     const ok = ENDS_WITH_OUCH.has(title) ? out.includes('OUCH!') && !/✗|PAGEERROR/.test(out)
@@ -127,7 +170,10 @@ const UI_CHECKS = [
     report(ok, 'ui: ' + name + (detail ? '  (' + detail + ')' : ''));
   }
 
+  report(externalRequests.length === 0, 'no network requests' + (externalRequests.length ? ' — ' + externalRequests.join(', ') : ''));
+
   await browser.close();
+  if (server) server.close();
   console.log(failures ? `\n${failures} failure(s)` : '\nall passed');
   process.exit(failures ? 1 : 0);
 })();
