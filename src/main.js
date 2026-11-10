@@ -1,9 +1,11 @@
-// Claude Logo — application entry point.
+// Blue Logo — application entry point.
 //
 // Module layout (see CLAUDE.md):
+//   app.js        the page's session + browser LogoIO
 //   render/       canvas, sprite, background, trail + labels, render()
-//   turtle/       turtle state, move / rotate / circle
-//   interpreter/  tokenizer → procedures → runtime (runStack) ⇄ expr, CMD table
+//   turtle/       turtle state, drawing store, move / rotate / circle
+//   interpreter/  tokenizer → procedures → runtime (runStack) ⇄ expr, CMD table,
+//                 session, LogoIO — no DOM (ESLint enforces it)
 //   editor/       contenteditable editor with highlighting and undo
 //   format/       beautify (pure)
 //   ui/           console, buttons, direct mode, overlays, files, autosave, options, resize
@@ -24,7 +26,8 @@ import './ui/autosave.js';
 import './ui/options.js';
 import { resizeCanvas } from './ui/resize.js';
 import { render } from './render/render.js';
-import { labelStore, rebuildTrailCanvas } from './render/trail.js';
+import { rebuildTrailCanvas } from './render/trail.js';
+import { session } from './app.js';
 import { activeRctx } from './interpreter/context.js';
 import { beautify } from './format/beautify.js';
 import { optSpeed } from './ui/console.js';
@@ -43,5 +46,6 @@ Object.defineProperties(window, {
   optSpeed:         { value: optSpeed },
   runDirectCommand: { value: runDirectCommand },
   activeRctx:       { get: () => activeRctx },
-  labelStore:       { get: () => labelStore },
+  labelStore:       { get: () => session.drawing.labels },
+  session:          { value: session },
 });

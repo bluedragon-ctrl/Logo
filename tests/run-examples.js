@@ -1,16 +1,19 @@
-// Headless smoke test for Claude Logo.
+// Browser test for Blue Logo (Playwright). The interpreter itself is unit-tested
+// with Vitest (tests/unit/); this file checks the real page end to end.
 // Usage:  npm test                                   (builds, then tests dist/)
 //         node tests/run-examples.js                 (tests the existing dist/ build)
 //         node tests/run-examples.js versions/claude-logo-v8.1.html   (an archived single-file version)
 // Needs Playwright + Chromium (pre-installed in Claude Code cloud sessions).
 // Runs every EXAMPLES entry at instant speed, checks for "✓ Done!", checks beautify
-// idempotency, runs the regression cases and UI checks below. Exit code 1 on any failure.
+// idempotency, runs the language cases (tests/cases.js, shared with Vitest) and the
+// UI checks below. Exit code 1 on any failure.
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CASES, ENDS_WITH_OUCH } from './cases.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -37,50 +40,8 @@ function serveDist() {
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-// Examples that are expected to end at the canvas edge rather than with "✓ Done!".
-const ENDS_WITH_OUCH = new Set(['Tail Recursion — Endless Spiral']);
-
-// [name, source, expected substring of the console output]
-// One case per fixed bug / language rule — add a case for every future fix.
-const CASES = [
-  // Expression grammar (v8.0): precedence, left-associativity, parentheses, negatives
-  ['precedence * before +',        'PRINT 2 + 3 * 4', 'PRINT → 14'],
-  ['parentheses',                  'PRINT (2 + 3) * 4', 'PRINT → 20'],
-  ['left-associative',             'PRINT 10 - 2 - 3', 'PRINT → 5'],
-  ['unary minus',                  'PRINT - 3 + 4', 'PRINT → 1'],
-  ['comparison below arithmetic',  'MAKE :A 5\nIF :A + 1 > 5 [ PRINT 1 ]', 'PRINT → 1'],
-  ['NOT covers comparison',        'MAKE :X 3\nIF NOT :X = 5 [ PRINT 42 ]', 'PRINT → 42'],
-  ['unary function binds tight',   'PRINT SIN 30 * 2', 'PRINT → 1'],
-  ['negative literal is own arg',  'SETPOS 10 -20\nPRINT YCOR', 'PRINT → -20'],
-  ['negative variable is own arg', 'MAKE :Y 30\nSETPOS 0 -:Y\nPRINT YCOR', 'PRINT → -30'],
-  ['FD 100 -10 explains',          'FD 100 -10', 'For subtraction put spaces'],
-  ['missing )',                    'PRINT (1 + 2', 'Missing )'],
-  ['number formatting',            'PRINT 0.1 + 0.2', 'PRINT → 0.3'],
-  // Scoping (v8.0): UCBLogo MAKE, LOCAL/LOCALMAKE, FOR inherits (B1)
-  ['B1 FOR inside REPEAT sees outer var', 'MAKE :SIZE 10\nREPEAT 2 [ FOR :I 1 2 [ PRINT :SIZE ] ]', 'PRINT → 10'],
-  ['B1 FOR inside proc sees global',      'MAKE :G 7\nTO P\n FOR :I 1 2 [ PRINT :G ]\nEND\nP', 'PRINT → 7'],
-  ['FOR variable gone after loop',        'FOR :I 1 2 [ ]\nPRINT :I', 'Unknown variable: :I'],
-  ['MAKE in proc updates global',         'MAKE :C 0\nTO INC\n MAKE :C :C + 1\nEND\nINC INC\nPRINT :C', 'PRINT → 2'],
-  ['LOCAL keeps variable private',        'MAKE :X 1\nTO P\n LOCAL :X\n MAKE :X 99\nEND\nP\nPRINT :X', 'PRINT → 1'],
-  ['parameter MAKE stays local',          'MAKE :N 1\nTO P :N\n MAKE :N :N + 10\nEND\nP 5\nPRINT :N', 'PRINT → 1'],
-  ['B7 REPCOUNT does not leak into procs','TO P\n PRINT REPCOUNT\nEND\nREPEAT 2 [ P ]', 'REPCOUNT used outside'],
-  // Procedures and recursion
-  ['OUTPUT recursion',              'TO FACT :N\n IF :N < 2 [ OUTPUT 1 ]\n OUTPUT :N * FACT :N - 1\nEND\nPRINT FACT 10', 'PRINT → 3628800'],
-  ['B6 runaway expression recursion', 'TO BOOM\n OUTPUT BOOM\nEND\nFD BOOM', 'nested too deeply'],
-  ['tail recursion is unbounded',   'TO L :N\n IF :N = 0 [ STOP ]\n L :N - 1\nEND\nL 50000\nPRINT 7', 'PRINT → 7'],
-  ['B9 OUTPUT used as command',     'TO F\n OUTPUT 5\nEND\nF', "You don't say what to do with 5"],
-  ['B5 missing END reported',       'TO F\n FD 10\nPRINT 1', 'missing END'],
-  ['built-ins cannot be redefined', 'TO FD :X\nEND', 'cannot be redefined'],
-  // Parsing / misc fixes
-  ['B12 top-level errors name line', 'FD 10\nFD :NOPE', 'line 2'],
-  ['B13 block on next line in proc', 'TO P\n IFELSE 1 [ PRINT 1 ]\n [ PRINT 2 ]\nEND\nP', 'PRINT → 1'],
-  ['B8 SETPOS stops at the edge',    'SETPOS 5000 0\nPRINT 1', 'OUCH!'],
-  ['B10 RANDOM below 1 rejected',    'PRINT RANDOM 0.5', 'RANDOM: argument must be >= 1'],
-  ['PRINT "word keeps case',         'PRINT "Hello', 'PRINT → Hello'],
-  ['busy loop without motion',       'MAKE :I 0\nWHILE [ :I < 100000 ] [ MAKE :I :I + 1 ]\nPRINT :I', 'PRINT → 100000'],
-];
-
 // UI-level checks (run after the language cases). Each returns [ok, detail].
+// { currentOnly: true } = skipped when testing an archived single-file version.
 const UI_CHECKS = [
   ['B4 clear-on-run removes labels', async (page, runProgram) => {
     await runProgram('LABEL "HI'); await runProgram('FD 1');
@@ -119,6 +80,17 @@ const UI_CHECKS = [
     const out = await page.evaluate(() => document.getElementById('console').textContent);
     return [got === src && out.includes('Restored your program'), JSON.stringify(got)];
   }],
+  ['autosave migrates the pre-rename key', async (page) => {
+    const src = 'FD 42';
+    await page.evaluate(c => { localStorage.removeItem('blue-logo:program'); localStorage.setItem('claude-logo:program', c); }, src);
+    await page.reload(); await page.waitForTimeout(300);
+    const [got, oldKey] = await page.evaluate(() => [editor.getValue(), localStorage.getItem('claude-logo:program')]);
+    return [got === src && oldKey === null, JSON.stringify(got)];
+  }, { currentOnly: true }],
+  ['page is titled Blue Logo', async (page) => {
+    const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);
+    return [title === 'Blue Logo' && h1.includes('BLUE LOGO'), title + ' / ' + h1];
+  }, { currentOnly: true }],
 ];
 
 (async () => {
@@ -165,7 +137,8 @@ const UI_CHECKS = [
     report(out.includes(expect), 'case: ' + name + (out.includes(expect) ? '' : '\n      expected "' + expect + '", got:\n      ' + out.split('\n').slice(-3).join(' | ')));
   }
 
-  for (const [name, check] of UI_CHECKS) {
+  for (const [name, check, opts] of UI_CHECKS) {
+    if (opts?.currentOnly && !server) continue;
     const [ok, detail] = await check(page, runProgram);
     report(ok, 'ui: ' + name + (detail ? '  (' + detail + ')' : ''));
   }

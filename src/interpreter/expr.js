@@ -3,8 +3,6 @@ import { CONTROL_WORDS } from './procedures.js';
 import { runExpr } from './runtime.js';
 import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.js';
 import { LINE_SEN } from './tokenizer.js';
-import { CH, CW } from '../render/canvas.js';
-import { turtle } from '../turtle/state.js';
 
 // ── Token resolution ──────────────────────────────────────────────────────────
 // QUERY_TOKENS: bare words that read turtle / canvas state. One table, used by
@@ -18,17 +16,16 @@ export const QUERY_TOKENS = new Map([
   ['PD?',       ts => ts.pen ? 1 : 0],
   ['PENUP?',    ts => ts.pen ? 0 : 1],
   ['PU?',       ts => ts.pen ? 0 : 1],
-  ['SCRWIDTH',  () => CW],   // canvas width  in Logo units (1 unit = 1 CSS px, origin at centre)
-  ['SCRHEIGHT', () => CH],   // canvas height in Logo units
+  ['SCRWIDTH',  (ts, rctx) => rctx.io.canvasSize().w],   // canvas width  in Logo units (1 unit = 1 CSS px, origin at centre)
+  ['SCRHEIGHT', (ts, rctx) => rctx.io.canvasSize().h],   // canvas height in Logo units
 ]);
 
-// resolveToken(tok, vars, tstate) → number   — a single value token:
+// resolveToken(tok, vars, rctx) → number   — a single value token:
 //   number literal · :var / "var · query token · REPCOUNT / REPCOUNTMAX
-function resolveToken(tok, vars, tstate) {
+function resolveToken(tok, vars, rctx) {
   if(tok === undefined || tok === null || tok === '') throw new Error('Missing value — the expression ended early');
-  tstate = tstate || turtle;
   const q = QUERY_TOKENS.get(tok);
-  if(q) return q(tstate);
+  if(q) return q(rctx.session.turtle, rctx);
   if(tok === 'REPCOUNT' || tok === 'REPCOUNTMAX') {
     const r = repeatInfo(vars);
     if(!r) throw new Error(tok + ' used outside a REPEAT loop');
@@ -54,7 +51,7 @@ function resolveToken(tok, vars, tstate) {
 }
 
 // ── Expression evaluator ──────────────────────────────────────────────────────
-// evalExpr(tokens, idx, vars, rctx, tstate) → { value, nextIdx }
+// evalExpr(tokens, idx, vars, rctx) → { value, nextIdx }
 //   Consumes ONE expression starting at tokens[idx].
 //
 // Grammar (standard precedence, left-associative; higher binds tighter):
@@ -135,8 +132,8 @@ function applyBinop(op, a, b) {
   throw new Error('Unknown operator: ' + op);
 }
 
-export async function evalExpr(tokens, idx, vars, rctx, tstate) {
-  const p = { tokens, idx, vars, rctx, tstate: tstate || turtle, paren: 0 };
+export async function evalExpr(tokens, idx, vars, rctx) {
+  const p = { tokens, idx, vars, rctx, paren: 0 };
   const value = await parseBinary(p, 1);
   if(!Number.isFinite(value)) throw new Error('Number too large (overflow)');
   return { value, nextIdx: p.idx };
@@ -207,7 +204,7 @@ async function parsePrimary(p) {
     p.idx++;
     const a = await parseBinary(p, 1);
     const b = await parseBinary(p, 1);
-    return BINARY2_FNS[t](a, b, p.tstate);
+    return BINARY2_FNS[t](a, b, p.rctx.session.turtle);
   }
   if(t !== undefined && hasOwn(p.rctx.procs, t)) {
     // User procedure used as a value: FD DOUBLE 50, OUTPUT :N * FACT :N - 1.
@@ -220,5 +217,5 @@ async function parsePrimary(p) {
     return deeper(p, () => runExpr(t, proc, scope, p.rctx));
   }
   p.idx++;
-  return resolveToken(t, p.vars, p.tstate);
+  return resolveToken(t, p.vars, p.rctx);
 }

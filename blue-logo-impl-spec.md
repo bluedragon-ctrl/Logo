@@ -1,57 +1,60 @@
-# Claude Logo — Implementation Specification
-## Version 8.2 — November 2026
+# Blue Logo — Implementation Specification
+## Version 8.3 — November 2026
 
-This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
+This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
 | Property | Value |
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). Served as a static site (GitHub Pages). |
 | Delivery | ES modules in `src/`, built by Vite into `dist/` (`index.html` + hashed JS/CSS/font). Module scripts do not load from `file://` — use `npm run dev` or `npm run preview` locally. Versions up to v8.1 are frozen single-file HTML in `versions/`. |
-| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: Vite, ESLint, Playwright. |
+| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: Vite, Vitest, ESLint, Playwright. |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
-| Tests | `npm test` — Vite build, then headless Chromium via Playwright against `dist/`. `npm run lint` — ESLint. |
+| Tests | `npm test` — Vitest unit tests (interpreter in Node, `tests/unit/`), Vite build, then headless Chromium via Playwright against `dist/`. `npm run lint` — ESLint, including the core boundary rule. |
 
 ---
 
 ## 1. Architecture Overview
 
-The application is a set of ES modules (`src/`) bundled by Vite. There is no framework and no class hierarchy. State lives in module-level variables, each owned by one module (§1.2). Five logical layers:
+The application is a set of ES modules (`src/`) bundled by Vite. There is no framework and no class hierarchy. Everything a Logo program can change lives in a **session** object; everything it shows goes through a **LogoIO** object; both travel in `rctx` (§1.3). UI-only state (canvas size, styles, console visibility) lives in module-level variables, each owned by one module (§1.2). Five logical layers:
 
 | Layer | Responsibility |
 |---|---|
 | Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
-| Turtle state | Position, heading, pen, colour, width. Single mutable object reset by CS / CLR / RUN. |
+| Turtle | `session.turtle` (position, heading, pen, colour, width), `session.drawing` (trail segments + labels), `move`/`rotate`/`circle`. |
 | Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
 | Editor | `contenteditable` editor (`editor/editor.js`): syntax highlighting, caret preservation, own undo/redo, tab/paste. |
 | UI shell | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, file save/load. |
 
-**DOM coupling of the interpreter (honest statement).** The interpreter core — `tokenize`, `extractBlock`, `extractProcedures`, the expression parser, `runStack` — reads only its arguments, `rctx` and the `procs` map. The leaf layer is not DOM-free: CMD handlers and `move`/`rotate` call `log()`, `render()` and paint onto `trailCanvas`; `SCRWIDTH`/`SCRHEIGHT` read `CW`/`CH`; `SPEED` writes the slider (guarded by `typeof optSpeed`); `CT` clears `#console`. Keep new code in the core DOM-free; route side effects through these few functions so the planned `LogoIO` injection (roadmap phase 2, `docs/architecture-proposal.md`) only needs to replace them (e.g. `rctx.io = { log, render }`).
+**The core has no DOM.** `src/interpreter/`, `src/turtle/` and `src/format/` never touch the browser: they see no browser globals and may not import `render/`, `ui/`, `editor/`, `app.js` or `main.js` (ESLint enforces both, see `eslint.config.js`). The page wires the core to the browser in `src/app.js`; the unit tests use `headlessIO()` instead (§1.3).
 
 ### 1.1 Data Flow (RUN)
 
 ```
-btn-run → parseProgram(editor.getValue())
+btn-run → parseProgram(editor.getValue(), io)
             → tokenize(src)               → token[]  (with LINE_SEN line sentinels)
             → extractProcedures(tokens)   → { topLevel, newProcs }
-        → registerProcs(newProcs)         → procs
-        → runProgram(topLevel)
-            → makeRunContext(speed, procs) → rctx ; activeRctx = rctx
-            → run(topLevel, 0, globalVars, rctx)
-                → runStack(stack, rctx)    → CMD handlers / control flow
-                    → evalExpr(...)        → parseBinary / parseUnary / parsePrimary
-                    → move / rotate / circle → paintLine / trailPush… / render()
+        → registerProcs(session, newProcs, io) → session.procs
+        → runProgram(topLevel)                                   (ui/program.js)
+            → makeRunContext(speed, session, io) → rctx ; activeRctx = rctx
+            → execute(topLevel, rctx)                            (interpreter/execute.js)
+                → run(topLevel, 0, session.globals, rctx)
+                    → runStack(stack, rctx)    → CMD handlers / control flow
+                        → evalExpr(...)        → parseBinary / parseUnary / parsePrimary
+                        → move / rotate / circle → session.drawing + rctx.io.paintLine / render
+                → "✓ Done!" or "✗ error + line"
             → finally: activeRctx = null, setRunning(false), rctx.onFinish?.()
 ```
 
-Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` / `runProgram`, keeps `globalVars` between commands, and refuses to start while a program runs.
+Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` / `runProgram`, keeps `session.globals` between commands, and refuses to start while a program runs.
 
 ### 1.2 File Layout
 
 | Path | Contents |
 |---|---|
 | `index.html` | Markup only: left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
+| `src/app.js` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
 | `src/main.js` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS, including the VT323 `@font-face`. |
 | `src/assets/fonts/` | `VT323-Regular.woff2` (latin subset). |
@@ -62,16 +65,20 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `render/canvas.js` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
 | `render/sprite.js` | Palette, `drawShell`/`drawLeg`/`drawHead`/`drawBelly`, `spr`, `buildSprite`, `SPRITE_OFFSET`. |
 | `render/background.js` | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`/`turtleStyle` + setters. |
-| `render/trail.js` | Typed-array trail, `paintLine`, `trailPushIfRoom`, `trailPushQuiet`, label store (`labelStore`, `MAX_LABELS`, `paintLabel`), `trailCanvas`, `toCanvas`, `clearScreen`, `rebuildTrailCanvas`. |
-| `render/render.js` | `render()` (background → trail → sprite). |
+| `render/trail.js` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing`). |
+| `render/render.js` | `render()` (background → trail → sprite; reads `session.turtle`, `walkTick`, `isMoving`). |
 | **turtle/** | |
-| `turtle/state.js` | `turtle`, `walkTick`, `isMoving` + `resetTurtle`, `setMoving`, `advanceWalk`. |
-| `turtle/motion.js` | `clipToCanvas`, `ouch`, `move`, `rotate`, `circle`. |
+| `turtle/state.js` | `mkTurtle`, `resetTurtle(t)` (in place). |
+| `turtle/drawing.js` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `MAX_TRAIL_SEGS`, `MAX_LABELS`. |
+| `turtle/motion.js` | `clipToCanvas`, `clipForRun`, `ouch`, `move`, `rotate`, `circle`. |
 | **interpreter/** | |
+| `interpreter/session.js` | `createSession`, `clearScreen(session, io)`, `clearProcs`. |
+| `interpreter/io.js` | The LogoIO contract (header comment) and `headlessIO()`. |
 | `interpreter/context.js` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
-| `interpreter/scope.js` | INTERPRETER header comment, `globalVars` + `resetGlobals`, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
+| `interpreter/execute.js` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
+| `interpreter/scope.js` | INTERPRETER header comment, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
 | `interpreter/tokenizer.js` | `LINE_SEN`, `tokenize`. |
-| `interpreter/procedures.js` | `extractBlock`, `procs`, `CONTROL_WORDS`, `extractProcedures`. |
+| `interpreter/procedures.js` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
 | `interpreter/expr.js` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `skipSen`, `noteLine`. |
 | `interpreter/signals.js` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
 | `interpreter/pacing.js` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
@@ -82,17 +89,36 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `format/beautify.js` | `beautify(src)` — pure. |
 | **ui/** | |
 | `ui/console.js` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
-| `ui/program.js` | `setRunning`, `registerProcs`, `parseProgram`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
+| `ui/program.js` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
 | `ui/direct.js` | Direct-mode state, `runDirectCommand`, direct-mode handlers. |
 | `ui/examples-overlay.js`, `ui/overlays.js`, `ui/options.js` | Examples list, `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
 | `ui/splitter.js`, `ui/code-buttons.js`, `ui/files.js`, `ui/resize.js` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
-| `ui/autosave.js` | `AUTOSAVE_KEY` (`claude-logo:program`), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
+| `ui/autosave.js` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
-**State ownership.** An ES module cannot assign to a variable it imports. Each piece of mutable state is written only by the module that declares it, through a small setter (`setCanvasSize`, `setActiveRctx`, `resetGlobals`, `resetTurtle`, `setMoving`, `advanceWalk`, `setLabelCapWarned`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`). Readers import the variable directly (ES imports are live bindings). ESLint's `no-import-assign` catches violations. Mutating an imported object (`turtle.x = …`, `procs[name] = …`, `labelStore.push(…)`) is fine.
+**State ownership.** Program state is in the session object; modules change its fields (`session.globals = {}`, `session.turtle.x = 0`) and never replace the object. `session.turtle` and `session.procs` are also never replaced (they are reset in place) so references held during a run stay valid. UI state that is a module-level variable is written only by the module that declares it, through a small setter (`setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`) — an ES module cannot assign to a variable it imports; ESLint's `no-import-assign` catches violations.
 
-**Circular imports** exist (e.g. `expr` ⇄ `runtime` ⇄ `commands`) and are harmless because those modules only use each other inside functions. Do not add top-level code that calls into another interpreter module at import time.
+**Circular imports** exist (e.g. `expr` ⇄ `runtime` ⇄ `commands`; `app` ⇄ `render`) and are harmless because those modules only use each other inside functions. Do not add top-level code that calls into another interpreter module at import time.
 
-### 1.3 Key Constants
+### 1.3 Session and LogoIO
+
+`createSession()` (`interpreter/session.js`) → `{ turtle, drawing, globals, procs, walkTick, isMoving }`. The page has one (`src/app.js`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)`; RUN and CLR also set `session.globals = {}` and `clearProcs(session)`.
+
+`rctx.io` is the interpreter's only way out (`interpreter/io.js`):
+
+| Method | Browser (`src/app.js`) | `headlessIO()` |
+|---|---|---|
+| `log(msg, cls)` | `ui/console.js` `log` | collects `{msg, cls}` in `.lines`; `.text()` joins them |
+| `render()` | `render()` | no-op |
+| `paintLine(x1,y1,x2,y2,w,r,g,b)` / `paintLabel(lab)` | paint on `trailCanvas` | no-op |
+| `redraw()` | `rebuildTrailCanvas()` | no-op |
+| `clearText()` | empty `#console` | clears `.lines` |
+| `canvasSize()` → `{w, h}` | `{CW, CH}` | fixed (default 800 × 600) |
+| `setSpeed(n)` | moves the speed slider | no-op |
+| `nextFrame()` / `macroYield()` | `requestAnimationFrame` / `setTimeout(0)` | `setTimeout(0)` |
+
+Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` stores the segment in `session.drawing` and then calls `io.paintLine`.
+
+### 1.4 Key Constants
 
 | Constant | Value | Purpose |
 |---|---|---|
@@ -113,14 +139,15 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 ### 2.1 RunContext (`rctx`)
 
-Created by `makeRunContext(speed, procsMap)` for every RUN / direct command.
+Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 
 | Field | Purpose |
 |---|---|
 | `stopped` | Kill switch. Set by `haltRun()` (STOP / CLR). Checked by `runStack`, `move`, `rotate`, `circle`. |
 | `execLine` | `{ n, text }` of the current source line, from LINE_SEN sentinels. Appended to error messages. |
 | `speed` | 0–4. Snapshot of the slider; `SPEED n` changes it mid-run (and moves the slider). |
-| `procs` | The live procedure map. |
+| `session`, `io` | What the program changes / where its output goes (§1.3). |
+| `procs` | `session.procs` (shortcut). |
 | `globals` | Root scope of this run (set by `run()`); `MAKE` falls back to it. |
 | `exprDepth` | Current expression nesting; checked by `deeper()` against `MAX_EXPR_DEPTH`. |
 | `instantStepCount`, `tickCount`, `steps`, `lastYield` | Yield bookkeeping (§2.9). |
@@ -149,7 +176,7 @@ and push a sentinel `__L<line>:<trimmed source>` before the line's tokens (empty
 
 ### 2.4 Expression Evaluator
 
-`evalExpr(tokens, idx, vars, rctx, tstate) → { value, nextIdx }` consumes one expression. Internally a precedence-climbing recursive-descent parser over a small state object `p = { tokens, idx, vars, rctx, tstate, paren }`:
+`evalExpr(tokens, idx, vars, rctx) → { value, nextIdx }` consumes one expression. Internally a precedence-climbing recursive-descent parser over a small state object `p = { tokens, idx, vars, rctx, paren }`:
 
 ```
 parseBinary(p, minPrec):  left = parseUnary(p)
@@ -207,7 +234,7 @@ Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
 | Scope | Created by | Shape |
 |---|---|---|
-| Globals | RUN / CLR (`globalVars = {}`) | root; `rctx.globals` |
+| Globals | RUN / CLR (`session.globals = {}`) | root; `rctx.globals` |
 | Procedure | statement call / `parsePrimary` | `Object.create(callerScope)`, own params, `[PROC_SCOPE] = name` |
 | REPEAT iteration | repeat frame | `Object.create(scope)`, `[REPEAT_SCOPE] = { count, max }` |
 | FOR | `FOR` | `Object.create(scope)`, own loop variable |
@@ -223,7 +250,7 @@ Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
 ### 2.7 Token Resolution
 
-`resolveToken(tok, vars, tstate) → number` handles single value tokens: `QUERY_TOKENS` (a `Map` of name → `ts => value`: `XCOR YCOR HEADING PENDOWN? PD? PENUP? PU? SCRWIDTH SCRHEIGHT`), `REPCOUNT`/`REPCOUNTMAX`, `:var`/`"var`, and strict number literals (`/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/`). Errors distinguish unknown variables, queries written with a colon, commands used as values, stray brackets/operators and unknown tokens. Adding a query is one `QUERY_TOKENS` entry; `DOT`/`LABEL` argument detection (`isValueStart`) uses the same table.
+`resolveToken(tok, vars, rctx) → number` handles single value tokens: `QUERY_TOKENS` (a `Map` of name → `(turtle, rctx) => value`; `SCRWIDTH`/`SCRHEIGHT` read `rctx.io.canvasSize()`: `XCOR YCOR HEADING PENDOWN? PD? PENUP? PU? SCRWIDTH SCRHEIGHT`), `REPCOUNT`/`REPCOUNTMAX`, `:var`/`"var`, and strict number literals (`/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/`). Errors distinguish unknown variables, queries written with a colon, commands used as values, stray brackets/operators and unknown tokens. Adding a query is one `QUERY_TOKENS` entry; `DOT`/`LABEL` argument detection (`isValueStart`) uses the same table.
 
 ### 2.8 Control-Flow Sentinel
 
@@ -233,8 +260,8 @@ Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
 | Helper | Used by | Behaviour |
 |---|---|---|
-| `nextFrame(rctx)` | `move`, `rotate`, `tick` | Await `requestAnimationFrame`. |
-| `macroYield(rctx)` | instant `move`, `tick`, `runStack` | Await `setTimeout(0)` — lets the browser paint and handle clicks. |
+| `nextFrame(rctx)` | `move`, `rotate`, `tick` | Await `rctx.io.nextFrame()` (`requestAnimationFrame` in the page). |
+| `macroYield(rctx)` | instant `move`, `tick`, `runStack` | Await `rctx.io.macroYield()` (`setTimeout(0)`) — lets the browser paint and handle clicks. |
 | `sleep(ms, rctx)` | `WAIT` | Cancellable timer; `rctx.wake` ends it early. |
 | `tick(rctx)` | `SETPOS`, `DOT`, `LABEL` | Animated speeds: `render()` and one frame per `STEPS_PER_FRAME[speed]` calls. Instant: counts toward `INSTANT_FLUSH`. |
 
@@ -246,7 +273,7 @@ All update `rctx.lastYield`.
 
 ### 2.11 Error Handling
 
-Errors are plain `Error`s with Logo-level messages. `runProgram` logs `✗ message` plus `line N: source` from `rctx.execLine`. Parse errors (from `extractProcedures`) are reported by `parseProgram` before anything runs. Warnings (clamps, caps) are logged and execution continues.
+Errors are plain `Error`s with Logo-level messages. `execute` logs `✗ message` plus `line N: source` from `rctx.execLine`. Parse errors (from `extractProcedures`) are reported by `parseProgram` before anything runs. Warnings (clamps, caps) are logged and execution continues.
 
 ---
 
@@ -273,26 +300,26 @@ Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates
 
 ### 3.4 Trail Storage
 
-Two pre-allocated typed arrays: `trailF32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `trailU8` (r, g, b). ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
+`session.drawing` (`turtle/drawing.js`) holds two pre-allocated typed arrays: `f32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `u8` (r, g, b), plus `len`, `capWarned`, `labels`, `labelCapWarned`. ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
 
 | Function | Purpose |
 |---|---|
-| `paintLine(...)` | Paint a segment/dot onto `trailCanvas` without storing it. |
-| `trailPush(...)` | Store (no cap check). |
-| `trailPushIfRoom(...)` | Cap check + store + paint. Used by instant moves, SETPOS, DOT. |
-| `trailPushQuiet(...)` | Cap check + store, no paint — for segments already painted step by step. |
-| `rebuildTrailCanvas()` | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
-| `clearScreen()` | Reset trail, labels and turtle; rebuild. Used by CS, RUN-with-clear and CLR. |
+| `trailPushIfRoom(rctx, …)` | Cap check + store + `io.paintLine`. Used by instant moves, SETPOS, DOT. |
+| `trailPushQuiet(rctx, …)` | Cap check + store, no paint — for segments already painted step by step. |
+| `segment(drawing, i)` | Read one segment as `[x1, y1, x2, y2, w, r, g, b]` (tests). |
+| `paintLine(...)` (`render/trail.js`) | Paint a segment/dot onto `trailCanvas` without storing it. |
+| `rebuildTrailCanvas()` (`render/trail.js`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
+| `clearScreen(session, io)` (`interpreter/session.js`) | Reset drawing and turtle; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
 
-`0 ≤ trailLen ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`trailCapWarned`).
+`0 ≤ len ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`capWarned`).
 
 ### 3.5 Label Store
 
-`labelStore[]` of `{ x, y, text, r, g, b }`, capped at `MAX_LABELS`. `paintLabel` draws 16 px VT323. Labels are replayed by `rebuildTrailCanvas`, including once `document.fonts.ready` resolves (so labels drawn before the web font loaded are repainted).
+`session.drawing.labels[]` of `{ x, y, text, r, g, b }`, capped at `MAX_LABELS` (`addLabel`). `paintLabel` draws 16 px VT323. Labels are replayed by `rebuildTrailCanvas`, including once `document.fonts.ready` resolves (so labels drawn before the web font loaded are repainted).
 
 ### 3.6 Turtle Sprite
 
-**ANIMATED (default):** procedurally generated 64×64 sprite (`buildSprite(walkTick, isMoving, pen)`, cached), drawn facing east and rotated by `(heading − 90)°`, centred `SPRITE_OFFSET` ahead of the pen position (`spriteCenter()`). Animation variables derive from `walkTick` (16-bit counter): leg `swing`, `headExt`, `blink`, `pulse`.
+**ANIMATED (default):** procedurally generated 64×64 sprite (`buildSprite(session.walkTick, session.isMoving, pen)`, cached), drawn facing east and rotated by `(heading − 90)°`, centred `SPRITE_OFFSET` ahead of the pen position (`spriteCenter()`). Animation variables derive from `walkTick` (16-bit counter): leg `swing`, `headExt`, `blink`, `pulse`.
 
 **TRIANGLE:** small triangle at the pen position with a pen-state dot.
 
@@ -306,8 +333,8 @@ Two pre-allocated typed arrays: `trailF32` (x1, y1, x2, y2, w per segment, Logo 
 | 3 | 64 | 192 |
 | 4 (instant) | whole move, no frame | whole turn |
 
-- **`move(dist, rctx)`** computes the end point and clips it with `clipToCanvas` (exact segment/rectangle intersection). Animated: `round(len × 1.2)` sub-steps interpolated from the start point, each painted with `paintLine`; one `nextFrame` per `STEPS_PER_FRAME[speed]` steps; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch()` (log OUCH, throw `STOP_SIGNAL`).
-- **`SETPOS`** uses the same clipping and `ouch()`, then `tick()`.
+- **`move(dist, rctx)`** computes the end point and clips it with `clipForRun` → `clipToCanvas(…, w, h)` against `io.canvasSize()` (exact segment/rectangle intersection). Animated: `round(len × 1.2)` sub-steps interpolated from the start point, each painted with `paintLine`; one `nextFrame` per `STEPS_PER_FRAME[speed]` steps; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
+- **`SETPOS`** uses the same clipping and `ouch(rctx)`, then `tick()`.
 - **`rotate(deg, rctx)`** animates in `round(|deg| / DPF)` frames; snaps to `start + deg` unless stopped.
 - **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
 
@@ -350,7 +377,7 @@ Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, co
 
 | Control | Action |
 |---|---|
-| RUN | Ignored while running. Clears console and `globalVars`; `clearScreen()` if "clear screen on run"; clears `procs`; `parseProgram` (errors stop here); `registerProcs`; `runProgram`. |
+| RUN | Ignored while running. Clears console and `session.globals`; `clearScreen(session, io)` if "clear screen on run"; clears `session.procs`; `parseProgram` (errors stop here); `registerProcs`; `runProgram`. |
 | STOP | `haltRun()` (sets `stopped`, ends a WAIT) and logs "■ Stopped." The run unwinds within a frame; `runProgram` re-enables RUN. |
 | CLR | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
 | ⌘ DIRECT | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
@@ -392,37 +419,45 @@ One overlay at a time (`openOverlay` toggles, Escape closes all): commands refer
 run(tokens, startIdx, vars, rctx)                → async void   (sets rctx.globals)
 runStack(stack, rctx)                            → async void   (all control flow)
 runExpr(name, proc, scope, rctx)                 → async number (procedure as value)
-evalExpr(tokens, idx, vars, rctx, tstate?)       → async {value, nextIdx}
+evalExpr(tokens, idx, vars, rctx)                → async {value, nextIdx}
 CMD['NAME'] = async (tokens, idx, vars, rctx)    → nextIdx
-resolveToken(tok, vars, tstate?)                 → number
+resolveToken(tok, vars, rctx)                    → number
 tokenize(src)                                    → token[]
 extractBlock(tokens, idx)                        → {body, nextIdx}
 extractProcedures(tokens)                        → {topLevel, newProcs}
 skipSen(tokens, idx, rctx?)                      → idx
 setVar(vars, name, value, rctx) / procScopeOf(vars, rctx) / repeatInfo(vars)
 
-// Run context and execution
-makeRunContext(speed, procsMap)                  → rctx
+// Session, run context and execution
+createSession()                                  → session
+headlessIO({width, height}?)                     → io (+ .lines, .text())
+makeRunContext(speed, session, io)               → rctx
 haltRun()                                        → void
-parseProgram(src)                                → {topLevel, newProcs} | null
-runProgram(tokens)                               → async void
+parseProgram(src, io)                            → {topLevel, newProcs} | null
+registerProcs(session, newProcs, io)             → void
+execute(tokens, rctx)                            → async void  (logs Done / error; never throws)
+runProgram(tokens)                               → async void  (page: activeRctx, RUN button)
 
 // Motion and pacing
 move(dist, rctx) / rotate(deg, rctx) / circle(r, rctx) → async void
-clipToCanvas(x0, y0, x1, y1)                     → null | [x, y]
+clipToCanvas(x0, y0, x1, y1, w, h)               → null | [x, y]
+clipForRun(rctx, x0, y0, x1, y1)                 → null | [x, y]
 tick(rctx) / nextFrame(rctx) / macroYield(rctx) / sleep(ms, rctx) → Promise
 
-// Rendering / trail
-render() · rebuildTrailCanvas() · clearScreen() · paintLabel(lab)
-paintLine(x1,y1,x2,y2,w,r,g,b) · trailPush(…) · trailPushIfRoom(…) → bool · trailPushQuiet(…) → bool
-toCanvas(x, y) → [cx, cy] · spriteCenter() → [x, y]
+// Drawing store (core)
+trailPushIfRoom(rctx, x1,y1,x2,y2,w,r,g,b) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool
+clearScreen(session, io) · clearProcs(session) · segment(drawing, i) → [x1,y1,x2,y2,w,r,g,b]
+
+// Rendering (browser)
+render() · rebuildTrailCanvas() · paintLine(x1,y1,x2,y2,w,r,g,b) · paintLabel(lab)
+toCanvas(x, y) → [cx, cy] · spriteCenter(turtle) → [x, y]
 ```
 
 ---
 
 ## 6. Extension Guide
 
-Always add a regression case to `tests/run-examples.js` and run `node tests/run-examples.js`.
+Always add a regression case to `tests/cases.js` (run by both the unit tests and the browser test) and run `npm test`. Interpreter-only checks (state, segments) go in `tests/unit/`; UI behaviour in `UI_CHECKS` in `tests/run-examples.js`.
 
 ### 6.1 Adding a Leaf Command
 
@@ -434,7 +469,8 @@ CMD['MYCOMMAND'] = CMD['MC'] = async (t, i, v, rctx) => {
 };
 ```
 
-- If it draws without moving through `move()`, finish with `await tick(rctx)` so pacing and responsiveness match other commands.
+- Read and change state through `rctx.session` (`turtle`, `drawing`); produce output only through `rctx.io` (`log`, `render`, …). Never import from `render/` or `ui/` — lint fails.
+- If it draws without moving through `move()`, store via `trailPushIfRoom(rctx, …)` / `addLabel(rctx, …)` and finish with `await tick(rctx)` so pacing and responsiveness match other commands.
 - If it reads a word argument, use `wordArg`; if an argument is optional, use `isValueStart`.
 - Add it to the `#ref-body` table and, if it shows something new, to `EXAMPLES`. Built-in names are automatically protected from `TO` redefinition.
 
@@ -445,8 +481,8 @@ Push a typed frame (`{ isMyLoop: true, body, vars, … }`) from the exec-frame d
 ### 6.3 Adding a Math Function
 
 - **One input:** add the name to `UNARY` and an implementation to `UNARY_FNS`. The argument is the single operand after the name (`parseUnary`), so `MYFN :x * 2` is `(MYFN :x) * 2`. Throw on domain errors: `throw new Error('MYFN: argument ' + a + ' must be > 0')`.
-- **Two inputs:** add to `BINARY2` and `BINARY2_FNS` (`(a, b, tstate) => …`).
-- **A query (no input):** one entry in `QUERY_TOKENS`.
+- **Two inputs:** add to `BINARY2` and `BINARY2_FNS` (`(a, b, turtle) => …`).
+- **A query (no input):** one entry in `QUERY_TOKENS` (`(turtle, rctx) => value`).
 - **An infix operator:** add to `BINOP_PREC` and `applyBinop`, and to the tokenizer regex if it uses new characters (and to beautify's).
 
 ### 6.4 Canvas / Turtle Styles
@@ -455,8 +491,8 @@ Add a pill in the options markup (`index.html`), a `case` in `drawBackground()` 
 
 ### 6.5 Adding a Module
 
-Put it in the folder of its layer, `export` only what other modules use, and import it from `main.js` if it wires DOM handlers. If it owns mutable state that other modules must change, export a setter (§1.2). Run `npm run lint` — `no-undef` reports missing imports, `no-unused-vars` reports stale ones.
+Put it in the folder of its layer, `export` only what other modules use, and import it from `main.js` if it wires DOM handlers. Program state belongs in the session (§1.3); UI state that other modules must change gets a setter (§1.2). Code in `interpreter/`, `turtle/` or `format/` must stay DOM-free. Run `npm run lint` — `no-undef` reports missing imports, `no-unused-vars` reports stale ones.
 
 ### 6.6 Adding an Example
 
-Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in the test if it is meant to stop at the edge).
+Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically, headless and in the browser (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in `tests/cases.js` if it is meant to stop at the edge).

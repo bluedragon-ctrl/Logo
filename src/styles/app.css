@@ -107,7 +107,7 @@ h1 { font-size: calc(16px * var(--fs-base)); color: #4afa; text-align: center; p
 #editor .comment { color: #556; }
 /* placeholder shown via ::before when editor is empty */
 #editor:empty::before {
-  content: "; Welcome to CLAUDE LOGO\A ; Type commands below and press RUN\A ;\A ; Move:    FD 100   BK 50   RT 90   LT 45\A ; Draw:    CIRCLE 80   SETCOLOR 200 50 50\A ; Repeat:  REPEAT 4 [ FD 100 RT 90 ]\A ; Vars:    MAKE :n 10   FD :n\A ; Procs:   TO SQUARE\A ;            REPEAT 4 [FD 80 RT 90]  END\A ;\A ; Click EXAMPLES for more\A ; ? COMMANDS for reference";
+  content: "; Welcome to BLUE LOGO\A ; Type commands below and press RUN\A ;\A ; Move:    FD 100   BK 50   RT 90   LT 45\A ; Draw:    CIRCLE 80   SETCOLOR 200 50 50\A ; Repeat:  REPEAT 4 [ FD 100 RT 90 ]\A ; Vars:    MAKE :n 10   FD :n\A ; Procs:   TO SQUARE\A ;            REPEAT 4 [FD 80 RT 90]  END\A ;\A ; Click EXAMPLES for more\A ; ? COMMANDS for reference";
   white-space: pre;
   color: #2a4a2a;
   pointer-events: none;

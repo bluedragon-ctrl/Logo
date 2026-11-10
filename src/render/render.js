@@ -2,7 +2,7 @@ import { drawBackground, turtleStyle } from './background.js';
 import { CH, CW, DPR, ctx } from './canvas.js';
 import { SPRITE_OFFSET, buildSprite, spr } from './sprite.js';
 import { toCanvas, trailCanvas } from './trail.js';
-import { isMoving, turtle, walkTick } from '../turtle/state.js';
+import { session } from '../app.js';
 
 // ── Render pipeline ───────────────────────────────────────────────────────────
 // render() composites three layers every frame via painter's algorithm:
@@ -13,13 +13,13 @@ import { isMoving, turtle, walkTick } from '../turtle/state.js';
 // spriteCenter(): the sprite is drawn nose-forward; to align the pen dot with
 // turtle.{x,y} the sprite's visual centre must be offset SPRITE_OFFSET px ahead
 // along the current heading direction before converting to canvas coordinates.
-function spriteCenter(){
+function spriteCenter(turtle){
   const a = turtle.angle * Math.PI / 180;
   return [turtle.x + Math.sin(a) * SPRITE_OFFSET, turtle.y + Math.cos(a) * SPRITE_OFFSET];
 }
 // drawSimpleTurtle: legacy small triangle cursor (turtleStyle === 'triangle').
 // Centred at turtle world position (no SPRITE_OFFSET). Pen state shown as a dot.
-function drawSimpleTurtle(){
+function drawSimpleTurtle(turtle){
   const[cx,cy]=toCanvas(turtle.x,turtle.y);
   ctx.save();
   ctx.translate(cx,cy);
@@ -36,6 +36,7 @@ function drawSimpleTurtle(){
 export function render(){
   // Guard: canvas not yet sized (0×0 during initial layout) — drawing would throw
   if(CW===0 || CH===0) return;
+  const turtle = session.turtle;
   ctx.setTransform(DPR,0,0,DPR,0,0); // logical units; reset each frame (cheap, and robust to resizes)
   ctx.imageSmoothingEnabled = false; // crisp pixel-art sprite (context state resets on resize)
   drawBackground();
@@ -43,11 +44,11 @@ export function render(){
   if(!turtle.visible) return;
   switch(turtleStyle){
     case 'triangle':
-      drawSimpleTurtle();
+      drawSimpleTurtle(turtle);
       break;
     default: // 'animated'
-      buildSprite(walkTick,isMoving,turtle.pen);
-      const[sx,sy]=spriteCenter(),[cx,cy]=toCanvas(sx,sy);
+      buildSprite(session.walkTick,session.isMoving,turtle.pen);
+      const[sx,sy]=spriteCenter(turtle),[cx,cy]=toCanvas(sx,sy);
       ctx.save();ctx.translate(cx,cy);ctx.rotate((turtle.angle-90)*Math.PI/180);ctx.drawImage(spr,-spr.width/2,-spr.height/2);ctx.restore();
   }
 }

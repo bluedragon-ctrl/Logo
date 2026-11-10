@@ -23,13 +23,12 @@ export function extractBlock(tokens, idx) {
   throw new Error('Missing ] — a [ was opened but never closed (check loop bodies and IF branches)');
 }
 
-// ── Procedure store ───────────────────────────────────────────────────────────
-// procs: global map  NAME (uppercase) → { params: string[], body: token[] }
+// ── Procedures ────────────────────────────────────────────────────────────────
+// User procedures live in session.procs: NAME (uppercase) → { params: string[], body: token[] }
 //
 // extractProcedures(tokens) → { topLevel: token[], newProcs: {} }
 //   Pure function: moves TO…END blocks out of the token stream. Line sentinels
 //   stay in topLevel so top-level errors report their line too.
-export const procs = {};
 // Control-flow words handled inline by runStack (not in CMD).
 export const CONTROL_WORDS = new Set(['IF','IFELSE','REPEAT','WHILE','FOR','STOP','BREAK','CONTINUE','OUTPUT','OP','TO','END']);
 export function extractProcedures(tokens) {

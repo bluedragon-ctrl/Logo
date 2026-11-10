@@ -1,11 +1,9 @@
-import { render } from '../render/render.js';
-
 // ── Responsiveness helpers ────────────────────────────────────────────────────
 // nextFrame: yield until the next animation frame (animated drawing).
 // macroYield: yield one macrotask so the browser can paint and handle clicks.
 // sleep: cancellable timer for WAIT — haltRun() calls rctx.wake to end it early.
-export function nextFrame(rctx){ rctx.lastYield = Date.now(); return new Promise(res => requestAnimationFrame(res)); }
-export function macroYield(rctx){ rctx.lastYield = Date.now(); return new Promise(res => setTimeout(res, 0)); }
+export function nextFrame(rctx){ rctx.lastYield = Date.now(); return rctx.io.nextFrame(); }
+export function macroYield(rctx){ rctx.lastYield = Date.now(); return rctx.io.macroYield(); }
 export function sleep(ms, rctx){
   return new Promise(res => {
     const done = () => { clearTimeout(id); rctx.wake = null; rctx.lastYield = Date.now(); res(); };
@@ -18,10 +16,10 @@ export function sleep(ms, rctx){
 export const STEPS_PER_FRAME = [1, 4, 16, 64]; // by speed 0–3; shared with move()
 export async function tick(rctx){
   if(rctx.speed >= 4) {
-    if(++rctx.instantStepCount >= INSTANT_FLUSH){ rctx.instantStepCount = 0; render(); await macroYield(rctx); }
+    if(++rctx.instantStepCount >= INSTANT_FLUSH){ rctx.instantStepCount = 0; rctx.io.render(); await macroYield(rctx); }
     return;
   }
-  render();
+  rctx.io.render();
   if(++rctx.tickCount >= STEPS_PER_FRAME[rctx.speed]){ rctx.tickCount = 0; await nextFrame(rctx); }
 }
 
