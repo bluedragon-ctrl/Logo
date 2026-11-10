@@ -1,0 +1,10 @@
+;; title: SPEED — Slow to Fast
+;; desc: Draws the same square 4 times, each faster than the last
+; SPEED — Slow to Fast
+; Each pass through the loop increases speed 1→4
+SETWIDTH 2
+FOR :S 1 4 [
+  SPEED :S
+  REPEAT 4 [ FD 80 RT 90 ]
+  RT 20
+]

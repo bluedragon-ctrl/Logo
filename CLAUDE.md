@@ -1,6 +1,15 @@
 # Claude Logo
 
-Browser-based Logo turtle graphics environment. Delivered as a single self-contained HTML file — no build step, no bundler, no server, no npm for the app. Open the file directly in any modern browser.
+Browser-based Logo turtle graphics environment for teaching. Plain JavaScript ES modules in `src/`, built with Vite into a static site and served on GitHub Pages. No framework and no runtime dependencies.
+
+```
+npm install        # once
+npm run dev        # dev server with live reload
+npm test           # build + headless tests (must pass)
+npm run lint       # ESLint (must pass)
+```
+
+The built app does not run from `file://` (browsers block module scripts there). Use `npm run dev`, or `npm run preview` after `npm run build`.
 
 Specification is split into two files:
 - **`claude-logo-lang-spec.md`** — Language reference: commands, expressions, scoping, error messages. What a Logo programmer needs.
@@ -12,28 +21,32 @@ Specification is split into two files:
 
 | Path | Purpose |
 |---|---|
-| `claude-logo-vX.Y.html` | The current application (only one in the root). All JS, CSS, and HTML inline. |
-| `versions/` | All previous `claude-logo-v*.html` files. Deployed to Pages at `/versions/…` and at the root (old links keep working). |
+| `index.html` | The app's markup (Vite entry). `%APP_VERSION%` is filled in at build time. |
+| `src/` | The app: `main.js` (entry), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`. Module map: impl-spec §1.2. |
+| `examples/` | One `.logo` file per example (`;; title:` / `;; desc:` header lines). Loaded at build time; the number prefix sets the order. |
+| `versions/` | Frozen single-file HTML versions up to v8.1. Deployed to Pages at `/versions/…` and at the root (old links keep working). Never edited. |
 | `claude-logo-lang-spec.md` | Language specification. |
 | `claude-logo-impl-spec.md` | Implementation specification. |
 | `CHANGELOG.md` | Full version history. Add an entry for every version bump. |
 | `TODO.md` | Open work items. |
 | `REVIEW.md` | v7.3 project review (all items resolved in v8.0; kept for reference). |
-| `tests/run-examples.js` | Headless test: all examples, beautify idempotency, language regression cases, UI checks. |
+| `tests/run-examples.js` | Headless test (Playwright) against the built `dist/`: all examples, beautify idempotency, language regression cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
-| `third-party/` | Licenses of embedded third-party assets (VT323 font, OFL). |
+| `third-party/` | Licenses of bundled third-party assets (VT323 font, OFL). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
-| `index.html` | GitHub Pages entry point — redirects to the current version. |
-| `.github/workflows/pages.yml` | Runs the tests on every PR and push; on `main`, after tests pass, deploys `index.html`, the current app and `versions/` to GitHub Pages. |
-| `package.json` | Dev tooling only (pins Playwright for the tests). The app itself has no dependencies. |
+| `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
+| `package.json` | Version number, scripts and dev tooling (Vite, ESLint, Playwright). |
+| `vite.config.js`, `eslint.config.js` | Build and lint configuration. |
 
-Current version: **v8.1** (`claude-logo-v8.1.html`)
+Current version: **v8.2** (`package.json` → `8.2.0`)
 
 ---
 
 ## Architecture in one paragraph
 
-The file is one JavaScript execution context. Five logical layers in declaration order: **rendering** (HiDPI canvas compositing, sprite, background, trail), **turtle state** (position/heading/pen/colour, single mutable object), **interpreter** (tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser → motion), **editor** (contenteditable IIFE with syntax highlighting, caret preservation and its own undo history), **UI shell** (`runProgram`, buttons, direct mode, splitter, overlays, options, resize, files). The interpreter *core* (tokenizer, extractor, parser, `runStack`) has no DOM dependencies — keep it that way. The leaf layer (CMD handlers, `move`/`rotate`) calls `log()`, `render()` and paints the trail canvas; route new side effects through those functions.
+Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail, labels), **turtle** (`turtle/` — state object, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table), **editor** (`editor/` — contenteditable with syntax highlighting, caret preservation and its own undo history; `format/beautify.js`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.js` imports everything; UI modules wire their DOM handlers on import. The interpreter *core* (tokenizer, extractor, parser, `runStack`) has no DOM dependencies — keep it that way. The leaf layer (CMD handlers, `move`/`rotate`) calls `log()`, `render()` and paints the trail canvas; route new side effects through those functions.
+
+**Module state rule:** a module never assigns to a variable it imports (ES modules forbid it; ESLint `no-import-assign` catches it). The owning module exports a setter instead — `setCanvasSize`, `setActiveRctx`, `resetGlobals`, `resetTurtle`, `setMoving`, `advanceWalk`, `setLabelCapWarned`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`. Mutating an imported object (`turtle.x = …`, `procs[k] = …`) is fine. Export only what other modules use.
 
 Data flow during a RUN:
 ```
@@ -52,7 +65,7 @@ Created by `makeRunContext(speed, procs)` per run. Fields: `stopped` (kill switc
 
 **Invariants to preserve:**
 - Every interpreter function receives `rctx` and never reads `stopped` / speed from globals or the DOM.
-- `activeRctx` points to the live context while a program runs; it is set and cleared only by `runProgram()`. Only one program runs at a time (RUN disabled; direct mode refuses while running).
+- `activeRctx` points to the live context while a program runs; it is set and cleared only by `runProgram()` (via `setActiveRctx`). Only one program runs at a time (RUN disabled; direct mode refuses while running).
 - STOP / CLR call `haltRun()` — never set `stopped` directly (WAIT needs `rctx.wake`).
 - Use `CW` / `CH` (logical canvas size) for geometry, never `canvas.width/height` (those are device pixels).
 - Every long-running path yields (`nextFrame` / `macroYield` / `tick`), so STOP always works.
@@ -81,11 +94,18 @@ render() · rebuildTrailCanvas() · clearScreen() · paintLine(…) · trailPush
 
 ---
 
-## Section map
+## Module map
 
-Line numbers drift between versions — grep the `// ──` markers instead (`grep -n '// ──' claude-logo-v8.1.html`). Main markers in order:
+Full table with the contents of each file: impl-spec §1.2. Each module keeps the `// ──` section comments of the old single file, so `grep -rn '// ──' src` still works as a table of contents.
 
-`Utilities` · `Canvas setup` (CW/CH/DPR) · `Sprite colour palette` · `Sprite drawing helpers` · `Background: sand texture` · `Trail storage` · `Label store` · `Render pipeline` · `Turtle state` · `Run context` (`makeRunContext`, `haltRun`) · `Direct mode state` · `Run-state indicator` · `Console / log` · **INTERPRETER** header (scopes) · `Token resolution` (`QUERY_TOKENS`) · `Expression evaluator` · `Tokeniser` · `Block extractor` · `Procedure store` · `Control-flow sentinels` · `Responsiveness helpers` · `Command dispatch table` · `runExpr` · `runStack` · `run` · `Motion` · `Examples` · `Code editor` (undo history) · `Splitter` · `beautify(src)` · `Copy code button` · `Beautify button` · `Program execution` (`runProgram`) · `Direct mode execution` · `Button handlers` · `Direct mode UI handlers` · `Overlay management` · `File save / load` · `Autosave` · `Options` · `Canvas resize`.
+| Folder / file | Main contents |
+|---|---|
+| `render/` | `canvas.js` (CW/CH/DPR) · `sprite.js` · `background.js` · `trail.js` (trail + label store, `clearScreen`, `rebuildTrailCanvas`) · `render.js` |
+| `turtle/` | `state.js` (`turtle`) · `motion.js` (`move`, `rotate`, `circle`, `clipToCanvas`, `ouch`) |
+| `interpreter/` | `context.js` (`makeRunContext`, `haltRun`) · `scope.js` · `tokenizer.js` · `procedures.js` · `expr.js` · `signals.js` · `pacing.js` · `commands.js` (`CMD`) · `runtime.js` (`runStack`, `run`, `runExpr`) |
+| `editor/editor.js`, `format/beautify.js` | Editor + undo history; pure formatter |
+| `ui/` | `console.js` (`log`) · `program.js` (`runProgram`, RUN/STOP/CLR) · `direct.js` · `splitter.js` · `overlays.js` · `examples-overlay.js` · `options.js` · `files.js` · `autosave.js` · `resize.js` · `code-buttons.js` |
+| `examples.js` | Loads `examples/*.logo` |
 
 ---
 
@@ -93,16 +113,17 @@ Line numbers drift between versions — grep the `// ──` markers instead (`g
 
 | Task | Read these sections |
 |---|---|
-| Add a CMD command | `Command dispatch table` — copy a nearby handler; impl-spec §6.1 |
-| Add a math function / query / operator | `Token resolution` + `Expression evaluator`; impl-spec §6.3 |
-| Add a loop construct | `runStack` (`isRepeat`/`isWhile`/`isFor` + `isLoopFrame`); impl-spec §6.2 |
-| Change scoping | INTERPRETER header + `setVar` / `procScopeOf` / `repeatInfo`; lang-spec §6 |
-| Change animation / pacing | `Motion`, `Responsiveness helpers` |
-| Change error reporting | `runProgram` (Program execution) + `rctx.execLine` |
-| Change STOP / CLR | `Run context` (`haltRun`) + `Button handlers` |
-| Change trail rendering | `Trail storage` + `Render pipeline` |
-| Change editor / highlighting / undo | `Code editor` |
-| Change beautify formatting | `beautify(src)` — pure function, safe to edit in isolation |
+| Add a CMD command | `interpreter/commands.js` — copy a nearby handler; impl-spec §6.1 |
+| Add a math function / query / operator | `interpreter/expr.js`; impl-spec §6.3 |
+| Add a loop construct | `interpreter/runtime.js` (`isRepeat`/`isWhile`/`isFor` + `isLoopFrame`); impl-spec §6.2 |
+| Change scoping | `interpreter/scope.js` (header comment, `setVar` / `procScopeOf` / `repeatInfo`); lang-spec §6 |
+| Change animation / pacing | `turtle/motion.js`, `interpreter/pacing.js` |
+| Change error reporting | `ui/program.js` (`runProgram`) + `rctx.execLine` |
+| Change STOP / CLR | `interpreter/context.js` (`haltRun`) + `ui/program.js` |
+| Change trail rendering | `render/trail.js` + `render/render.js` |
+| Change editor / highlighting / undo | `editor/editor.js` |
+| Change beautify formatting | `format/beautify.js` — pure function, safe to edit in isolation |
+| Add or edit an example | `examples/NN-name.logo`; impl-spec §6.6 |
 
 ---
 
@@ -131,18 +152,18 @@ Format: `MAJOR.MINOR`
 - Bump **MAJOR** for releases with breaking language changes or after a full review pass.
 
 Release steps:
-1. `git mv claude-logo-vOLD.html versions/` and create `claude-logo-vNEW.html` from it (only the current version lives in the root).
-2. Update the version comment (line 2) and the `<h1>` version label in the HTML.
-3. Update `index.html` (three references), "Current version" above, and the version header in both spec files if they changed.
-4. Add a `CHANGELOG.md` entry.
-5. Run `node tests/run-examples.js` — must pass.
-6. After merging to `main`, tag the release: `git tag vX.Y`.
+1. Bump `version` in `package.json` (`8.2.0` → `8.3.0`; the app shows `v8.3`). Run `npm install` so `package-lock.json` follows.
+2. Add a `CHANGELOG.md` entry, and update "Current version" above and the version header in both spec files if they changed.
+3. `npm run lint` and `npm test` — must pass.
+4. After merging to `main` (CI deploys it), tag the release: `git tag vX.Y`.
+
+`versions/` is frozen at v8.1 — releases are no longer copied there; the git tags are the archive.
 
 ---
 
 ## Changelog convention
 
-The changelog lives in **`CHANGELOG.md`**. The HTML file contains only a one-line comment: `<!-- Release notes: see CHANGELOG.md — vX.Y  YYYY-MM-DD -->`.
+The changelog lives in **`CHANGELOG.md`**.
 
 Add a new `## vX.Y` block at the top for every version bump:
 
@@ -167,11 +188,11 @@ Severity markers in reviews use 🔴 (bug) / 🟡 (design) / 🟢 (polish). Use 
 3. Read the code section you are changing, not just the lines around the change.
 
 ### Adding a command
-1. Register in `CMD` (impl-spec §6.1); add aliases (`CMD['ALIAS'] = CMD['FULLNAME']`).
+1. Register in `CMD` in `interpreter/commands.js` (impl-spec §6.1); add aliases (`CMD['ALIAS'] = CMD['FULLNAME']`).
 2. Validate input; clamp + warn or throw, consistent with lang-spec §8.
 3. If it draws without `move()`, end with `await tick(rctx)`.
-4. Add it to the commands reference table in `#ref-body` and to lang-spec §2.
-5. Add an example to `EXAMPLES` if it shows something new, and a case to `tests/run-examples.js`.
+4. Add it to the commands reference table in `#ref-body` (`index.html`) and to lang-spec §2.
+5. Add an example file to `examples/` if it shows something new, and a case to `tests/run-examples.js`.
 
 ### Adding a math function
 Add the name to `UNARY` + `UNARY_FNS` (one input — the single operand that follows, so `FN :x * 2` = `(FN :x) * 2`) or `BINARY2` + `BINARY2_FNS` (two full-expression inputs). Throw descriptive domain errors: `throw new Error('MYFN: argument ' + a + ' must be > 0')`.
@@ -187,18 +208,19 @@ Push a typed frame with a unique boolean discriminator, handle it at the top of 
 ## Testing
 
 ```
-npm install                           # once (installs the pinned Playwright)
-npm test                              # = node tests/run-examples.js
-node tests/run-examples.js            # tests the version index.html points to
-node tests/run-examples.js path.html  # or a specific file
+npm install                           # once (Vite, ESLint, pinned Playwright)
+npm test                              # vite build, then node tests/run-examples.js against dist/
+node tests/run-examples.js            # test the existing dist/ build (served on a local port under /Logo/)
+node tests/run-examples.js versions/claude-logo-v8.1.html   # or an archived single-file version
+npm run lint                          # ESLint: missing imports, writes to imports, unused code
 ```
 
-Runs in ~20 s with the pre-installed Playwright/Chromium. It runs all examples at instant speed (each must reach `✓ Done!`; the endless-spiral example must reach OUCH), checks beautify idempotency, runs the language regression cases and UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable). **Add a case for every bug fixed or rule changed.**
+Runs in ~20 s with the pre-installed Playwright/Chromium. The page is driven through hooks that `src/main.js` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`) — keep them when refactoring. It runs all examples at instant speed (each must reach `✓ Done!`; the endless-spiral example must reach OUCH), checks beautify idempotency, runs the language regression cases and UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable). **Add a case for every bug fixed or rule changed.**
 
 Manual checks still worth doing for UI changes: animated runs at speed 0 look right, STOP mid-animation, resize while idle and while running, font sizes, console toggle, HiDPI sharpness, Ctrl+Z in the editor.
 
 ### Pre-release review checklist (MAJOR version only)
-- [ ] `node tests/run-examples.js` passes
+- [ ] `npm test` and `npm run lint` pass
 - [ ] STOP halts animation, a WAIT, and an infinite loop
 - [ ] CLR clears canvas, trail, labels, variables, procedures, console (also mid-run)
 - [ ] Resize smaller/larger — trail rebuilds correctly and stays sharp
@@ -208,7 +230,6 @@ Manual checks still worth doing for UI changes: animated runs at speed 0 look ri
 - [ ] Error messages show the correct source line (top level and inside procedures)
 - [ ] Editor undo/redo, example load undo
 - [ ] No dead variables, no `console.log`
-- [ ] Syntax check of the extracted `<script>`: `node --check`
 
 ---
 
@@ -236,6 +257,6 @@ See `claude-logo-lang-spec.md` for full detail.
 - **Tail calls** are unbounded; other recursion is capped (10 000 frames; 500 levels inside expressions).
 - **Numbers only.** `"words` exist only for LABEL / PRINT / colour names.
 - **Autosave:** the editor text lives in localStorage under `claude-logo:program`; `editor.onChange` drives it, `editor.initValue` restores it without an undo step.
-- **No network requests:** the font is embedded as base64; the test fails if the page fetches anything. Keep it that way.
+- **No third-party requests:** the font is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
 - **`document.execCommand`** is used for Tab/paste/copy fallback — deprecated but functional everywhere.
 - **Not implemented:** `FILL`, `FOREVER`, `SETXY`, list/string values, short-circuit `AND`/`OR`.

@@ -1,0 +1,12 @@
+;; title: Tail Recursion — Endless Spiral
+;; desc: A procedure that calls itself as its last step runs as long as needed
+; Tail Recursion — Endless Spiral
+; SPIRAL never stops by itself: the turtle walks
+; until it reaches the edge of the canvas (OUCH!)
+TO SPIRAL :STEP
+  FD :STEP
+  RT 89
+  SPIRAL :STEP + 1
+END
+SETWIDTH 1
+SPIRAL 1

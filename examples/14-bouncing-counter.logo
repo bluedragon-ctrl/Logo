@@ -1,0 +1,12 @@
+;; title: Bouncing Counter
+;; desc: IF and PRINT — color changes when counter passes 5
+; Bouncing Counter
+MAKE :N 0
+REPEAT 10 [
+  MAKE :N :N + 1
+  PRINT :N
+  IFELSE :N > 5 [ SETCOLOR 200 50 50 ]
+  [ SETCOLOR 50 180 100 ]
+  FD 20
+  RT 36
+]

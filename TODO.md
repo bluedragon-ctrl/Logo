@@ -9,7 +9,8 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 ### Deployment
 - [x] GitHub Pages enabled; CI runs tests on PRs (v8.0 → main)
 - [x] Embedded VT323 font; autosave to localStorage (v8.1)
-- [ ] Next: phase 1 of the roadmap — Vite build, split into `src/` modules
+- [x] Phase 1: Vite build, split into `src/` modules, examples as `.logo` files (v8.2)
+- [ ] Next: phase 2 — `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule
 
 ### Repo
 - [ ] After merging v8.0 to `main`: tag releases (`git tag v8.0`, optionally older ones from history)

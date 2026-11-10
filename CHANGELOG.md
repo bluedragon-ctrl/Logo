@@ -4,6 +4,21 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.2  2026-11-10
+**MODULES — Vite build, source split into src/, examples as .logo files**
+
+No change in behaviour: every deterministic example draws a pixel-identical picture compared with v8.1, and all tests pass unchanged.
+- ~ CHANGE: The single HTML file is split into ES modules under `src/` (render/, turtle/, interpreter/, editor/, format/, ui/). The code was moved, not rewritten. Mutable state that another module changes is now written through small setters (`setCanvasSize`, `setActiveRctx`, `resetGlobals`, `resetTurtle`, `setMoving`, …), because ES modules cannot assign to imported variables.
+- ~ CHANGE: Vite builds the site into `dist/`. `index.html` is now the app itself (markup only), no longer a redirect. The version shown in the title comes from `package.json`.
+- ~ CHANGE: The examples live in `examples/*.logo`, one file per example, with `;; title:` / `;; desc:` metadata lines. They can be opened in the app like any program.
+- ~ CHANGE: The VT323 font is a self-hosted woff2 file instead of a base64 data URI (still no third-party requests).
+- ~ CHANGE: v8.1 and older stay available as frozen single-file versions in `versions/`, and at their old URLs.
+- + ADDITION: ESLint (`npm run lint`), which catches missing imports and writes to imported variables. CI runs lint, build and tests; Pages deploys the tested build.
+- + ADDITION: `npm run dev` / `npm run preview` for local development.
+- - REMOVAL: An unused variable in the options panel code.
+
+---
+
 ## v8.1  2026-11-10
 **CLASSROOM BASICS — autosave, no third-party requests, CI**
 - + ADDITION: Autosave. The editor text is stored in localStorage 0.5 s after each change (and immediately when the page is hidden or closed) and restored on start-up, so a refresh or a closed tab no longer loses work. The console shows "Restored your program from last time." Restoring does not create an undo step. If localStorage is unavailable, autosave silently does nothing.

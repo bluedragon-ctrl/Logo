@@ -1,7 +1,8 @@
 name: Test and deploy to GitHub Pages
 
-# Tests run on every pull request and push. The site is deployed only from
-# main, and only after the tests pass.
+# Lint, build and test on every pull request and push. The site (the tested
+# dist/ build plus the frozen versions/ archive) is deployed only from main,
+# and only after the tests pass.
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 
 on:
@@ -27,8 +28,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - run: npm test          # vite build + headless tests against dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
 
   deploy:
     needs: test
@@ -43,10 +50,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
-      - name: Assemble site (current app + archived versions)
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: _site
+      - name: Add archived single-file versions
         run: |
           mkdir -p _site/versions
-          cp index.html claude-logo-v*.html _site/
           cp versions/claude-logo-v*.html _site/versions/
           # Old versions also at the site root so existing links keep working
           cp versions/claude-logo-v*.html _site/

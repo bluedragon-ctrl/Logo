@@ -1,11 +1,21 @@
 {
   "name": "claude-logo",
+  "version": "8.2.0",
   "private": true,
+  "type": "module",
   "description": "Browser-based Logo turtle graphics for teaching",
   "scripts": {
-    "test": "node tests/run-examples.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test": "vite build && node tests/run-examples.js"
   },
   "devDependencies": {
-    "playwright": "1.63.0"
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
+    "playwright": "1.63.0",
+    "vite": "^8.3.7"
   }
 }

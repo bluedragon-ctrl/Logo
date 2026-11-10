@@ -1,0 +1,4 @@
+;; title: Square
+;; desc: The classic — 4 sides, 90 degree turns
+; Square
+REPEAT 4 [ FD 100 RT 90 ]

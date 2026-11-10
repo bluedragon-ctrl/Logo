@@ -1,6 +1,6 @@
 # Claude Logo — Architecture Review & Modernisation Proposal
 
-*November 2026, based on v8.0. Status: agreed direction (see §5). Phase 0 done (v8.1); phase 1 next.*
+*November 2026, based on v8.0. Status: agreed direction (see §5). Phases 0 and 1 done (v8.1, v8.2); phase 2 next.*
 
 The goal is to turn a family project into a teaching tool used every week. That changes the priorities:
 - it must never lose a pupil's work,
@@ -185,7 +185,7 @@ Each phase is a separate PR and leaves the app fully working. Phases 1–3 shoul
 |---|---|---|---|
 | **0** ✅ | Get GitHub Pages live (enable Pages in repo settings). Run the tests in CI on every PR; deploy only after tests pass. `package.json` pinning Playwright. | S | Low |
 | **0b** ✅ | Self-host the VT323 font. Autosave to localStorage. (v8.1) | S | Low |
-| **1** | Vite build. Mechanical split of the HTML into `src/` modules (no logic changes). Examples → `.logo` files. Playwright test runs against the built site. Pages deploys `dist/`. | M | Medium: mostly moving code; the existing test suite is the safety net |
+| **1** ✅ | Vite build. Mechanical split of the HTML into `src/` modules (no logic changes). Examples → `.logo` files. Playwright test runs against the built site. Pages deploys `dist/`. (v8.2: ES modules in plain JS; ESLint added early to catch missing imports.) | M | Medium: mostly moving code; the existing test suite is the safety net |
 | **2** | `LogoIO` injection + `Session` object. Vitest; move language cases to unit tests and add tokenizer/parser/beautify tests. ESLint boundary rule. | M | Low–medium |
 | **3** | TypeScript: interpreter strict first, then render/turtle, then UI. | M | Low (incremental) |
 | **4** | Teaching features: share link, friendlier errors, lessons, PWA. | M–L | Low |

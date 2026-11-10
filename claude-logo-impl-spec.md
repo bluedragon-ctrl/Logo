@@ -1,33 +1,33 @@
 # Claude Logo — Implementation Specification
-## Version 8.1 — November 2026
+## Version 8.2 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
 
 | Property | Value |
 |---|---|
-| Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). No server required. |
-| Delivery | Single `.html` file. All JS, CSS, and HTML inline. No build step. |
-| External dependencies | None. VT323 is embedded as a base64 woff2 `@font-face` (OFL, see `third-party/`); the page makes no network requests (checked by the tests). |
+| Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). Served as a static site (GitHub Pages). |
+| Delivery | ES modules in `src/`, built by Vite into `dist/` (`index.html` + hashed JS/CSS/font). Module scripts do not load from `file://` — use `npm run dev` or `npm run preview` locally. Versions up to v8.1 are frozen single-file HTML in `versions/`. |
+| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: Vite, ESLint, Playwright. |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
-| Tests | `node tests/run-examples.js` — headless Chromium via Playwright (dev tooling only). |
+| Tests | `npm test` — Vite build, then headless Chromium via Playwright against `dist/`. `npm run lint` — ESLint. |
 
 ---
 
 ## 1. Architecture Overview
 
-The application is one JavaScript execution context. All state is module-level. There is no framework, no bundler, no class hierarchy. Five logical layers in declaration order:
+The application is a set of ES modules (`src/`) bundled by Vite. There is no framework and no class hierarchy. State lives in module-level variables, each owned by one module (§1.2). Five logical layers:
 
 | Layer | Responsibility |
 |---|---|
 | Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
 | Turtle state | Position, heading, pen, colour, width. Single mutable object reset by CS / CLR / RUN. |
 | Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
-| Editor | `contenteditable` IIFE: syntax highlighting, caret preservation, own undo/redo, tab/paste. |
+| Editor | `contenteditable` editor (`editor/editor.js`): syntax highlighting, caret preservation, own undo/redo, tab/paste. |
 | UI shell | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, file save/load. |
 
-**DOM coupling of the interpreter (honest statement).** The interpreter core — `tokenize`, `extractBlock`, `extractProcedures`, the expression parser, `runStack` — reads only its arguments, `rctx` and the `procs` map. The leaf layer is not DOM-free: CMD handlers and `move`/`rotate` call `log()`, `render()` and paint onto `trailCanvas`; `SCRWIDTH`/`SCRHEIGHT` read `CW`/`CH`; `SPEED` writes the slider (guarded by `typeof optSpeed`); `CT` clears `#console`. Keep new code in the core DOM-free; route side effects through these few functions so a future split (§6.6) only needs to inject them (e.g. `rctx.io = { log, render }`).
+**DOM coupling of the interpreter (honest statement).** The interpreter core — `tokenize`, `extractBlock`, `extractProcedures`, the expression parser, `runStack` — reads only its arguments, `rctx` and the `procs` map. The leaf layer is not DOM-free: CMD handlers and `move`/`rotate` call `log()`, `render()` and paint onto `trailCanvas`; `SCRWIDTH`/`SCRHEIGHT` read `CW`/`CH`; `SPEED` writes the slider (guarded by `typeof optSpeed`); `CT` clears `#console`. Keep new code in the core DOM-free; route side effects through these few functions so the planned `LogoIO` injection (roadmap phase 2, `docs/architecture-proposal.md`) only needs to replace them (e.g. `rctx.io = { log, render }`).
 
 ### 1.1 Data Flow (RUN)
 
@@ -49,40 +49,48 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 ### 1.2 File Layout
 
-Sections in declaration order (grep `// ──` to jump):
-
-| Section | Contents |
+| Path | Contents |
 |---|---|
-| Release notes comment | One-line pointer to `CHANGELOG.md`. |
-| `<style>` | All CSS. Embedded VT323 `@font-face`. Layout, overlays, animations, log colours. |
-| HTML body | Left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. |
-| Utilities | `escHtml()`. |
-| Canvas setup | `canvas`, `ctx`, `con`, `CW`/`CH`/`DPR`, `SPRITE_SIZE`, `SPRITE_OFFSET`. |
-| Sprite palette / helpers | Colour constants, `drawShell`, `drawLeg`, `drawHead`, `drawBelly`, `buildSprite`. |
-| Background | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`, `turtleStyle`. |
-| Trail storage | Typed arrays, `paintLine`, `paintSegment`, `trailPush`, `trailPushIfRoom`, `trailPushQuiet`, `clearScreen`. |
-| Label store | `labelStore`, `MAX_LABELS`, `paintLabel`, `rebuildTrailCanvas`. |
-| Render pipeline | `toCanvas`, `spriteCenter`, `drawSimpleTurtle`, `render`. |
-| Turtle state | `mkTurtle`, `turtle`, `walkTick`, `isMoving`. |
-| Run context | `makeRunContext`, `activeRctx`, `haltRun`. |
-| Direct mode state / Run-state indicator / Console | `directHistory`, `setRunning`, `INSTANT_FLUSH`, `log`, `MAX_LOG_LINES`, `optSpeed`. |
-| INTERPRETER | Header comment, scope helpers (`setVar`, `procScopeOf`, `repeatInfo`, `varName`), `formatNum`. |
-| Token resolution | `QUERY_TOKENS`, `resolveToken`. |
-| Expression evaluator | `UNARY`, `BINARY2`, `BINOP_PREC`, `UNARY_FNS`, `BINARY2_FNS`, `applyBinop`, `evalExpr`, `parseBinary`, `parseUnary`, `parsePrimary`, `skipSen`, `noteLine`, `deeper`. |
-| Tokeniser / Block extractor / Procedure store | `LINE_SEN`, `tokenize`, `extractBlock`, `procs`, `CONTROL_WORDS`, `extractProcedures`. |
-| Control-flow sentinels / Responsiveness | `STOP_SIGNAL`, `MAX_STACK_FRAMES`, `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`. |
-| Command dispatch table | `CMD` + all leaf handlers, `COLOR_NAMES`, `wordArg`, `isValueStart`. |
-| runExpr / runStack / run | Executors. |
-| Motion | `clipToCanvas`, `ouch`, `move`, `rotate`, `circle`, `MAX_CIRCLE_R`. |
-| Examples | `EXAMPLES` (31 entries), `buildExamples`. |
-| Code editor | Editor IIFE. |
-| Splitter | Drag / touch / LOG toggle IIFE. |
-| beautify(src) | Pure formatter + `INLINE_THRESHOLD`. |
-| Copy / Beautify buttons | |
-| Program execution | `registerProcs`, `parseProgram`, `runProgram`. |
-| Direct mode execution / Button handlers | `runDirectCommand`, RUN / STOP / CLR (`resetAll`). |
-| Direct mode UI / Overlays / File save-load / Options / Canvas resize | |
-| Autosave | `AUTOSAVE_KEY` (`claude-logo:program`), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
+| `index.html` | Markup only: left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
+| `src/main.js` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
+| `src/styles/app.css` | All CSS, including the VT323 `@font-face`. |
+| `src/assets/fonts/` | `VT323-Regular.woff2` (latin subset). |
+| `src/util.js` | `escHtml()`. |
+| `src/examples.js` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
+| `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` lines are metadata; the rest is the code. The number prefix sets the order. |
+| **render/** | |
+| `render/canvas.js` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
+| `render/sprite.js` | Palette, `drawShell`/`drawLeg`/`drawHead`/`drawBelly`, `spr`, `buildSprite`, `SPRITE_OFFSET`. |
+| `render/background.js` | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`/`turtleStyle` + setters. |
+| `render/trail.js` | Typed-array trail, `paintLine`, `trailPushIfRoom`, `trailPushQuiet`, label store (`labelStore`, `MAX_LABELS`, `paintLabel`), `trailCanvas`, `toCanvas`, `clearScreen`, `rebuildTrailCanvas`. |
+| `render/render.js` | `render()` (background → trail → sprite). |
+| **turtle/** | |
+| `turtle/state.js` | `turtle`, `walkTick`, `isMoving` + `resetTurtle`, `setMoving`, `advanceWalk`. |
+| `turtle/motion.js` | `clipToCanvas`, `ouch`, `move`, `rotate`, `circle`. |
+| **interpreter/** | |
+| `interpreter/context.js` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
+| `interpreter/scope.js` | INTERPRETER header comment, `globalVars` + `resetGlobals`, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
+| `interpreter/tokenizer.js` | `LINE_SEN`, `tokenize`. |
+| `interpreter/procedures.js` | `extractBlock`, `procs`, `CONTROL_WORDS`, `extractProcedures`. |
+| `interpreter/expr.js` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `skipSen`, `noteLine`. |
+| `interpreter/signals.js` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
+| `interpreter/pacing.js` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
+| `interpreter/commands.js` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
+| `interpreter/runtime.js` | `runExpr`, `runStack`, `run`. |
+| **editor/, format/** | |
+| `editor/editor.js` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`), undo history, line indicator. |
+| `format/beautify.js` | `beautify(src)` — pure. |
+| **ui/** | |
+| `ui/console.js` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
+| `ui/program.js` | `setRunning`, `registerProcs`, `parseProgram`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
+| `ui/direct.js` | Direct-mode state, `runDirectCommand`, direct-mode handlers. |
+| `ui/examples-overlay.js`, `ui/overlays.js`, `ui/options.js` | Examples list, `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
+| `ui/splitter.js`, `ui/code-buttons.js`, `ui/files.js`, `ui/resize.js` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
+| `ui/autosave.js` | `AUTOSAVE_KEY` (`claude-logo:program`), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
+
+**State ownership.** An ES module cannot assign to a variable it imports. Each piece of mutable state is written only by the module that declares it, through a small setter (`setCanvasSize`, `setActiveRctx`, `resetGlobals`, `resetTurtle`, `setMoving`, `advanceWalk`, `setLabelCapWarned`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`). Readers import the variable directly (ES imports are live bindings). ESLint's `no-import-assign` catches violations. Mutating an imported object (`turtle.x = …`, `procs[name] = …`, `labelStore.push(…)`) is fine.
+
+**Circular imports** exist (e.g. `expr` ⇄ `runtime` ⇄ `commands`) and are harmless because those modules only use each other inside functions. Do not add top-level code that calls into another interpreter module at import time.
 
 ### 1.3 Key Constants
 
@@ -313,7 +321,7 @@ Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, co
 
 ### 4.2 Code Editor
 
-`contenteditable` IIFE. Public API `{ getValue, setValue, focus }`.
+`contenteditable` editor created by an IIFE in `editor/editor.js`. Public API `{ getValue, setValue, initValue, onChange, focus }`.
 
 - **getValue()** walks child nodes (DIV / P / BR / text models), joins with `\n`, strips trailing empty lines.
 - **Highlighting:** every `input` event re-renders all lines (`renderLines`, comments in `<span class="comment">`, `escHtml`) and restores the caret by character offset (`getCaretOffset` / `setCaretOffset`, div by div).
@@ -443,15 +451,12 @@ Push a typed frame (`{ isMyLoop: true, body, vars, … }`) from the exec-frame d
 
 ### 6.4 Canvas / Turtle Styles
 
-Add a pill in the options HTML, a `case` in `drawBackground()` or `render()`, and wire the pill to set `canvasStyle` / `turtleStyle` and call `render()`.
+Add a pill in the options markup (`index.html`), a `case` in `drawBackground()` or `render()`, and wire the pill (`ui/options.js`) to call `setCanvasStyle` / `setTurtleStyle` and `render()`.
 
-### 6.5 Splitting Into Multiple Files
+### 6.5 Adding a Module
 
-| File | Contents | DOM dependency |
-|---|---|---|
-| `interpreter.js` | tokenizer, extractor, parser, `runStack`, `run`, `runExpr`, scopes, `CMD` | none once `log`/`render`/canvas size are injected (see §1) |
-| `turtle.js` | `mkTurtle`, `move`, `rotate`, `circle`, `clipToCanvas` | trail + render |
-| `trail.js` | typed arrays, paint/push helpers, labels, `rebuildTrailCanvas` | canvas |
-| `render.js` | canvas setup, HiDPI, sprite, background, `render` | canvas + DOM |
-| `editor.js` | editor IIFE, `beautify`, `escHtml` | DOM |
-| `ui.js` | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files | DOM |
+Put it in the folder of its layer, `export` only what other modules use, and import it from `main.js` if it wires DOM handlers. If it owns mutable state that other modules must change, export a setter (§1.2). Run `npm run lint` — `no-undef` reports missing imports, `no-unused-vars` reports stale ones.
+
+### 6.6 Adding an Example
+
+Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in the test if it is meant to stop at the edge).

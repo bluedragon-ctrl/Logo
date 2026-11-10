@@ -1,0 +1,17 @@
+;; title: Deep Recursion — Dragon Curve
+;; desc: Tests the trampoline: 12 levels of recursion draw the Dragon fractal
+; Deep Recursion — Dragon Curve
+TO DRAGON :SIZE :DEPTH :TURN
+  IF :DEPTH = 0 [ FD :SIZE STOP ]
+  ; LOCALMAKE: each recursion level needs its own :HALF
+  LOCALMAKE :HALF :SIZE / SQRT 2
+  DRAGON :HALF :DEPTH - 1 1
+  RT 90 * :TURN
+  DRAGON :HALF :DEPTH - 1 -1
+END
+
+HT
+SETWIDTH 1
+SETCOLOR 20 80 255
+PU SETPOS - 40 20 PD
+DRAGON 300 12 1

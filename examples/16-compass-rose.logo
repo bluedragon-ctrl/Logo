@@ -1,0 +1,12 @@
+;; title: Compass Rose
+;; desc: 24 spokes radiate from the origin, each slightly longer than the last
+; Compass Rose
+MAKE :ANGLE 0
+SETWIDTH 2
+REPEAT 24 [
+  SETH :ANGLE
+  MAKE :LEN 40 + :ANGLE * 0.2
+  FD :LEN
+  BK :LEN
+  MAKE :ANGLE :ANGLE + 15
+]

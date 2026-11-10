@@ -1,0 +1,9 @@
+;; title: Spiral
+;; desc: Growing spiral using a variable for step size
+; Spiral
+MAKE :STEP 2
+REPEAT 120 [
+  FD :STEP
+  RT 30
+  MAKE :STEP :STEP + 1
+]
