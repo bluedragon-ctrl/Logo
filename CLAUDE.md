@@ -20,13 +20,14 @@ Specification is split into two files:
 | `TODO.md` | Open work items. |
 | `REVIEW.md` | v7.3 project review (all items resolved in v8.0; kept for reference). |
 | `tests/run-examples.js` | Headless test: all examples, beautify idempotency, language regression cases, UI checks. |
-| `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (proposal, Nov 2026). |
+| `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
+| `third-party/` | Licenses of embedded third-party assets (VT323 font, OFL). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `index.html` | GitHub Pages entry point — redirects to the current version. |
 | `.github/workflows/pages.yml` | Runs the tests on every PR and push; on `main`, after tests pass, deploys `index.html`, the current app and `versions/` to GitHub Pages. |
 | `package.json` | Dev tooling only (pins Playwright for the tests). The app itself has no dependencies. |
 
-Current version: **v8.0** (`claude-logo-v8.0.html`)
+Current version: **v8.1** (`claude-logo-v8.1.html`)
 
 ---
 
@@ -82,9 +83,9 @@ render() · rebuildTrailCanvas() · clearScreen() · paintLine(…) · trailPush
 
 ## Section map
 
-Line numbers drift between versions — grep the `// ──` markers instead (`grep -n '// ──' claude-logo-v8.0.html`). Main markers in order:
+Line numbers drift between versions — grep the `// ──` markers instead (`grep -n '// ──' claude-logo-v8.1.html`). Main markers in order:
 
-`Utilities` · `Canvas setup` (CW/CH/DPR) · `Sprite colour palette` · `Sprite drawing helpers` · `Background: sand texture` · `Trail storage` · `Label store` · `Render pipeline` · `Turtle state` · `Run context` (`makeRunContext`, `haltRun`) · `Direct mode state` · `Run-state indicator` · `Console / log` · **INTERPRETER** header (scopes) · `Token resolution` (`QUERY_TOKENS`) · `Expression evaluator` · `Tokeniser` · `Block extractor` · `Procedure store` · `Control-flow sentinels` · `Responsiveness helpers` · `Command dispatch table` · `runExpr` · `runStack` · `run` · `Motion` · `Examples` · `Code editor` (undo history) · `Splitter` · `beautify(src)` · `Copy code button` · `Beautify button` · `Program execution` (`runProgram`) · `Direct mode execution` · `Button handlers` · `Direct mode UI handlers` · `Overlay management` · `File save / load` · `Options` · `Canvas resize`.
+`Utilities` · `Canvas setup` (CW/CH/DPR) · `Sprite colour palette` · `Sprite drawing helpers` · `Background: sand texture` · `Trail storage` · `Label store` · `Render pipeline` · `Turtle state` · `Run context` (`makeRunContext`, `haltRun`) · `Direct mode state` · `Run-state indicator` · `Console / log` · **INTERPRETER** header (scopes) · `Token resolution` (`QUERY_TOKENS`) · `Expression evaluator` · `Tokeniser` · `Block extractor` · `Procedure store` · `Control-flow sentinels` · `Responsiveness helpers` · `Command dispatch table` · `runExpr` · `runStack` · `run` · `Motion` · `Examples` · `Code editor` (undo history) · `Splitter` · `beautify(src)` · `Copy code button` · `Beautify button` · `Program execution` (`runProgram`) · `Direct mode execution` · `Button handlers` · `Direct mode UI handlers` · `Overlay management` · `File save / load` · `Autosave` · `Options` · `Canvas resize`.
 
 ---
 
@@ -234,5 +235,7 @@ See `claude-logo-lang-spec.md` for full detail.
 - **Scoping (v8.0+):** dynamic, UCBLogo-style. `MAKE` updates the nearest existing variable or creates a global; `LOCAL` / `LOCALMAKE` create procedure-private variables. FOR's loop variable exists only inside the loop. Recursive procedures need `LOCALMAKE` for working variables.
 - **Tail calls** are unbounded; other recursion is capped (10 000 frames; 500 levels inside expressions).
 - **Numbers only.** `"words` exist only for LABEL / PRINT / colour names.
+- **Autosave:** the editor text lives in localStorage under `claude-logo:program`; `editor.onChange` drives it, `editor.initValue` restores it without an undo step.
+- **No network requests:** the font is embedded as base64; the test fails if the page fetches anything. Keep it that way.
 - **`document.execCommand`** is used for Tab/paste/copy fallback — deprecated but functional everywhere.
 - **Not implemented:** `FILL`, `FOREVER`, `SETXY`, list/string values, short-circuit `AND`/`OR`.

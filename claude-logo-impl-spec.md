@@ -1,5 +1,5 @@
 # Claude Logo — Implementation Specification
-## Version 8.0 — November 2026
+## Version 8.1 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Claude Logo. Language behaviour visible to programmers is in `claude-logo-lang-spec.md`.
 
@@ -7,7 +7,7 @@ This document covers the internal architecture, data structures, algorithms, and
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). No server required. |
 | Delivery | Single `.html` file. All JS, CSS, and HTML inline. No build step. |
-| External dependencies | Google Fonts (VT323) — cosmetic; degrades gracefully offline. |
+| External dependencies | None. VT323 is embedded as a base64 woff2 `@font-face` (OFL, see `third-party/`); the page makes no network requests (checked by the tests). |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
@@ -54,7 +54,7 @@ Sections in declaration order (grep `// ──` to jump):
 | Section | Contents |
 |---|---|
 | Release notes comment | One-line pointer to `CHANGELOG.md`. |
-| `<style>` | All CSS. VT323 import. Layout, overlays, animations, log colours. |
+| `<style>` | All CSS. Embedded VT323 `@font-face`. Layout, overlays, animations, log colours. |
 | HTML body | Left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. |
 | Utilities | `escHtml()`. |
 | Canvas setup | `canvas`, `ctx`, `con`, `CW`/`CH`/`DPR`, `SPRITE_SIZE`, `SPRITE_OFFSET`. |
@@ -82,6 +82,7 @@ Sections in declaration order (grep `// ──` to jump):
 | Program execution | `registerProcs`, `parseProgram`, `runProgram`. |
 | Direct mode execution / Button handlers | `runDirectCommand`, RUN / STOP / CLR (`resetAll`). |
 | Direct mode UI / Overlays / File save-load / Options / Canvas resize | |
+| Autosave | `AUTOSAVE_KEY` (`claude-logo:program`), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
 ### 1.3 Key Constants
 

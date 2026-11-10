@@ -85,6 +85,15 @@ const UI_CHECKS = [
     const ok = await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).then(() => true, () => false);
     return [ok, ''];
   }],
+  ['autosave restores the program after a reload', async (page) => {
+    const src = '; autosave test\nREPEAT 3 [ FD 50 RT 120 ]';
+    await page.evaluate(c => editor.setValue(c), src);
+    await page.waitForTimeout(700);                       // > AUTOSAVE_DELAY_MS
+    await page.reload(); await page.waitForTimeout(300);
+    const got = await page.evaluate(() => editor.getValue());
+    const out = await page.evaluate(() => document.getElementById('console').textContent);
+    return [got === src && out.includes('Restored your program'), JSON.stringify(got)];
+  }],
 ];
 
 (async () => {
@@ -93,6 +102,8 @@ const UI_CHECKS = [
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(e.message));
+  const externalRequests = [];
+  page.on('request', r => { if(!/^(file|data|blob):/.test(r.url())) externalRequests.push(r.url()); });
   await page.goto('file://' + file);
   await page.waitForTimeout(300);
 
@@ -126,6 +137,8 @@ const UI_CHECKS = [
     const [ok, detail] = await check(page, runProgram);
     report(ok, 'ui: ' + name + (detail ? '  (' + detail + ')' : ''));
   }
+
+  report(externalRequests.length === 0, 'no network requests' + (externalRequests.length ? ' — ' + externalRequests.join(', ') : ''));
 
   await browser.close();
   console.log(failures ? `\n${failures} failure(s)` : '\nall passed');
