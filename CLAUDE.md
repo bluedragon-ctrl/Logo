@@ -17,6 +17,8 @@ Specification is split into two files:
 | `claude-logo-impl-spec.md` | Implementation specification — architecture, interpreter, UI, extension guide. |
 | `CHANGELOG.md` | Full version history. Add an entry here for every version bump. |
 | `CLAUDE.md` | This file. Read by Claude Code at session start. |
+| `index.html` | GitHub Pages entry point — redirects to the current version. |
+| `.github/workflows/pages.yml` | Deploys `index.html` + all `claude-logo-v*.html` to GitHub Pages on push to `main`. |
 
 Current version: **v7.3** (`claude-logo-v7.3.html`)
 
@@ -171,6 +173,7 @@ Format: `MAJOR.MINOR`
 - Bump **MAJOR** for stable releases after a review pass (v3.1 → v4.0)
 - Each version is saved as a new file: `claude-logo-v3.1.html`
 - Old versions are kept alongside the current one
+- Update the redirect target in `index.html` (GitHub Pages entry point) to the new file
 
 ---
 
