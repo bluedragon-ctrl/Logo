@@ -1,6 +1,22 @@
-# Claude Logo — Release Notes
+# Blue Logo — Release Notes
 
 Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fix
+
+---
+
+## v8.3  2026-11-10
+**BLUE LOGO — new name; interpreter runs without a browser; unit tests**
+
+No change in how Logo programs behave: every deterministic example draws a pixel-identical picture compared with v8.1.
+- ~ CHANGE: The project is now called **Blue Logo** (page title, header, welcome text, docs). The spec files are now `blue-logo-lang-spec.md` and `blue-logo-impl-spec.md`. The frozen `versions/claude-logo-v*.html` files keep their names so old links work.
+- ~ CHANGE: Autosave uses the key `blue-logo:program`. A program saved under the old key `claude-logo:program` is moved over once on the first visit, so nobody loses their work.
+- ~ CHANGE: Program state is one session object (`createSession()`: turtle, drawing, globals, procedures) instead of module-level variables. CS, RUN and CLR reset its fields.
+- ~ CHANGE: The interpreter and turtle code no longer touch the page. All output goes through `rctx.io` (LogoIO: log, render, paint, canvas size, animation frames); the page's implementation is in `src/app.js`. Trail segments and labels are stored by the core (`turtle/drawing.js`) and painted by the renderer.
+- ~ CHANGE: The RUN logic (run, report "✓ Done!" or the error with its line) moved to `interpreter/execute.js`, shared by RUN, direct mode and the tests.
+- + ADDITION: Vitest unit tests (`tests/unit/`, ~1 s): the language cases, every example, interpreter state (segments, turtle pose, labels, canvas edge), tokenizer, procedure extraction, number formatting, clipping, beautify. `npm test` runs them before the browser test; `npm run test:watch` re-runs on save.
+- + ADDITION: ESLint boundary rule: `interpreter/`, `turtle/` and `format/` cannot use browser globals or import the browser layers.
+- + ADDITION: Browser tests: the autosave key migration, the page title.
+- ~ CHANGE: The language cases moved to `tests/cases.js`, shared by the unit and browser tests.
 
 ---
 

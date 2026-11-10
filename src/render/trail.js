@@ -1,40 +1,10 @@
 import { CH, CW, DPR, canvas } from './canvas.js';
-import { resetTurtle } from '../turtle/state.js';
-import { log } from '../ui/console.js';
+import { session } from '../app.js';
 
-// ── Trail storage (typed array layout) ───────────────────────────────────────
-// Pen strokes are stored as line segments in two pre-allocated typed arrays.
-// Writing a segment costs one trailPush() call; reading costs direct index math.
-// There is no per-segment object allocation and no GC pressure at cap.
-//
-// Array layout — segment index i:
-//   trailF32[i*5 + 0] = x1  (Logo world coords, Float32 — origin at canvas centre)
-//   trailF32[i*5 + 1] = y1
-//   trailF32[i*5 + 2] = x2
-//   trailF32[i*5 + 3] = y2
-//   trailF32[i*5 + 4] = w   (stroke width in pixels)
-//   trailU8 [i*3 + 0] = r   (colour channels, Uint8 clamped 0–255)
-//   trailU8 [i*3 + 1] = g
-//   trailU8 [i*3 + 2] = b
-//
-// Memory at cap: Float32Array(250 000) = 1 000 KB + Uint8Array(150 000) = 150 KB ≈ 1.1 MB
-//   vs a JS object array: ~5 MB (56-byte V8 object × 50k + GC overhead)
-//
-// Invariants:
-//   0 <= trailLen <= MAX_TRAIL_SEGS  (trailLen never exceeds the array bound)
-//   trailCapWarned = false until the first rejected segment; then always true
-//   trailLen and trailCapWarned are both reset to 0/false by CS and RUN-with-clear
-const MAX_TRAIL_SEGS = 50000;
-const trailF32 = new Float32Array(MAX_TRAIL_SEGS * 5); // x1,y1,x2,y2,w
-const trailU8  = new Uint8Array(MAX_TRAIL_SEGS * 3);   // r,g,b
-let trailLen       = 0;     // number of committed segments (0..MAX_TRAIL_SEGS)
-let trailCapWarned = false; // true once the cap-reached message has been shown
-
-// ── Label store — text drawn by LABEL; replayed by rebuildTrailCanvas on resize.
-export const MAX_LABELS = 500;
-export let labelStore    = []; // {x, y, text, r, g, b} in Logo coordinates
-export let labelCapWarned = false;
-export function setLabelCapWarned(v){ labelCapWarned = v; }
+// ── Trail layer ───────────────────────────────────────────────────────────────
+// trailCanvas caches everything the turtle has drawn, so render() composites it
+// in one blit. The data itself (segments + labels) lives in session.drawing
+// (turtle/drawing.js); this module only paints it.
 export const trailCanvas=document.createElement('canvas');
 const trailCtx=trailCanvas.getContext('2d');
 // toCanvas: Logo world → canvas pixel.
@@ -66,68 +36,6 @@ export function paintLine(x1,y1,x2,y2,w,r,g,b){
     trailCtx.stroke();
   }
 }
-// paintSegment(): paint the stored segment at index trailLen-1.
-// Must be called immediately after trailPush() — the implicit index is trailLen-1.
-function paintSegment(){
-  const fi = (trailLen - 1) * 5, ci = (trailLen - 1) * 3;
-  paintLine(trailF32[fi], trailF32[fi+1], trailF32[fi+2], trailF32[fi+3], trailF32[fi+4],
-            trailU8[ci], trailU8[ci+1], trailU8[ci+2]);
-}
-
-// trailPush(x1,y1,x2,y2,w, r,g,b): write one segment at index trailLen, then
-// increment trailLen. Precondition: trailLen < MAX_TRAIL_SEGS (all callers check).
-function trailPush(x1,y1,x2,y2,w, r,g,b){
-  const fi = trailLen * 5, ci = trailLen * 3;
-  trailF32[fi]=x1; trailF32[fi+1]=y1; trailF32[fi+2]=x2; trailF32[fi+3]=y2; trailF32[fi+4]=w;
-  trailU8[ci]=r;   trailU8[ci+1]=g;   trailU8[ci+2]=b;
-  trailLen++;
-}
-
-// trailPushIfRoom(x1,y1,x2,y2,w, r,g,b): guard + trailPush + paintSegment in one call.
-// Returns true if the segment was written; false if the cap was already reached.
-// Emits the cap warning once (on the first rejected segment) via trailCapWarned.
-// Centralises the three formerly-independent cap-check blocks in move() and SETPOS.
-export function trailPushIfRoom(x1,y1,x2,y2,w, r,g,b){
-  if(trailLen < MAX_TRAIL_SEGS){
-    trailPush(x1,y1,x2,y2,w, r,g,b);
-    paintSegment();
-    return true;
-  }
-  if(!trailCapWarned){
-    trailCapWarned=true;
-    log('Trail limit reached ('+MAX_TRAIL_SEGS+' segments) — use CS to clear','err');
-  }
-  return false;
-}
-// trailPushQuiet(): like trailPushIfRoom but without painting — for segments that
-// were already painted incrementally (animated move()).
-export function trailPushQuiet(x1,y1,x2,y2,w, r,g,b){
-  if(trailLen < MAX_TRAIL_SEGS){ trailPush(x1,y1,x2,y2,w, r,g,b); return true; }
-  if(!trailCapWarned){
-    trailCapWarned=true;
-    log('Trail limit reached ('+MAX_TRAIL_SEGS+' segments) — use CS to clear','err');
-  }
-  return false;
-}
-// clearScreen(): erase trail + labels and reset the turtle. Shared by CS,
-// RUN-with-"clear screen on run", and the CLR button.
-export function clearScreen(){
-  trailLen=0; trailCapWarned=false; labelStore=[]; labelCapWarned=false;
-  resetTurtle(); rebuildTrailCanvas();
-}
-
-// rebuildTrailCanvas(): repaint all committed segments onto trailCanvas from scratch.
-// Called after canvas resize (trailCanvas must match main canvas dimensions) and
-// after CS (trailLen is reset to 0 so the loop draws nothing, producing a clear canvas).
-//
-// Context state note: assigning to canvas.width/height resets the entire 2D context
-// including lineCap/lineJoin, so these must be re-set before any drawing.
-//
-// Performance (OPT-5):
-//   • toCanvas() inlined — hw/hh hoisted outside loop: 2 divisions per rebuild
-//     instead of 4 per segment (~200k divisions saved at full cap).
-//   • Colour batching: strokeStyle/lineWidth only written on change, not per segment.
-//     lastR=-1 sentinel forces a strokeStyle write on the first segment.
 // paintLabel — draw one label entry onto trailCanvas.
 // Uses hw/hh of trailCanvas (same dims as canvas) to convert Logo → pixel coords.
 export function paintLabel(lab){
@@ -139,6 +47,18 @@ export function paintLabel(lab){
   trailCtx.restore();
 }
 
+// rebuildTrailCanvas(): repaint all stored segments and labels onto trailCanvas from
+// scratch. Called after canvas resize (trailCanvas must match main canvas dimensions)
+// and after CS (io.redraw — the drawing is empty, producing a clear canvas).
+//
+// Context state note: assigning to canvas.width/height resets the entire 2D context
+// including lineCap/lineJoin, so these must be re-set before any drawing.
+//
+// Performance (OPT-5):
+//   • toCanvas() inlined — hw/hh hoisted outside loop: 2 divisions per rebuild
+//     instead of 4 per segment (~200k divisions saved at full cap).
+//   • Colour batching: strokeStyle/lineWidth only written on change, not per segment.
+//     lastR=-1 sentinel forces a strokeStyle write on the first segment.
 export function rebuildTrailCanvas(){
   trailCanvas.width=canvas.width; trailCanvas.height=canvas.height; // device pixels; also clears
   trailCtx.setTransform(DPR,0,0,DPR,0,0);              // draw in logical units
@@ -146,6 +66,7 @@ export function rebuildTrailCanvas(){
   const hw=CW/2, hh=CH/2; // hoisted
   // Colour batching via raw channel comparison — avoids string construction per segment.
   // lastR=-1 ensures the first segment always sets strokeStyle.
+  const { f32: trailF32, u8: trailU8, len: trailLen, labels } = session.drawing;
   let lastR=-1, lastG=0, lastB=0, lastW=0;
   for(let i=0; i<trailLen; i++){
     const fi=i*5, ci=i*3;
@@ -170,5 +91,5 @@ export function rebuildTrailCanvas(){
     }
   }
   // Replay labels on top of trail segments
-  labelStore.forEach(paintLabel);
+  labels.forEach(paintLabel);
 }

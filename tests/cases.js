@@ -1,0 +1,46 @@
+// Language regression cases, shared by the unit tests (tests/unit/language.test.js,
+// headless interpreter) and the browser test (tests/run-examples.js, real page).
+
+// Examples that are expected to end at the canvas edge rather than with "✓ Done!".
+export const ENDS_WITH_OUCH = new Set(['Tail Recursion — Endless Spiral']);
+
+// [name, source, expected substring of the console output]
+// One case per fixed bug / language rule — add a case for every future fix.
+export const CASES = [
+  // Expression grammar (v8.0): precedence, left-associativity, parentheses, negatives
+  ['precedence * before +',        'PRINT 2 + 3 * 4', 'PRINT → 14'],
+  ['parentheses',                  'PRINT (2 + 3) * 4', 'PRINT → 20'],
+  ['left-associative',             'PRINT 10 - 2 - 3', 'PRINT → 5'],
+  ['unary minus',                  'PRINT - 3 + 4', 'PRINT → 1'],
+  ['comparison below arithmetic',  'MAKE :A 5\nIF :A + 1 > 5 [ PRINT 1 ]', 'PRINT → 1'],
+  ['NOT covers comparison',        'MAKE :X 3\nIF NOT :X = 5 [ PRINT 42 ]', 'PRINT → 42'],
+  ['unary function binds tight',   'PRINT SIN 30 * 2', 'PRINT → 1'],
+  ['negative literal is own arg',  'SETPOS 10 -20\nPRINT YCOR', 'PRINT → -20'],
+  ['negative variable is own arg', 'MAKE :Y 30\nSETPOS 0 -:Y\nPRINT YCOR', 'PRINT → -30'],
+  ['FD 100 -10 explains',          'FD 100 -10', 'For subtraction put spaces'],
+  ['missing )',                    'PRINT (1 + 2', 'Missing )'],
+  ['number formatting',            'PRINT 0.1 + 0.2', 'PRINT → 0.3'],
+  // Scoping (v8.0): UCBLogo MAKE, LOCAL/LOCALMAKE, FOR inherits (B1)
+  ['B1 FOR inside REPEAT sees outer var', 'MAKE :SIZE 10\nREPEAT 2 [ FOR :I 1 2 [ PRINT :SIZE ] ]', 'PRINT → 10'],
+  ['B1 FOR inside proc sees global',      'MAKE :G 7\nTO P\n FOR :I 1 2 [ PRINT :G ]\nEND\nP', 'PRINT → 7'],
+  ['FOR variable gone after loop',        'FOR :I 1 2 [ ]\nPRINT :I', 'Unknown variable: :I'],
+  ['MAKE in proc updates global',         'MAKE :C 0\nTO INC\n MAKE :C :C + 1\nEND\nINC INC\nPRINT :C', 'PRINT → 2'],
+  ['LOCAL keeps variable private',        'MAKE :X 1\nTO P\n LOCAL :X\n MAKE :X 99\nEND\nP\nPRINT :X', 'PRINT → 1'],
+  ['parameter MAKE stays local',          'MAKE :N 1\nTO P :N\n MAKE :N :N + 10\nEND\nP 5\nPRINT :N', 'PRINT → 1'],
+  ['B7 REPCOUNT does not leak into procs','TO P\n PRINT REPCOUNT\nEND\nREPEAT 2 [ P ]', 'REPCOUNT used outside'],
+  // Procedures and recursion
+  ['OUTPUT recursion',              'TO FACT :N\n IF :N < 2 [ OUTPUT 1 ]\n OUTPUT :N * FACT :N - 1\nEND\nPRINT FACT 10', 'PRINT → 3628800'],
+  ['B6 runaway expression recursion', 'TO BOOM\n OUTPUT BOOM\nEND\nFD BOOM', 'nested too deeply'],
+  ['tail recursion is unbounded',   'TO L :N\n IF :N = 0 [ STOP ]\n L :N - 1\nEND\nL 50000\nPRINT 7', 'PRINT → 7'],
+  ['B9 OUTPUT used as command',     'TO F\n OUTPUT 5\nEND\nF', "You don't say what to do with 5"],
+  ['B5 missing END reported',       'TO F\n FD 10\nPRINT 1', 'missing END'],
+  ['built-ins cannot be redefined', 'TO FD :X\nEND', 'cannot be redefined'],
+  // Parsing / misc fixes
+  ['B12 top-level errors name line', 'FD 10\nFD :NOPE', 'line 2'],
+  ['B13 block on next line in proc', 'TO P\n IFELSE 1 [ PRINT 1 ]\n [ PRINT 2 ]\nEND\nP', 'PRINT → 1'],
+  ['B8 SETPOS stops at the edge',    'SETPOS 5000 0\nPRINT 1', 'OUCH!'],
+  ['B10 RANDOM below 1 rejected',    'PRINT RANDOM 0.5', 'RANDOM: argument must be >= 1'],
+  ['PRINT "word keeps case',         'PRINT "Hello', 'PRINT → Hello'],
+  ['busy loop without motion',       'MAKE :I 0\nWHILE [ :I < 100000 ] [ MAKE :I :I + 1 ]\nPRINT :I', 'PRINT → 100000'],
+];
+

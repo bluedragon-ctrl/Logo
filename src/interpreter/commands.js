@@ -2,11 +2,9 @@ import { BINARY2, QUERY_TOKENS, UNARY, evalExpr, skipSen } from './expr.js';
 import { sleep, tick } from './pacing.js';
 import { formatNum, hasOwn, isVarTok, procScopeOf, setVar, varName } from './scope.js';
 import { LINE_SEN } from './tokenizer.js';
-import { render } from '../render/render.js';
-import { MAX_LABELS, clearScreen, labelCapWarned, labelStore, paintLabel, setLabelCapWarned, trailPushIfRoom } from '../render/trail.js';
-import { circle, clipToCanvas, move, ouch, rotate } from '../turtle/motion.js';
-import { turtle } from '../turtle/state.js';
-import { con, log, optSpeed } from '../ui/console.js';
+import { clearScreen } from './session.js';
+import { addLabel, trailPushIfRoom } from '../turtle/drawing.js';
+import { circle, clipForRun, move, ouch, rotate } from '../turtle/motion.js';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
 // CMD maps uppercase command name → async handler.
@@ -18,6 +16,7 @@ import { con, log, optSpeed } from '../ui/console.js';
 //
 // Leaf commands only. Flow-control keywords (CONTROL_WORDS) are dispatched inline
 // in runStack() — they need direct access to the frame stack.
+// State: rctx.session.turtle / .drawing. Output: rctx.io (log, render, …) — never the DOM.
 export const CMD = {};
 
 // ▸ Variables
@@ -29,7 +28,7 @@ CMD['MAKE'] = async (t,i,v,rctx) => {
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   setVar(v, name, value, rctx);
-  log('MAKE :' + name + ' = ' + formatNum(value), 'info');
+  rctx.io.log('MAKE :' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
 // LOCAL :a :b …  — declare variables local to the current procedure (no value yet).
@@ -48,7 +47,7 @@ CMD['LOCALMAKE'] = async (t,i,v,rctx) => {
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   procScopeOf(v, rctx)[name] = value;
-  log('LOCALMAKE :' + name + ' = ' + formatNum(value), 'info');
+  rctx.io.log('LOCALMAKE :' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
 
@@ -66,9 +65,9 @@ function wordArg(t, i, rctx) {
 // PRINT value | "word — always visible regardless of filter settings; auto-expands console.
 CMD['PRINT'] = CMD['PR'] = async (t,i,v,rctx) => {
   const w = wordArg(t, i, rctx);
-  if(w) { log('PRINT → ' + w.text, 'print'); return w.nextIdx; }
+  if(w) { rctx.io.log('PRINT → ' + w.text, 'print'); return w.nextIdx; }
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
-  log('PRINT → ' + formatNum(value), 'print');
+  rctx.io.log('PRINT → ' + formatNum(value), 'print');
   return nextIdx;
 };
 
@@ -82,7 +81,7 @@ function isValueStart(tok) {
 
 // LABEL "text | value | bareword — draw text at the turtle position.
 // "Hello keeps its case. A value (LABEL :X, LABEL XCOR) draws the number.
-// Text is stored in labelStore so it survives canvas resize.
+// Text is stored in session.drawing.labels so it survives canvas resize.
 CMD['LABEL'] = async (t,i,v,rctx) => {
   let text;
   const w = wordArg(t, i, rctx);
@@ -93,65 +92,61 @@ CMD['LABEL'] = async (t,i,v,rctx) => {
     if(isValueStart(t[i])) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
     else { text = t[i++]; } // bare word (uppercase), e.g. LABEL HELLO
   }
-  if(labelStore.length>=MAX_LABELS){
-    if(!labelCapWarned){ log('LABEL: label limit ('+MAX_LABELS+') reached — further labels ignored','info'); setLabelCapWarned(true); }
-    return i;
-  }
-  const lab={x:turtle.x, y:turtle.y, text, r:turtle.color[0], g:turtle.color[1], b:turtle.color[2]};
-  labelStore.push(lab);
-  paintLabel(lab);
+  const tt = rctx.session.turtle;
+  if(!addLabel(rctx, {x:tt.x, y:tt.y, text, r:tt.color[0], g:tt.color[1], b:tt.color[2]})) return i;
   await tick(rctx);
   return i;
 };
 
 // ▸ Motion — all delegate to move()/rotate() which own animation and instant-mode logic
 CMD['FD'] = CMD['FORWARD'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('FD '+formatNum(n),'op'); await move(n,rctx);   return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('FD '+formatNum(n),'op'); await move(n,rctx);   return nextIdx;
 };
 CMD['BK'] = CMD['BACK'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('BK '+formatNum(n),'op'); await move(-n,rctx);  return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('BK '+formatNum(n),'op'); await move(-n,rctx);  return nextIdx;
 };
 CMD['RT'] = CMD['RIGHT'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('RT '+formatNum(n),'op'); await rotate(n,rctx);  return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('RT '+formatNum(n),'op'); await rotate(n,rctx);  return nextIdx;
 };
 CMD['LT'] = CMD['LEFT'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('LT '+formatNum(n),'op'); await rotate(-n,rctx); return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('LT '+formatNum(n),'op'); await rotate(-n,rctx); return nextIdx;
 };
 CMD['SETH'] = CMD['SETHEADING'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   // Find the shortest-arc delta to target so the turtle turns at most 180°.
-  const cur = ((turtle.angle%360)+360)%360, target = ((n%360)+360)%360;
+  const cur = ((rctx.session.turtle.angle%360)+360)%360, target = ((n%360)+360)%360;
   let delta = target - cur;
   if(delta >  180) delta -= 360; // e.g. cur=350 target=10 → delta=-340 → +20
   if(delta < -180) delta += 360;
-  log('SETH ' + formatNum(target), 'op');
+  rctx.io.log('SETH ' + formatNum(target), 'op');
   await rotate(delta, rctx);
-  if(!rctx.stopped) turtle.angle = target; // snap to exact value after animation to eliminate float drift
+  if(!rctx.stopped) rctx.session.turtle.angle = target; // snap to exact value after animation to eliminate float drift
   return nextIdx;
 };
 // HOME: teleport to origin (0,0), heading 0°. Instant — no animation, no trail segment.
 // Pen/color/width state is unchanged; use CS to clear the trail.
-CMD['HOME'] = async (_t,i) => {
-  turtle.x=0; turtle.y=0; turtle.angle=0; render(); log('HOME','info'); return i;
+CMD['HOME'] = async (_t,i,_v,rctx) => {
+  rctx.session.turtle.x=0; rctx.session.turtle.y=0; rctx.session.turtle.angle=0; rctx.io.render(); rctx.io.log('HOME','info'); return i;
 };
 // SETPOS x y: straight line (pen down) to (x, y) without changing heading.
 // Leaving the canvas behaves like FD: the line stops at the edge and the run ends (OUCH!).
 CMD['SETPOS'] = async (t,i,v,rctx) => {
   const {value:nx, nextIdx:i1} = await evalExpr(t,i,v,rctx);
   const {value:ny, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
-  const hit = clipToCanvas(turtle.x, turtle.y, nx, ny);
+  const tt = rctx.session.turtle;
+  const hit = clipForRun(rctx, tt.x, tt.y, nx, ny);
   const [ex, ey] = hit || [nx, ny];
-  if(turtle.pen && (ex !== turtle.x || ey !== turtle.y))
-    trailPushIfRoom(turtle.x,turtle.y,ex,ey,turtle.width, turtle.color[0],turtle.color[1],turtle.color[2]);
-  turtle.x=ex; turtle.y=ey;
-  log('SETPOS '+formatNum(nx)+' '+formatNum(ny), 'op');
-  if(hit) ouch();
+  if(tt.pen && (ex !== tt.x || ey !== tt.y))
+    trailPushIfRoom(rctx, tt.x,tt.y,ex,ey,tt.width, tt.color[0],tt.color[1],tt.color[2]);
+  tt.x=ex; tt.y=ey;
+  rctx.io.log('SETPOS '+formatNum(nx)+' '+formatNum(ny), 'op');
+  if(hit) ouch(rctx);
   await tick(rctx);
   return i2;
 };
 // DOT [x y] — filled dot at (x,y), or at the turtle position when the next token on
 // the same line is not a value. Diameter = pen width, color = pen color. Always draws
-// regardless of pen state. Does not move the turtle. Stored as a zero-length trail
+// regardless of pen state. Does not move the rctx.session.turtle. Stored as a zero-length trail
 // segment (x1===x2, y1===y2), which paintLine/rebuildTrailCanvas draw as a filled circle.
 CMD['DOT'] = async (t,i,v,rctx) => {
   let px, py;
@@ -159,17 +154,18 @@ CMD['DOT'] = async (t,i,v,rctx) => {
     const r1 = await evalExpr(t, i, v, rctx); px = r1.value; i = r1.nextIdx;
     const r2 = await evalExpr(t, i, v, rctx); py = r2.value; i = r2.nextIdx;
   } else {
-    px = turtle.x; py = turtle.y;
+    px = rctx.session.turtle.x; py = rctx.session.turtle.y;
   }
-  trailPushIfRoom(px, py, px, py, turtle.width, turtle.color[0], turtle.color[1], turtle.color[2]);
-  log('DOT '+formatNum(px)+' '+formatNum(py), 'info');
+  const tt = rctx.session.turtle;
+  trailPushIfRoom(rctx, px, py, px, py, tt.width, tt.color[0], tt.color[1], tt.color[2]);
+  rctx.io.log('DOT '+formatNum(px)+' '+formatNum(py), 'info');
   await tick(rctx);
   return i;
 };
 // XCOR / YCOR / HEADING as standalone statements: log current value, no-op otherwise.
-CMD['XCOR']    = async (_t,i) => { log('XCOR = '   +formatNum(turtle.x),'info');                        return i; };
-CMD['YCOR']    = async (_t,i) => { log('YCOR = '   +formatNum(turtle.y),'info');                        return i; };
-CMD['HEADING'] = async (_t,i) => { log('HEADING = '+formatNum(((turtle.angle%360)+360)%360),'info');    return i; };
+CMD['XCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('XCOR = '   +formatNum(rctx.session.turtle.x),'info');                        return i; };
+CMD['YCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('YCOR = '   +formatNum(rctx.session.turtle.y),'info');                        return i; };
+CMD['HEADING'] = async (_t,i,_v,rctx) => { rctx.io.log('HEADING = '+formatNum(((rctx.session.turtle.angle%360)+360)%360),'info');    return i; };
 
 // ▸ Pen / visibility — data-table factory: [abbr, full, property, value, log-message]
 [['PU','PENUP',      'pen',     false, 'PEN UP'     ],
@@ -177,18 +173,18 @@ CMD['HEADING'] = async (_t,i) => { log('HEADING = '+formatNum(((turtle.angle%360
  ['HT','HIDETURTLE', 'visible', false, 'HIDE TURTLE'],
  ['ST','SHOWTURTLE', 'visible', true,  'SHOW TURTLE'],
 ].forEach(([abbr, full, prop, val, msg]) => {
-  CMD[abbr] = CMD[full] = async (_t,i) => { turtle[prop]=val; render(); log(msg,'info'); return i; };
+  CMD[abbr] = CMD[full] = async (_t,i,_v,rctx) => { rctx.session.turtle[prop]=val; rctx.io.render(); rctx.io.log(msg,'info'); return i; };
 });
 
 // ▸ Drawing
-CMD['CS'] = CMD['CLEARSCREEN'] = async (_t,i) => {
+CMD['CS'] = CMD['CLEARSCREEN'] = async (_t,i,_v,rctx) => {
   // CS clears trail segments, labels, and dots; resets turtle to home.
   // Does NOT clear variables, procedures, or the console — use CLR for a full reset.
-  clearScreen(); render(); log('CLEAR','info'); return i;
+  clearScreen(rctx.session, rctx.io); rctx.io.render(); rctx.io.log('CLEAR','info'); return i;
 };
-CMD['CT'] = CMD['CLEARTEXT'] = async (_t,i) => { con.innerHTML=''; return i; };
+CMD['CT'] = CMD['CLEARTEXT'] = async (_t,i,_v,rctx) => { rctx.io.clearText(); return i; };
 CMD['CIRCLE'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); log('CIRCLE '+formatNum(n),'op'); await circle(n,rctx); return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('CIRCLE '+formatNum(n),'op'); await circle(n,rctx); return nextIdx;
 };
 // Named colour table — 16 kid-friendly colours accepted by SETCOLOR.
 // GREY is an alias for GRAY (same slot, not counted separately).
@@ -206,8 +202,8 @@ CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
   const pi = skipSen(t, i, rctx);
   const nameTok = t[pi] && (t[pi].startsWith('"') ? t[pi].slice(1).toUpperCase() : t[pi]);
   if(nameTok && hasOwn(COLOR_NAMES, nameTok)){
-    turtle.color = [...COLOR_NAMES[nameTok]];
-    log('COLOR ' + turtle.color.join(' '), 'info');
+    rctx.session.turtle.color = [...COLOR_NAMES[nameTok]];
+    rctx.io.log('COLOR ' + rctx.session.turtle.color.join(' '), 'info');
     return pi+1;
   }
   if(t[pi] && t[pi].startsWith('"')) throw new Error('SETCOLOR: unknown colour name ' + t[pi].slice(1));
@@ -218,20 +214,20 @@ CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
   // Clamp each channel to 0–255 and warn if any value was changed — mirrors
   // SETWIDTH's behaviour so out-of-range input is never silently discarded.
   const clamp = x => Math.max(0, Math.min(255, Math.round(x)));
-  turtle.color = [clamp(r), clamp(g), clamp(b)];
+  rctx.session.turtle.color = [clamp(r), clamp(g), clamp(b)];
   // Compare against raw input (not Math.round) so tiny negatives like -0.4 also trigger
   // the warning. clamp() already rounds+clamps; the warn fires whenever stored !== raw.
-  if(turtle.color[0]!==r || turtle.color[1]!==g || turtle.color[2]!==b)
-    log('SETCOLOR ' + [r,g,b].map(formatNum).join(' ') + ' clamped to ' + turtle.color.join(' '), 'info');
-  log('COLOR ' + turtle.color.join(' '), 'info');
+  if(rctx.session.turtle.color[0]!==r || rctx.session.turtle.color[1]!==g || rctx.session.turtle.color[2]!==b)
+    rctx.io.log('SETCOLOR ' + [r,g,b].map(formatNum).join(' ') + ' clamped to ' + rctx.session.turtle.color.join(' '), 'info');
+  rctx.io.log('COLOR ' + rctx.session.turtle.color.join(' '), 'info');
   return i3;
 };
 CMD['SW'] = CMD['SETWIDTH'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   const w = Math.max(0.5, Math.min(100, n)); // clamp: 0 or negative = invisible; >100 = unreasonable
-  if(w !== n) log('SETWIDTH ' + formatNum(n) + ' clamped to ' + w, 'info');
-  turtle.width = w;
-  log('WIDTH ' + w, 'info');
+  if(w !== n) rctx.io.log('SETWIDTH ' + formatNum(n) + ' clamped to ' + w, 'info');
+  rctx.session.turtle.width = w;
+  rctx.io.log('WIDTH ' + w, 'info');
   return nextIdx;
 };
 // WAIT n: pause for n seconds (non-blocking, ends early on STOP). Capped at 30 s.
@@ -239,9 +235,9 @@ CMD['WAIT'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   if(n < 0)  throw new Error('WAIT: duration must be >= 0, got ' + n);
   const secs = Math.min(n, 30); // cap: prevent accidental multi-hour freeze
-  if(secs < n) log('WAIT ' + formatNum(n) + 's capped to 30s', 'info');
-  log('WAIT ' + formatNum(secs) + 's', 'op');
-  render();
+  if(secs < n) rctx.io.log('WAIT ' + formatNum(n) + 's capped to 30s', 'info');
+  rctx.io.log('WAIT ' + formatNum(secs) + 's', 'op');
+  rctx.io.render();
   await sleep(secs * 1000, rctx);
   return nextIdx;
 };
@@ -249,9 +245,9 @@ CMD['WAIT'] = async (t,i,v,rctx) => {
 CMD['SPEED'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   const s = Math.max(0, Math.min(4, Math.round(n)));
-  if(s !== Math.round(n)) log('SPEED ' + formatNum(n) + ' clamped to ' + s, 'info');
+  if(s !== Math.round(n)) rctx.io.log('SPEED ' + formatNum(n) + ' clamped to ' + s, 'info');
   rctx.speed   = s;   // takes effect immediately for the rest of this run
-  if(typeof optSpeed !== 'undefined') optSpeed.value = s; // sync slider so next run starts at same speed
-  log('SPEED ' + s, 'info');
+  rctx.io.setSpeed(s); // sync the slider so the next run starts at the same speed
+  rctx.io.log('SPEED ' + s, 'info');
   return nextIdx;
 };

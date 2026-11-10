@@ -1,4 +1,4 @@
-# Claude Logo — TODO
+# Blue Logo — TODO
 
 The v7.3 review (`REVIEW.md`) was fully addressed in v8.0. Remaining ideas, roughly by value:
 
@@ -10,10 +10,12 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [x] GitHub Pages enabled; CI runs tests on PRs (v8.0 → main)
 - [x] Embedded VT323 font; autosave to localStorage (v8.1)
 - [x] Phase 1: Vite build, split into `src/` modules, examples as `.logo` files (v8.2)
-- [ ] Next: phase 2 — `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule
+- [x] Phase 2: `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule; renamed to Blue Logo (v8.3)
+- [ ] Next: phase 3 — TypeScript, interpreter (strict) first
 
 ### Repo
-- [ ] After merging v8.0 to `main`: tag releases (`git tag v8.0`, optionally older ones from history)
+- [ ] Tag releases on `main` (`v8.1`, `v8.2`, `v8.3`; optionally older ones from history)
+- [ ] Optional: rename the GitHub repository to match the new name (the Pages URL follows the repo name; old URLs redirect only for the repo, not for Pages)
 
 ### Language
 - [ ] Short-circuit `AND` / `OR` (needs a "skip" parse mode so the right side is consumed without evaluating)
@@ -22,5 +24,4 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
 
 ### Internals
-- [ ] Inject `log` / `render` / canvas size into the interpreter (`rctx.io`) so the core can run in Node tests without a browser
 - [ ] Editor: re-render only the changed line instead of the whole editor on every keystroke (performance on long programs)

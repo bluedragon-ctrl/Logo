@@ -2,10 +2,9 @@ import { CMD } from './commands.js';
 import { BINARY2, BINOP_PREC, QUERY_TOKENS, UNARY, evalExpr, noteLine, skipSen } from './expr.js';
 import { macroYield } from './pacing.js';
 import { extractBlock } from './procedures.js';
-import { PROC_SCOPE, REPEAT_SCOPE, formatNum, globalVars, hasOwn, isVarTok, varName } from './scope.js';
+import { PROC_SCOPE, REPEAT_SCOPE, formatNum, hasOwn, isVarTok, varName } from './scope.js';
 import { MAX_STACK_FRAMES, STOP_SIGNAL } from './signals.js';
 import { LINE_SEN } from './tokenizer.js';
-import { log } from '../ui/console.js';
 
 // ── runExpr: procedure used as a value ────────────────────────────────────────
 // runExpr(name, proc, scope, rctx) → number
@@ -84,7 +83,7 @@ async function runStack(stack, rctx) {
 
     // ── STOP: unwind to nearest procBoundary (top level: end the program) ───
     if(cmd === 'STOP') {
-      log('STOP', 'info');
+      rctx.io.log('STOP', 'info');
       let k = stack.length - 1;
       while(k >= 0 && !stack[k].procBoundary) k--;
       if(k >= 0) { stack[k].stopFired = true; stack.length = k; } // removes boundary + everything above
@@ -111,7 +110,7 @@ async function runStack(stack, rctx) {
       if(stack[k].stmtCall)
         throw new Error("You don't say what to do with " + formatNum(value) + ' — ' + stack[k].procName +
                         ' OUTPUTs a value but was used as a command (try e.g. PRINT ' + stack[k].procName + ')');
-      log('OUTPUT → ' + formatNum(value), 'info');
+      rctx.io.log('OUTPUT → ' + formatNum(value), 'info');
       stack[k].outputVal = value;
       stack.length = k;
       continue;
@@ -122,8 +121,8 @@ async function runStack(stack, rctx) {
       const {value:cond, nextIdx:ci} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
       const {body, nextIdx:ni} = extractBlock(frame.tokens, ci);
       frame.idx = ni;
-      if(cond !== 0) { log('IF → true','info');  stack.push({ tokens:body, idx:0, vars:frame.vars }); }
-      else             log('IF → false','info');
+      if(cond !== 0) { rctx.io.log('IF → true','info');  stack.push({ tokens:body, idx:0, vars:frame.vars }); }
+      else             rctx.io.log('IF → false','info');
       continue;
     }
     if(cmd === 'IFELSE') {
@@ -131,7 +130,7 @@ async function runStack(stack, rctx) {
       const b0 = extractBlock(frame.tokens, ci);
       const b1 = extractBlock(frame.tokens, b0.nextIdx);
       frame.idx = b1.nextIdx;
-      log('IFELSE → ' + (cond !== 0), 'info');
+      rctx.io.log('IFELSE → ' + (cond !== 0), 'info');
       stack.push({ tokens: cond !== 0 ? b0.body : b1.body, idx:0, vars:frame.vars });
       continue;
     }
@@ -142,8 +141,8 @@ async function runStack(stack, rctx) {
       const {body, nextIdx:ni} = extractBlock(frame.tokens, ci);
       frame.idx = ni;
       const n = Math.round(count);
-      if(n < 0) { log('REPEAT ' + n + ': count is negative, skipping', 'err'); }
-      else { log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1, total:n }); }
+      if(n < 0) { rctx.io.log('REPEAT ' + n + ': count is negative, skipping', 'err'); }
+      else { rctx.io.log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1, total:n }); }
       continue;
     }
 
@@ -186,7 +185,7 @@ async function runStack(stack, rctx) {
 
     // ── User procedure call (as a command) ──────────────────────────────────
     if(hasOwn(rctx.procs, cmd)) {
-      log('CALL ' + cmd, 'info');
+      rctx.io.log('CALL ' + cmd, 'info');
       const proc = rctx.procs[cmd];
       const args = [];
       for(let p = 0; p < proc.params.length; p++) {
@@ -236,6 +235,6 @@ async function runStack(stack, rctx) {
 
 // ── run(tokens, startIdx, vars, rctx): top-level interpreter entry point ─────
 export async function run(tokens, startIdx, vars, rctx) {
-  rctx.globals = vars || globalVars;
+  rctx.globals = vars || rctx.session.globals;
   await runStack([{ tokens: tokens || [], idx: startIdx || 0, vars: rctx.globals }], rctx);
 }

@@ -1,9 +1,9 @@
+import { session } from '../app.js';
 import { activeRctx } from '../interpreter/context.js';
 import { buildBgCache, buildGrains } from '../render/background.js';
 import { DPR, canvas, setCanvasSize } from '../render/canvas.js';
 import { render } from '../render/render.js';
 import { rebuildTrailCanvas } from '../render/trail.js';
-import { turtle } from '../turtle/state.js';
 import { OVERLAYS, closeOverlay } from './overlays.js';
 
 // ── Canvas resize (debounced) ─────────────────────────────────────────────────
@@ -29,7 +29,7 @@ export function resizeCanvas(){
   // Re-centre the turtle when idle so it stays at the canvas origin after resize.
   // Guard: do NOT reset position while a program is running — that would corrupt
   // turtle coordinates mid-animation. When activeRctx is set a run is in progress.
-  if(!activeRctx){ turtle.x=0; turtle.y=0; turtle.angle=0; }
+  if(!activeRctx){ const t = session.turtle; t.x=0; t.y=0; t.angle=0; }
   render();
 }
 let _resizeTimer=null;

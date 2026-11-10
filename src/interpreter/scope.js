@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// INTERPRETER — v4.0  (Claude Logo v8.0)
+// INTERPRETER — v4.0  (Blue Logo, since v8.0)
 //
 // Pipeline:  tokenize → extractProcedures → run → runStack (trampoline) ⇄ evalExpr
 //
@@ -19,7 +19,7 @@
 //   for frame    { isFor, varName, end, step, body, vars, nextVal, eps }
 //
 // Scopes — dynamic scoping, as in UCBLogo. Plain objects linked by prototype:
-//   rctx.globals        root scope (globalVars)
+//   rctx.globals        root scope (session.globals)
 //   procedure scope     Object.create(callerScope); own params; [PROC_SCOPE] = name
 //   REPEAT iteration    Object.create(scope); [REPEAT_SCOPE] = { count, max }
 //   FOR scope           Object.create(scope); own loop variable
@@ -36,9 +36,6 @@
 //   its frame(s) replaces them, so recursive loops (TO L … L END) never overflow.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export let globalVars = {}; // top-level variable scope; reset by RUN and CLR
-export function resetGlobals(){ globalVars = {}; }
-
 export const REPEAT_SCOPE = Symbol('repeatScope'); // value on a REPEAT iteration scope: { count, max }
 export const PROC_SCOPE   = Symbol('procScope');   // value on a procedure scope: procedure name
 export const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -52,13 +49,13 @@ export function isVarTok(tok){ return !!tok && (tok.startsWith(':') || tok.start
 export function setVar(vars, name, value, rctx){
   for(let s = vars; s && s !== Object.prototype; s = Object.getPrototypeOf(s))
     if(hasOwn(s, name)) { s[name] = value; return; }
-  (rctx.globals || globalVars)[name] = value;
+  (rctx.globals || rctx.session.globals)[name] = value;
 }
 // procScopeOf: nearest procedure scope (LOCAL target), or the globals at top level.
 export function procScopeOf(vars, rctx){
   for(let s = vars; s && s !== Object.prototype; s = Object.getPrototypeOf(s))
     if(hasOwn(s, PROC_SCOPE)) return s;
-  return rctx.globals || globalVars;
+  return rctx.globals || rctx.session.globals;
 }
 // repeatInfo: { count, max } of the innermost REPEAT in the current procedure, or null.
 // The walk stops at a procedure scope: REPCOUNT does not leak into called procedures.

@@ -1,9 +1,11 @@
+import { io, session } from '../app.js';
 import { editor } from '../editor/editor.js';
 import { activeRctx } from '../interpreter/context.js';
-import { extractProcedures, procs } from '../interpreter/procedures.js';
+import { parseProgram, registerProcs } from '../interpreter/execute.js';
+import { extractProcedures } from '../interpreter/procedures.js';
 import { LINE_SEN, tokenize } from '../interpreter/tokenizer.js';
 import { consoleVisible, log } from './console.js';
-import { parseProgram, registerProcs, runProgram } from './program.js';
+import { runProgram } from './program.js';
 
 // ── Direct mode state ─────────────────────────────────────────────────────────
 export let directMode = false;
@@ -24,12 +26,12 @@ export async function runDirectCommand(rawText) {
   // Re-parse editor procedures so the latest editor content is always available
   try {
     const { newProcs: editorProcs } = extractProcedures(tokenize(editor.getValue()));
-    Object.assign(procs, editorProcs);
+    Object.assign(session.procs, editorProcs);
   } catch(_) { /* ignore editor parse errors in direct mode */ }
 
-  const parsed = parseProgram(cmdText);
+  const parsed = parseProgram(cmdText, io);
   if (!parsed) return true;
-  registerProcs(parsed.newProcs);
+  registerProcs(session, parsed.newProcs, io);
   if (!parsed.topLevel.some(t => !t.startsWith(LINE_SEN))) return true; // only definitions typed
 
   log('⌘ ' + cmdText, 'cmd');

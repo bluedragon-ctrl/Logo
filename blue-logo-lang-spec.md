@@ -1,9 +1,9 @@
-# Claude Logo — Language Specification
+# Blue Logo — Language Specification
 ## Version 8.0 — November 2026
 
-Claude Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
+Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
-This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `claude-logo-impl-spec.md`.
+This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `blue-logo-impl-spec.md`.
 
 > **Changes in v8.0 that can affect older programs:** expressions now use standard operator precedence and are left-associative (§3), and `MAKE` inside a procedure now updates an existing outer/global variable instead of always creating a local one (§6). Use `LOCALMAKE` / `LOCAL` for procedure-private variables.
 
@@ -253,7 +253,7 @@ The origin (0, 0) is the centre of the canvas. X increases to the right, Y upwar
 
 ## 6. Variable Scoping Rules
 
-Claude Logo uses **dynamic scoping**, like UCBLogo: a procedure can read the variables of whoever called it.
+Blue Logo uses **dynamic scoping**, like UCBLogo: a procedure can read the variables of whoever called it.
 
 | Situation | Behaviour |
 |---|---|
