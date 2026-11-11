@@ -12,6 +12,7 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [x] Phase 1: Vite build, split into `src/` modules, examples as `.logo` files (v8.2)
 - [x] Phase 2: `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule; renamed to Blue Logo (v8.3)
 - [x] Phase 3: TypeScript, strict, everywhere (v8.4)
+- [x] Positioned tokens + CodeMirror 6 editor (v8.5)
 - [ ] Next: remaining technical work (see below), then a visual / interface pass, then phase 4 teaching features
 
 ### Repo
@@ -25,9 +26,9 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
 
 ### Internals — remaining technical work (agreed: finish this before the visual pass)
-1. [ ] Positioned tokens: give every token `{line, col}` instead of the `__L<n>:` line-sentinel tokens. Enables exact error locations and, later, step mode / running-line highlight. Update tokenizer, extractor, `skipSen` / `noteLine`, beautify's lexer if needed, tests.
+1. [x] Positioned tokens (v8.5): give every token `{line, col}` instead of the `__L<n>:` line-sentinel tokens. Enables exact error locations and, later, step mode / running-line highlight. Update tokenizer, extractor, `skipSen` / `noteLine`, beautify's lexer if needed, tests.
 2. [ ] Collect all error messages in one module (`interpreter/errors.ts`), ready for the friendlier wording of phase 4.
-3. [ ] Editor decision: CodeMirror 6 (line numbers, bracket matching, error underline, running-line highlight) vs. fixing our own editor (it re-renders everything on every keystroke). Decide before the visual pass.
+3. [x] Editor: CodeMirror 6 (v8.5) — line numbers, bracket matching, real undo. Next on top of it: error-line underline and running-line highlight (needs tokens to know whether they came from the editor or from direct mode), colours for more token classes in the visual pass.
 4. [ ] Smaller: move the browser test to `@playwright/test`; `vite.config.ts`.
 
 Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and deterministic examples still draw pixel-identical canvases.

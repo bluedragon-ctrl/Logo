@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.4 — November 2026
+## Version 8.5 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -7,7 +7,7 @@ This document covers the internal architecture, data structures, algorithms, and
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). Served as a static site (GitHub Pages). |
 | Delivery | ES modules in `src/`, built by Vite into `dist/` (`index.html` + hashed JS/CSS/font). Module scripts do not load from `file://` — use `npm run dev` or `npm run preview` locally. Versions up to v8.1 are frozen single-file HTML in `versions/`. |
-| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: TypeScript, Vite, Vitest, ESLint, Playwright. |
+| External dependencies | CodeMirror 6 (editor, MIT), bundled into the app by Vite. VT323 is self-hosted (`src/assets/fonts/`, OFL; licenses in `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: TypeScript, Vite, Vitest, ESLint, Playwright. |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
@@ -24,7 +24,7 @@ The application is a set of TypeScript ES modules (`src/`, strict mode) bundled 
 | Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
 | Turtle | `session.turtle` (position, heading, pen, colour, width), `session.drawing` (trail segments + labels), `move`/`rotate`/`circle`. |
 | Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
-| Editor | `contenteditable` editor (`editor/editor.ts`): syntax highlighting, caret preservation, own undo/redo, tab/paste. |
+| Editor | CodeMirror 6 (`editor/editor.ts`, `editor/logo-language.ts`): Logo highlighting, line numbers, `[ ]` matching, undo/redo, Tab = two spaces. |
 | UI shell | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, file save/load. |
 
 **The core has no DOM.** `src/interpreter/`, `src/turtle/` and `src/format/` never touch the browser: `tsconfig.core.json` type-checks them without the DOM library (the only host globals are `setTimeout` / `clearTimeout`, `types/core-globals.d.ts`), and ESLint forbids imports from `render/`, `ui/`, `editor/`, `app.ts` or `main.ts`. The page wires the core to the browser in `src/app.ts`; the unit tests use `headlessIO()` instead (§1.3).
@@ -87,7 +87,8 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `interpreter/commands.ts` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
 | `interpreter/runtime.ts` | `runExpr`, `runStack`, `run`. |
 | **editor/, format/** | |
-| `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`), undo history, line indicator. |
+| `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`): the CodeMirror view, its extensions and highlight style, line indicator. |
+| `editor/logo-language.ts` | `logoLanguage`: CodeMirror `StreamLanguage` that classifies Logo tokens for highlighting (word lists from `CMD`, `CONTROL_WORDS`, `UNARY`, `BINARY2`, `QUERY_TOKENS`). |
 | `format/beautify.ts` | `beautify(src)` — pure. |
 | **ui/** | |
 | `ui/console.ts` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
@@ -351,13 +352,14 @@ Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, co
 
 ### 4.2 Code Editor
 
-`contenteditable` editor created by an IIFE in `editor/editor.ts`. Public API `{ getValue, setValue, initValue, onChange, focus }`.
+CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`. Public API `{ getValue, setValue, initValue, onChange, focus }` — the rest of the app never touches CodeMirror directly.
 
-- **getValue()** walks child nodes (DIV / P / BR / text models), joins with `\n`, strips trailing empty lines.
-- **Highlighting:** every `input` event re-renders all lines (`renderLines`, comments in `<span class="comment">`, `escHtml`) and restores the caret by character offset (`getCaretOffset` / `setCaretOffset`, div by div).
-- **Undo / redo:** re-rendering wipes the browser's native undo stack, so the editor keeps its own history of `{ src, caret }` (max 300). Typing within 800 ms coalesces into one step; `setValue()` (examples, LOAD, beautify) always makes its own step, so loading an example can be undone. Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y and `beforeinput` `historyUndo`/`historyRedo` are intercepted.
-- **Tab / paste:** Tab inserts two spaces; paste inserts `text/plain` only (both via `execCommand('insertText')`).
-- **L:N indicator** updates on input and `selectionchange`.
+- **Extensions:** `lineNumbers`, `highlightActiveLineGutter`, `history`, `bracketMatching`, `logoLanguage`, `syntaxHighlighting(logoHighlight)`, `lineWrapping`, a placeholder (the welcome text, shown while empty), and a keymap: Tab inserts two spaces, Shift+Tab un-indents, Ctrl/Cmd+/ toggles `;` comments, then CodeMirror's history and default keymaps.
+- **Highlighting:** `logoLanguage` (`editor/logo-language.ts`) is a `StreamLanguage` that mirrors `tokenize()`'s word / operator split and tags comments, `"words`, `:variables`, numbers, operators, brackets, `TO`/`END`, control words, commands and functions. Only comments are coloured for now (`#556`; `logoHighlight`); colouring more classes is a change to that style. Editor colours: `#editor .cm-…` rules in `app.css`.
+- **getValue()** is the document text, exactly.
+- **setValue(src)** replaces the whole document as its own undo step (`isolateHistory`), so loading an example, LOAD or beautify can be undone; the caret goes to the start.
+- **initValue(src)** creates a fresh `EditorState`: empty undo history and no change event (autosave restore).
+- **onChange(fn)** is called from an `updateListener` whenever the document changes (typing, setValue, undo / redo). The same listener updates the **L:N indicator** on every change and selection move.
 
 ### 4.3 Splitter and Console Toggle
 

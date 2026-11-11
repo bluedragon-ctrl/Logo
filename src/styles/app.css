@@ -90,27 +90,28 @@ h1 { font-size: calc(16px * var(--fs-base)); color: #4afa; text-align: center; p
   background: #111;
   border: 2px solid #2a5a3a;
   color: #4f8;
-  font-family: 'VT323', monospace;
   font-size: calc(18px * var(--fs-base));
-  padding: 8px;
-  line-height: 1.2;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow-y: auto;
-  outline: none;
   box-sizing: border-box;
   min-height: 0;
-  caret-color: #4f8;
-  /* prevent rich paste, images, etc */
-  -webkit-user-modify: read-write-plaintext-only;
+  display: flex;
+  flex-direction: column;
 }
-#editor .comment { color: #556; }
-/* placeholder shown via ::before when editor is empty */
-#editor:empty::before {
-  content: "; Welcome to BLUE LOGO\A ; Type commands below and press RUN\A ;\A ; Move:    FD 100   BK 50   RT 90   LT 45\A ; Draw:    CIRCLE 80   SETCOLOR 200 50 50\A ; Repeat:  REPEAT 4 [ FD 100 RT 90 ]\A ; Vars:    MAKE :n 10   FD :n\A ; Procs:   TO SQUARE\A ;            REPEAT 4 [FD 80 RT 90]  END\A ;\A ; Click EXAMPLES for more\A ; ? COMMANDS for reference";
+/* CodeMirror (src/editor/editor.ts) */
+#editor .cm-editor { flex: 1; min-height: 0; background: transparent; color: inherit; }
+#editor .cm-editor.cm-focused { outline: none; }
+#editor .cm-scroller { font-family: 'VT323', monospace; line-height: 1.2; overflow-y: auto; }
+#editor .cm-content { padding: 8px 0; caret-color: #4f8; }
+#editor .cm-line { padding: 0 8px 0 6px; }
+#editor .cm-cursor { border-left-color: #4f8; }
+#editor .cm-gutters { background: #111; color: #2a5a3a; border-right: 1px solid #1a3a2a; }
+#editor .cm-lineNumbers .cm-gutterElement { padding: 0 4px 0 6px; }
+#editor .cm-activeLineGutter { background: transparent; color: #4f8; }
+#editor .cm-matchingBracket { background: transparent; outline: 1px solid #4f8; }
+#editor .cm-nonmatchingBracket { background: transparent; outline: 1px solid #c44; }
+/* placeholder shown while the editor is empty */
+#editor .cm-placeholder {
   white-space: pre;
   color: #2a4a2a;
-  pointer-events: none;
   font-style: italic;
 }
 

@@ -26,7 +26,7 @@ import { optSpeed } from './ui/console.ts';
 //   turtle/       turtle state, drawing store, move / rotate / circle
 //   interpreter/  tokenizer → procedures → runtime (runStack) ⇄ expr, CMD table,
 //                 session, LogoIO — no DOM (ESLint enforces it)
-//   editor/       contenteditable editor with highlighting and undo
+//   editor/       CodeMirror 6 editor (Logo highlighting, line numbers, undo)
 //   format/       beautify (pure)
 //   ui/           console, buttons, direct mode, overlays, files, autosave, options, resize
 //

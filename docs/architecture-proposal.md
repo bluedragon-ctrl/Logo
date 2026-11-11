@@ -197,5 +197,5 @@ Each phase is a separate PR and leaves the app fully working. Phases 1–3 shoul
 2. **Delivery:** a hosted web page, GitHub Pages first, possibly a server later. Opening the app from `file://` is no longer a requirement, so no single-file build.
 3. **Old versions:** keep `versions/` frozen and online; future versions come from git tags.
 4. **Language:** English only. No localisation work.
-5. **CodeMirror:** no strong preference. Decide in phase 5 on technical grounds.
+5. **CodeMirror:** no strong preference. Decide in phase 5 on technical grounds. *Decided v8.5: CodeMirror 6 adopted (with positioned tokens), ahead of the visual pass.*
 6. **TypeScript, Vitest and the file reorganisation:** agreed as proposed.
