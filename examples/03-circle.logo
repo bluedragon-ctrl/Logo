@@ -1,4 +1,3 @@
 ;; title: Circle
 ;; desc: Draw a circle with radius 120 pixels
-; Circle
 CIRCLE 120

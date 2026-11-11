@@ -3,7 +3,7 @@ import { CONTROL_WORDS } from './procedures.ts';
 import { runExpr } from './runtime.ts';
 import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
 import { newLine } from './tokenizer.ts';
-import type { RunContext, Scope, Token, Turtle } from './types.ts';
+import type { Proc, RunContext, Scope, Token, Turtle } from './types.ts';
 
 // ── Token resolution ──────────────────────────────────────────────────────────
 // QUERY_TOKENS: bare words that read turtle / canvas state. One table, used by
@@ -32,6 +32,10 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
     if(!r) throw new Error(tok + ' used outside a REPEAT loop');
     return tok === 'REPCOUNT' ? r.count : r.max;
   }
+  if(tok.startsWith('"') && tok.length > 1) {
+    const w = tok.slice(1);
+    throw new Error('"' + w + ' is a word, not a number — for a variable write :' + w);
+  }
   if(isVarTok(tok)) {
     const name = varName(tok);
     if(!(name in vars)) {
@@ -45,7 +49,7 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
     return v;
   }
   if(/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/.test(tok)) return Number(tok);
-  if(CMD[tok] || CONTROL_WORDS.has(tok)) throw new Error(tok + ' is a command, not a value — a value was expected here');
+  if(isCommandWord(tok)) throw new Error(tok + ' is a command, not a value — a value was expected here');
   if(tok === ']' || tok === '[' || tok === ')' || BINOP_PREC.has(tok))
     throw new Error('Expected a value but found ' + tok);
   throw new Error('Unknown token: ' + tok);
@@ -77,12 +81,54 @@ export const UNARY   = new Set(['SIN','COS','TAN','ARCTAN','ARCSIN','ARCCOS','SQ
 export const BINARY2 = new Set(['TOWARDS','DISTANCE','MOD','POWER','MAX','MIN']); // two-argument prefix functions
 export const BINOP_PREC = new Map<string, number>([
   ['OR',1], ['AND',2],
-  ['=',3], ['!=',3], ['<',3], ['>',3], ['<=',3], ['>=',3],
+  ['=',3], ['!=',3], ['<>',3], ['<',3], ['>',3], ['<=',3], ['>=',3],
   ['+',4], ['-',4],
   ['*',5], ['/',5], ['MOD',5],
 ]);
 const CMP_PREC = 3;
 const MAX_EXPR_DEPTH = 500; // nesting cap: parens, unary chains and procedures-as-values combined
+
+// ── Word classes (shared by the procedure extractor and runStack's error messages) ──
+// isReporterWord: a built-in word that produces a value (function, query, REPCOUNT, NOT).
+export function isReporterWord(w: string): boolean {
+  return UNARY.has(w) || BINARY2.has(w) || QUERY_TOKENS.has(w) || w === 'NOT' || w === 'REPCOUNT' || w === 'REPCOUNTMAX';
+}
+// isCommandWord: a built-in command or control word that can never be a value.
+// (XCOR / YCOR / HEADING are both: as a statement they log their value.)
+export function isCommandWord(w: string): boolean {
+  return (!!CMD[w] && !QUERY_TOKENS.has(w)) || CONTROL_WORDS.has(w);
+}
+// isBuiltinWord: any built-in word — these cannot be redefined with TO.
+export function isBuiltinWord(w: string): boolean {
+  return !!CMD[w] || CONTROL_WORDS.has(w) || isReporterWord(w) || BINOP_PREC.has(w);
+}
+
+// checkProcInput(tokens, idx, name, proc, got): before reading input number got+1 of
+// procedure name — throw "SQ needs 1 input (:SIZE)" when there clearly is none (end of
+// the program or block, a ')' or a command word), instead of the confusing error the
+// expression parser would give ("RT is a command, not a value").
+export function checkProcInput(tokens: Token[], idx: number, name: string, proc: Proc, got: number): void {
+  const t = tokens[idx]?.text;
+  if(t !== undefined && t !== ']' && t !== ')' && !isCommandWord(t)) return;
+  const n = proc.params.length;
+  throw new Error(name + ' needs ' + n + ' input' + (n === 1 ? '' : 's') + ' (' + proc.params.map(p => ':' + p).join(' ') +
+                  ')' + (got ? ', got only ' + got : ''));
+}
+
+// Comparisons allow for floating-point drift: two numbers are equal when they agree
+// to about 12 significant digits (what PRINT shows), so 0.1 + 0.2 = 0.3 is true and
+// XCOR = 0 holds after a closed shape. Near zero the tolerance is absolute (1e-12).
+const CMP_TOL = 1e-12;
+export function approxEq(a: number, b: number): boolean {
+  return a === b || Math.abs(a - b) <= CMP_TOL * Math.max(1, Math.abs(a), Math.abs(b));
+}
+// modulo: remainder with the sign of the divisor (-7 MOD 3 = 2, like UCBLogo MODULO),
+// so MOD n always gives 0 … n-1 for a positive n.
+function modulo(a: number, b: number): number {
+  if(b === 0) throw new Error('MOD: divisor must not be zero');
+  const r = a % b;
+  return r !== 0 && (r < 0) !== (b < 0) ? r + b : r;
+}
 
 const UNARY_FNS: Record<string, (a: number) => number> = {
   SIN:    a => Math.sin(a  * Math.PI / 180),
@@ -95,7 +141,7 @@ const UNARY_FNS: Record<string, (a: number) => number> = {
   LN:     a => { if(a <= 0)          throw new Error('LN: argument ' + a + ' must be > 0');               return Math.log(a); },
   LOG:    a => { if(a <= 0)          throw new Error('LOG: argument ' + a + ' must be > 0');              return Math.log10(a); },
   ABS:    a => Math.abs(a),
-  ROUND:  a => Math.round(a),
+  ROUND:  a => Math.sign(a) * Math.round(Math.abs(a)), // halves away from zero: ROUND -2.5 = -3
   INT:    a => Math.trunc(a),
   EXP:    a => { if(a > 709) throw new Error('EXP: argument ' + a + ' would overflow (~e^710 > Number.MAX_VALUE)'); return Math.exp(a); },
   // RANDOM n → whole number 0 … floor(n)-1. Fractional n is floored (RANDOM 2.7 → 0 or 1).
@@ -108,7 +154,7 @@ const BINARY2_FNS: Record<string, (a: number, b: number, ts: Turtle) => number> 
   // Logo heading is CW from +y (north=0). atan2(dx, dy) gives exactly that.
   TOWARDS:  (x, y, ts) => ((Math.atan2(x - ts.x, y - ts.y) * 180 / Math.PI) % 360 + 360) % 360,
   DISTANCE: (x, y, ts) => Math.hypot(x - ts.x, y - ts.y),
-  MOD:      (a, b) => { if(b === 0) throw new Error('MOD: divisor must not be zero'); return a % b; },
+  MOD:      (a, b) => modulo(a, b),
   POWER:    (a, b) => { const r = a ** b; if(!isFinite(r)) throw new Error('POWER ' + a + ' ' + b + ' is not a real number'); return r; },
   MAX:      (a, b) => Math.max(a, b),
   MIN:      (a, b) => Math.min(a, b),
@@ -120,15 +166,16 @@ function applyBinop(op: string, a: number, b: number): number {
     case '-':   return a - b;
     case '*':   return a * b;
     case '/':   if(b === 0) throw new Error('Division by zero'); return a / b;
-    case 'MOD': if(b === 0) throw new Error('MOD: divisor must not be zero'); return a % b;
+    case 'MOD': return modulo(a, b);
     case 'AND': return (a !== 0 && b !== 0) ? 1 : 0;
     case 'OR':  return (a !== 0 || b !== 0) ? 1 : 0;
-    case '>':   return a >  b ? 1 : 0;
-    case '<':   return a <  b ? 1 : 0;
-    case '=':   return a === b ? 1 : 0;
-    case '>=':  return a >= b ? 1 : 0;
-    case '<=':  return a <= b ? 1 : 0;
-    case '!=':  return a !== b ? 1 : 0;
+    case '>':   return a > b && !approxEq(a, b) ? 1 : 0;
+    case '<':   return a < b && !approxEq(a, b) ? 1 : 0;
+    case '=':   return approxEq(a, b) ? 1 : 0;
+    case '>=':  return a > b || approxEq(a, b) ? 1 : 0;
+    case '<=':  return a < b || approxEq(a, b) ? 1 : 0;
+    case '!=':
+    case '<>':  return approxEq(a, b) ? 0 : 1;
   }
   throw new Error('Unknown operator: ' + op);
 }
@@ -213,8 +260,16 @@ async function parsePrimary(p: Parser): Promise<number> {
     const proc = p.rctx.procs[t];
     const scope: Scope = Object.create(p.vars);
     scope[PROC_SCOPE] = t;
-    for(const param of proc.params) scope[param] = await parseBinary(p, 1);
-    return deeper(p, () => runExpr(t, proc, scope, p.rctx));
+    for(let k = 0; k < proc.params.length; k++) {
+      checkProcInput(p.tokens, p.idx, t, proc, k);
+      scope[proc.params[k]] = await parseBinary(p, 1);
+    }
+    // Errors after the call (10 / Z, WAIT Z - 1) belong to this line, not to the
+    // last line the procedure ran: restore the source position on return.
+    const here = { ...p.rctx.execLine };
+    const v = await deeper(p, () => runExpr(t, proc, scope, p.rctx));
+    Object.assign(p.rctx.execLine, here);
+    return v;
   }
   p.idx++;
   return resolveToken(t, p.vars, p.rctx);

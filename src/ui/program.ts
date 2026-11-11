@@ -56,7 +56,13 @@ byId<HTMLButtonElement>('btn-run').onclick = async function(){
   if(!parsed) return;
   registerProcs(session, parsed.newProcs, io);
   log('▶ Running...', 'info');
-  await runProgram(parsed.topLevel);
+  // SPEED in a program moves the slider while it runs; afterwards the slider goes
+  // back to the user's choice, so an example ending in SPEED 4 doesn't leave every
+  // later run instant. (In direct mode, SPEED n keeps its effect: that is how the
+  // user sets the speed by typing.)
+  const userSpeed = optSpeed.value;
+  try { await runProgram(parsed.topLevel); }
+  finally { optSpeed.value = userSpeed; }
 };
 byId('btn-stop').onclick = function(){
   if(!activeRctx) return;

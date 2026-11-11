@@ -20,9 +20,12 @@ import type { Token } from './types.ts';
 // Negative sign: a '-' preceded by start-of-line, whitespace, '[' or '(' and
 // directly followed by a digit, '.', ':', '(' or a letter becomes the token '~'
 // (see the expression evaluator). 'A - B' and 'A-B' stay binary subtraction.
+//
+// Numbers in E notation keep their exponent sign: 1E-5 is one token. '<>' is
+// one token (same as '!=').
 
 export function tokenize(src: string): Token[] {
-  const TOK = />=|<=|!=|[\[\]()+\-*\/=><~]|[^\s\[\]()+\-*\/=><~]+/g;
+  const TOK = /(?:\d+\.?\d*|\.\d+)[eE][+-]\d+|>=|<=|!=|<>|[\[\]()+\-*\/=><~]|[^\s\[\]()+\-*\/=><~]+/g;
   const tokens: Token[] = [];
   src.split('\n').forEach((rawLine, i) => {
     const stripped = rawLine.replace(/;.*$/, '');  // strip inline comment

@@ -1,4 +1,3 @@
 ;; title: Triangle
 ;; desc: Three sides, 120 degrees each turn
-; Triangle
 REPEAT 3 [ FD 160 RT 120 ]

@@ -1,42 +1,8 @@
 import type { RepeatInfo, RunContext, Scope } from './types.ts';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// INTERPRETER — v4.0  (Blue Logo, since v8.0)
-//
-// Pipeline:  tokenize → extractProcedures → run → runStack (trampoline) ⇄ evalExpr
-//
-// All Logo control-flow lives in one function: runStack(stack, rctx). run()
-// (top-level statements) and runExpr() (a user procedure used as a value inside
-// an expression) are thin wrappers over it. Adding a loop construct means
-// touching only runStack.
-//
-// Frame shapes (discriminated by presence of isRepeat / isWhile / isFor):
-//   exec frame   { tokens, idx, vars [, procBoundary, procName, stmtCall,
-//                                       outputVal] }
-//     procBoundary marks a procedure body. stmtCall=true when the procedure was
-//     called as a command (its OUTPUT would be lost → error); false/absent when
-//     runExpr called it for its value (runExpr reads .outputVal afterwards).
-//   repeat frame { isRepeat, body, vars, remaining, iteration, total }
-//   while frame  { isWhile, cond, body, vars }
-//   for frame    { isFor, varName, end, step, body, vars, nextVal, eps }
-//
-// Scopes — dynamic scoping, as in UCBLogo. Plain objects linked by prototype:
-//   rctx.globals        root scope (session.globals)
-//   procedure scope     Object.create(callerScope); own params; [PROC_SCOPE] = name
-//   REPEAT iteration    Object.create(scope); [REPEAT_SCOPE] = { count, max }
-//   FOR scope           Object.create(scope); own loop variable
-//   Reads walk the chain. MAKE updates the nearest scope that already owns the
-//   name, otherwise creates a global. LOCAL / LOCALMAKE create the name in the
-//   nearest procedure scope (globals at top level). The FOR loop variable exists
-//   only inside its loop.
-//
-// Flow control:
-//   STOP      unwinds to the nearest procBoundary (top level: ends the program)
-//   OUTPUT    stores the value on the nearest procBoundary and unwinds to it
-//   BREAK / CONTINUE  unwind to the innermost loop frame; error at a procBoundary
-//   Tail calls: a statement-level procedure call that is the last thing left in
-//   its frame(s) replaces them, so recursive loops (TO L … L END) never overflow.
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Variable scopes ───────────────────────────────────────────────────────────
+// Dynamic scoping, as in UCBLogo — see the header comment in runtime.ts for the
+// scope chain (globals → procedure scopes → REPEAT / FOR scopes).
 
 export const REPEAT_SCOPE: unique symbol = Symbol('repeatScope'); // value on a REPEAT iteration scope: { count, max }
 export const PROC_SCOPE: unique symbol   = Symbol('procScope');   // value on a procedure scope: procedure name

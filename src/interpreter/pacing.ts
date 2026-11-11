@@ -14,16 +14,26 @@ export function sleep(ms: number, rctx: RunContext): Promise<void> {
     rctx.wake = done;
   });
 }
+// Animated speeds (0–3) have one budget per animation frame, shared by every
+// command: a frame holds STEPS_PER_FRAME[speed] move() sub-steps (~0.83 px each)
+// or DEG_PER_FRAME[speed] degrees of turning, or that many tick()s. Commands spend
+// fractions of it with spendFrame(); the frame is shown (render + nextFrame) only
+// when it is full. So REPEAT 360 [FD 1 RT 1] runs as fast as one FD of the same
+// length, instead of paying a whole frame per command.
+export const STEPS_PER_FRAME = [1, 4, 16, 64];  // by speed 0–3; move() sub-steps and tick()s
+export const DEG_PER_FRAME   = [3, 12, 48, 192]; // by speed 0–3; rotate()
+export async function spendFrame(rctx: RunContext, part: number): Promise<void> {
+  rctx.frameUsed += part;
+  if(rctx.frameUsed >= 1 - 1e-9) { rctx.frameUsed = 0; rctx.io.render(); await nextFrame(rctx); }
+}
 // tick: pacing for commands that draw in one go (SETPOS, DOT, LABEL). Animated
 // speeds show them at the same rate as move() steps; instant mode batches them.
-export const STEPS_PER_FRAME = [1, 4, 16, 64]; // by speed 0–3; shared with move()
 export async function tick(rctx: RunContext): Promise<void> {
   if(rctx.speed >= 4) {
     if(++rctx.instantStepCount >= INSTANT_FLUSH){ rctx.instantStepCount = 0; rctx.io.render(); await macroYield(rctx); }
     return;
   }
-  rctx.io.render();
-  if(++rctx.tickCount >= STEPS_PER_FRAME[rctx.speed]){ rctx.tickCount = 0; await nextFrame(rctx); }
+  await spendFrame(rctx, 1 / STEPS_PER_FRAME[rctx.speed]);
 }
 
 // Instant-mode partial flush: in instant mode move() never yields a rAF, so the

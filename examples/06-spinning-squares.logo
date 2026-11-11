@@ -1,6 +1,5 @@
 ;; title: Spinning Squares
 ;; desc: Eight squares rotated around the centre
-; Spinning Squares
 REPEAT 8 [
   REPEAT 4 [ FD 110 RT 90 ]
   RT 45

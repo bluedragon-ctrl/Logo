@@ -1,15 +1,14 @@
 ;; title: Rainbow Spiral
 ;; desc: Spiral with changing colours using variables
-; Rainbow Spiral
-MAKE :STEP 3
-MAKE :R 200
-MAKE :G 50
-MAKE :B 50
+MAKE "STEP 3
+MAKE "R 200
+MAKE "G 50
+MAKE "B 50
 REPEAT 80 [
   SETCOLOR :R :G :B
   FD :STEP
   RT 29
-  MAKE :STEP :STEP + 1
-  MAKE :R :R - 2
-  MAKE :G :G + 2
+  MAKE "STEP :STEP + 1
+  MAKE "R :R - 2
+  MAKE "G :G + 2
 ]

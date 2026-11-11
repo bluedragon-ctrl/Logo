@@ -20,6 +20,8 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] Optional: rename the GitHub repository to match the new name (the Pages URL follows the repo name; old URLs redirect only for the repo, not for Pages)
 
 ### Language
+- [x] v8.7 review (`docs/review-v8.7.md`): all items fixed or documented in v8.8
+- [ ] Decide whether two-input functions (`DISTANCE`, `TOWARDS`, `MAX` …) should bind their inputs like `SQRT` does — `DISTANCE 0 0 > 5` currently means `DISTANCE 0 (0 > 5)` (documented in lang-spec §3.3 / §7; a breaking change)
 - [ ] Short-circuit `AND` / `OR` (needs a "skip" parse mode so the right side is consumed without evaluating)
 - [ ] `FOREVER`, `SETXY` / `SETX` / `SETY`, `FILL`
 - [ ] Optional `WRAP` / `WINDOW` edge modes (currently always stops with OUCH)

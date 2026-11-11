@@ -1,0 +1,14 @@
+;; title: Clock Face
+;; desc: REPEAT and MOD place the twelve hours; WAIT makes the turtle tick round
+HT
+SETWIDTH 3
+REPEAT 12 [
+  PU HOME
+  SETH REPCOUNT * 30
+  FD 150 PD FD 20 PU FD 25
+  MAKE "H REPCOUNT MOD 12          ; 1 … 11, then 12 MOD 12 = 0
+  IFELSE :H = 0 [ LABEL 12 ] [ LABEL :H ]
+]
+; The turtle is the hand: one tick per hour
+PU HOME ST
+REPEAT 12 [ SETH REPCOUNT * 30 WAIT 0.05 ]

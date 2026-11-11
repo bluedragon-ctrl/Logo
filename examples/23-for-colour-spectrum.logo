@@ -1,14 +1,13 @@
 ;; title: FOR — Colour Spectrum
 ;; desc: FOR painting vertical colour bars — green to yellow to red across the canvas
-; FOR — Colour Spectrum
 ; Each bar is painted with SETPOS (instant, no step animation)
 HT
 SETWIDTH 8
-MAKE :BOT - 140
-MAKE :TOP 140
+MAKE "BOT -140
+MAKE "TOP 140
 PU
-FOR :X - 180 180 6 [
-  MAKE :R :X + 180
+FOR :X -180 180 6 [
+  MAKE "R :X + 180
   SETPOS :X :BOT
   PD
   SETCOLOR :R * 0.7 252 - :R * 0.7 0

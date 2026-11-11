@@ -1,5 +1,13 @@
 # Blue Logo v8.7 — review of interpreter, language and examples
 
+> **Status (v8.8):** every item below is resolved — fixed, or documented where the review offered that choice. See `CHANGELOG.md` v8.8. Decisions taken:
+> - 1.2: fixed with option (a), generalised: a finished caller's scope is dropped only when all its own variables are parameters of the callee (this also makes mutual tail recursion constant-memory).
+> - 1.4: positions/headings snapped to 10⁻⁹ and tolerant comparisons (`=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`).
+> - Reporter procedures vs. `SQRT` binding: documented only. Making one-input procedures bind like `SQRT` would break the classic `OUTPUT :N * FACT :N - 1`.
+> - `REPEAT 2.5`: documented, not changed — rounding protects counts like `REPEAT 0.7 * 10` (= 7.000000000000001) from float drift.
+> - `SPEED`: the RUN button restores the slider after the run; direct mode keeps the change.
+> - Found while writing the Chase example: two-input functions take whole expressions, so `DISTANCE 0 0 > 5` means `DISTANCE 0 (0 > 5)`. Documented (lang-spec §3.3, §7) and left as an open question in `TODO.md`; the suggested `WHILE [DISTANCE 0 0 > 5]` in §4 below needs `( )`.
+
 Scope: `src/interpreter/`, `src/turtle/`, `src/format/beautify.ts`, `blue-logo-lang-spec.md`, `examples/`.
 Every 🔴 item was checked by running the program through `runLogo()` (headless, as in the unit tests). The output shown is what v8.7 actually prints.
 

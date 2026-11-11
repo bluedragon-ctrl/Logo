@@ -11,13 +11,10 @@ import type { LogoIO, RunContext, Session } from './types.ts';
 //   speed:    0–4 snapshot of the slider at RUN time; SPEED n updates it mid-run.
 //             Passed to move/rotate so they never read the DOM directly.
 //   procs:    session.procs (shortcut; the live user-procedure map).
-//
-// Note: 'rctx' is used as the parameter name throughout (not 'ctx') to avoid
-// shadowing the module-level canvas 2D context also named 'ctx'.
 //   globals:  root variable scope of this run (set by run()); MAKE falls back to it.
 //   exprDepth: current expression nesting (parens, unary chains, procedures used
 //             as values); capped by MAX_EXPR_DEPTH.
-//   instantStepCount / tickCount / steps / lastYield: yield bookkeeping so the
+//   instantStepCount / frameUsed / steps / lastYield: yield bookkeeping so the
 //             browser stays responsive (and STOP clickable) in every program.
 //   wake:     set while WAIT sleeps; haltRun() calls it to end the sleep early.
 //   onFinish: optional callback run once the program has fully unwound (CLR uses it).
@@ -33,7 +30,7 @@ export function makeRunContext(speed: number, session: Session, io: LogoIO): Run
     globals:          null,
     exprDepth:        0,
     instantStepCount: 0,  // flush counter for speed=4 (instant) path
-    tickCount:        0,  // per-frame counter for instant commands (SETPOS/DOT/LABEL) when animated
+    frameUsed:        0,  // animated speeds: part of the current frame already spent (spendFrame)
     steps:            0,  // runStack iteration counter for the responsiveness yield
     lastYield:        Date.now(),
     wake:             null,

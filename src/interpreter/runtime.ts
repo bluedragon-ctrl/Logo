@@ -1,12 +1,55 @@
 import { CMD } from './commands.ts';
-import { BINARY2, BINOP_PREC, QUERY_TOKENS, UNARY, evalExpr, noteTok } from './expr.ts';
+import { BINOP_PREC, UNARY, checkProcInput, evalExpr, isReporterWord, noteTok } from './expr.ts';
 import { macroYield } from './pacing.ts';
 import { extractBlock } from './procedures.ts';
 import { PROC_SCOPE, REPEAT_SCOPE, formatNum, hasOwn, isVarTok, varName } from './scope.ts';
 import { MAX_STACK_FRAMES, STOP_SIGNAL } from './signals.ts';
 import type { Proc, RunContext, Scope, Token } from './types.ts';
 
-// ── Frames of the runStack trampoline (see the header comment in scope.ts) ────
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTERPRETER — runStack trampoline (Blue Logo, since v8.0)
+//
+// Pipeline:  tokenize → extractProcedures → run → runStack (trampoline) ⇄ evalExpr
+//
+// All Logo control-flow lives in one function: runStack(stack, rctx). run()
+// (top-level statements) and runExpr() (a user procedure used as a value inside
+// an expression) are thin wrappers over it. Adding a loop construct means
+// touching only runStack.
+//
+// Frame shapes (discriminated by presence of isRepeat / isWhile / isFor):
+//   exec frame   { tokens, idx, vars [, procBoundary, procName, stmtCall,
+//                                       outputVal] }
+//     procBoundary marks a procedure body. stmtCall=true when the procedure was
+//     called as a command (its OUTPUT would be lost → error); false/absent when
+//     runExpr called it for its value (runExpr reads .outputVal afterwards).
+//   repeat frame { isRepeat, body, vars, remaining, iteration, total }
+//   while frame  { isWhile, cond, body, vars }
+//   for frame    { isFor, varName, end, step, body, vars, nextVal, eps }
+//
+// Scopes — dynamic scoping, as in UCBLogo. Plain objects linked by prototype:
+//   rctx.globals        root scope (session.globals)
+//   procedure scope     Object.create(callerScope); own params; [PROC_SCOPE] = name
+//   REPEAT iteration    Object.create(scope); [REPEAT_SCOPE] = { count, max }
+//   FOR scope           Object.create(scope); own loop variable
+//   Reads walk the chain. MAKE updates the nearest scope that already owns the
+//   name, otherwise creates a global. LOCAL / LOCALMAKE create the name in the
+//   nearest procedure scope (globals at top level). The FOR loop variable exists
+//   only inside its loop.
+//
+// Flow control:
+//   STOP      unwinds to the nearest procBoundary (top level: ends the program)
+//   OUTPUT    stores the value on the nearest procBoundary and unwinds to it
+//   BREAK / CONTINUE  unwind to the innermost loop frame; error at a procBoundary
+//   Tail calls: a statement-level procedure call that is the last thing left in
+//   its frame(s) replaces them, so recursive loops (TO L … L END) never overflow.
+//   The finished caller's scope is dropped too, but only when every variable it
+//   owns is a parameter of the callee (and so shadowed anyway): then the drop is
+//   invisible and TO SPIRAL :S … SPIRAL :S + 1 END runs in constant memory. A
+//   caller with other locals (LOCALMAKE) stays in the chain — dynamic scoping
+//   gives the same result in tail and non-tail position.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Frames of the runStack trampoline (see the header comment above) ──────────
 // ExecFrame runs tokens; the loop frames drive a loop body. The is* flags tell
 // them apart (and narrow the type in runStack).
 interface ExecFrame {
@@ -133,7 +176,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       if(boundary.stmtCall)
         throw new Error("You don't say what to do with " + formatNum(value) + ' — ' + boundary.procName +
                         ' OUTPUTs a value but was used as a command (try e.g. PRINT ' + boundary.procName + ')');
-      rctx.io.log('OUTPUT → ' + formatNum(value), 'info');
+      if(rctx.io.logs('info')) rctx.io.log('OUTPUT → ' + formatNum(value), 'info');
       boundary.outputVal = value;
       stack.length = k;
       continue;
@@ -153,7 +196,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       const b0 = extractBlock(frame.tokens, ci);
       const b1 = extractBlock(frame.tokens, b0.nextIdx);
       frame.idx = b1.nextIdx;
-      rctx.io.log('IFELSE → ' + (cond !== 0), 'info');
+      if(rctx.io.logs('info')) rctx.io.log('IFELSE → ' + (cond !== 0), 'info');
       stack.push({ tokens: cond !== 0 ? b0.body : b1.body, idx:0, vars:frame.vars });
       continue;
     }
@@ -165,7 +208,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       frame.idx = ni;
       const n = Math.round(count);
       if(n < 0) { rctx.io.log('REPEAT ' + n + ': count is negative, skipping', 'err'); }
-      else { rctx.io.log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1, total:n }); }
+      else { if(rctx.io.logs('info')) rctx.io.log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1, total:n }); }
       continue;
     }
 
@@ -206,10 +249,11 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
 
     // ── User procedure call (as a command) ──────────────────────────────────
     if(hasOwn(rctx.procs, cmd)) {
-      rctx.io.log('CALL ' + cmd, 'info');
+      if(rctx.io.logs('info')) rctx.io.log('CALL ' + cmd, 'info');
       const proc = rctx.procs[cmd];
       const args: number[] = [];
       for(let p = 0; p < proc.params.length; p++) {
+        checkProcInput(frame.tokens, frame.idx, cmd, proc, p);
         const {value, nextIdx} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
         args.push(value);
         frame.idx = nextIdx;
@@ -219,15 +263,16 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       // Tail call: drop frames that have nothing left to do (the caller's finished
       // body, finished IF bodies, …) so recursion in tail position runs in constant
       // stack. Stops at loop frames and at expression-context boundaries (runExpr
-      // still needs those to collect OUTPUT). For direct self-recursion the new
-      // scope also replaces the finished one instead of chaining onto it, so an
-      // endless recursive loop runs in constant memory.
+      // still needs those to collect OUTPUT). A finished caller's scope is dropped
+      // as well when all its variables are parameters of the callee (shadowed, so
+      // nobody can see the difference): endless recursion runs in constant memory.
       while(stack.length) {
         const top = stack[stack.length - 1];
         if(isLoopFrame(top) || (top.procBoundary && !top.stmtCall)) break;
         if(top.idx < top.tokens.length) break;
         stack.pop();
-        if(top.procBoundary && top.procName === cmd && parentVars === top.vars) parentVars = Object.getPrototypeOf(top.vars);
+        if(top.procBoundary && parentVars === top.vars && Object.keys(top.vars).every(k => proc.params.includes(k)))
+          parentVars = Object.getPrototypeOf(top.vars);
       }
       const scope: Scope = Object.create(parentVars);
       scope[PROC_SCOPE] = cmd;
@@ -248,7 +293,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
     }
     if(cmd === ')' || cmd === '(' || cmd === ']' || BINOP_PREC.has(cmd)) throw new Error('Unexpected ' + cmd);
     if(cmd === 'END') throw new Error('END without a matching TO');
-    if(UNARY.has(cmd) || BINARY2.has(cmd) || QUERY_TOKENS.has(cmd) || cmd === 'NOT' || cmd === 'REPCOUNT' || cmd === 'REPCOUNTMAX')
+    if(isReporterWord(cmd))
       throw new Error(cmd + ' produces a value — use it as an input, e.g. PRINT ' + cmd + (UNARY.has(cmd) ? ' 30' : ''));
     throw new Error('Unknown command: ' + cmd);
   }

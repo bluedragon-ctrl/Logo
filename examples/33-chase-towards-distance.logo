@@ -1,0 +1,18 @@
+;; title: Chase — TOWARDS and DISTANCE
+;; desc: The turtle turns a little towards a target at every step, until it gets there
+MAKE "TX 180
+MAKE "TY 120
+SETWIDTH 12 SETCOLOR RED
+DOT :TX :TY                     ; the target
+SETWIDTH 2 SETCOLOR BLUE
+PU SETPOS -220 -160 PD
+SETH 90                         ; start off heading the wrong way (east)
+; ( ) needed: DISTANCE and TOWARDS take two whole expressions as inputs,
+; so DISTANCE :TX :TY > 6 would mean DISTANCE :TX (:TY > 6)
+WHILE [ (DISTANCE :TX :TY) > 6 ] [
+  ; how far to turn: -180 … 180 degrees (MOD keeps it in range)
+  MAKE "TURN ((TOWARDS :TX :TY) - HEADING + 540) MOD 360 - 180
+  RT :TURN / 5                  ; turn only part of the way — a smooth curve
+  FD 5
+]
+PRINT "Caught!

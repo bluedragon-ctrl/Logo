@@ -1,12 +1,13 @@
 ;; title: Global Counter & LOCALMAKE
 ;; desc: MAKE inside a procedure updates the global; LOCALMAKE keeps a variable private
-; Global Counter & LOCALMAKE
-MAKE :COUNT 0
+MAKE "COUNT 0
+MAKE "ANGLE 60             ; the main program turns by :ANGLE between stars
 TO STAR :SIZE
-  LOCALMAKE :ANGLE 144     ; private to STAR
+  LOCALMAKE "ANGLE 144     ; private to STAR — the global :ANGLE stays 60
   REPEAT 5 [ FD :SIZE RT :ANGLE ]
-  MAKE :COUNT :COUNT + 1  ; updates the global counter
+  MAKE "COUNT :COUNT + 1   ; no local :COUNT here, so this updates the global
 END
-REPEAT 6 [ STAR 40 + REPCOUNT * 20 RT 60 ]
-PRINT :COUNT
+REPEAT 6 [ STAR 40 + REPCOUNT * 20 RT :ANGLE ]
+PRINT :COUNT               ; 6
+PRINT :ANGLE               ; still 60 — with MAKE instead of LOCALMAKE it would be 144
 LABEL "Stars

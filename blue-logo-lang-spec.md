@@ -1,10 +1,12 @@
 # Blue Logo — Language Specification
-## Version 8.7 — November 2026
+## Version 8.8 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
 This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `blue-logo-impl-spec.md`.
 
+> **Changes in v8.8 that can affect older programs:** comparisons allow for floating-point drift (`0.1 + 0.2 = 0.3` is true, §3.2); `MOD` has the sign of the divisor (`-7 MOD 3` = 2) and `ROUND` rounds halves away from zero (§3.1); a `"word` used as a number is an error instead of reading the variable (§1.2); `TO` inside `[ ]` and a parameter listed twice are errors (§2.5).
+>
 > **Changes in v8.0 that can affect older programs:** expressions now use standard operator precedence and are left-associative (§3), and `MAKE` inside a procedure now updates an existing outer/global variable instead of always creating a local one (§6). Use `LOCALMAKE` / `LOCAL` for procedure-private variables.
 
 ---
@@ -34,9 +36,13 @@ A semicolon `;` starts a comment that extends to the end of the line.
 FD 100  ; inline comment after a command
 ```
 
+A `;` always starts a comment, even inside a quoted word: `LABEL "a;b` draws `a`.
+
 ### 1.2 Values
 
-All values are floating-point numbers. Logical predicates return `1` (true) or `0` (false). There are no list or string values; the only text is a **quoted word** (`"Hello`), accepted by `LABEL`, `PRINT`, and as a colour name for `SETCOLOR`. Quoted words keep their case.
+All values are floating-point numbers. Logical predicates return `1` (true) or `0` (false). There are no list or string values; the only text is a **quoted word** (`"Hello`), accepted by `LABEL`, `PRINT`, and as a colour name for `SETCOLOR`, and as the name of a variable for `MAKE` / `LOCALMAKE` / `LOCAL` / `FOR`. Quoted words keep their case. A quoted word where a number is expected is an error: `FD "size` → `"size is a word, not a number — for a variable write :size`.
+
+Numbers may use E notation: `1E5`, `2.5E+2`, `1E-3`.
 
 **Negative numbers:** a minus sign glued to the following number, variable or `(` — and separated by a space from what comes before — is a negative sign:
 
@@ -49,12 +55,12 @@ FD 100 -10         ; error: -10 is an extra value. Subtraction needs spaces: FD 
 
 ### 1.3 Variables
 
-Variables are assigned with `MAKE` and read with the `:name` prefix. Names are case-insensitive. `"name` is accepted as the target of `MAKE` / `LOCAL` / `FOR`.
+Variables are assigned with `MAKE "name value` and read with `:name` ("the value of name"). Names are case-insensitive. This is the standard Logo form and the one the examples use. `MAKE :name value` is accepted as a shortcut, as are `LOCALMAKE :name` / `LOCAL :name` (in UCBLogo, `MAKE :x` means something else — it assigns to the variable *named by* `:x` — so prefer `"`).
 
 ```logo
-MAKE :x 42
+MAKE "x 42
 FD :x              ; forward 42
-MAKE "y 10         ; double-quote prefix also works for MAKE
+MAKE "y 10
 FD :y + :x         ; forward 52
 ```
 
@@ -98,12 +104,12 @@ See §6 for scoping rules.
 | `PENUP?` / `PU?` | 1 if pen is up, 0 if down. |
 | `CIRCLE r` | Draw a circle of radius r, turning right, starting at the turtle position. Negative r draws the mirror image. \|r\| is capped at 2000. |
 | `DOT` | Filled dot at the turtle position. Diameter = pen width, colour = pen colour. Draws even with the pen up. |
-| `DOT x y` | Filled dot at (x, y); the turtle does not move. Inputs must start on the same line as `DOT`. |
+| `DOT x y` | Filled dot at (x, y); the turtle does not move. Inputs (numbers, variables, functions or procedures that OUTPUT) must start on the same line as `DOT`. |
 | `SETCOLOR r g b` / `SC r g b` | Set pen colour. Channels 0–255; out-of-range values are clamped with a warning. |
 | `SETCOLOR name` | Named colour, bare or quoted: `SETCOLOR RED`, `SETCOLOR "red` — see §4. |
 | `SETWIDTH n` / `SW n` | Set pen width in pixels. Clamped to 0.5–100 with a warning. |
 | `LABEL "text` | Draw text (case kept) at the turtle position in the pen colour. One word per LABEL. |
-| `LABEL value` | Draw a number: `LABEL :X`, `LABEL XCOR`, `LABEL (:A + 1)`. |
+| `LABEL value` | Draw a number: `LABEL :X`, `LABEL XCOR`, `LABEL (:A + 1)`, or a procedure that OUTPUTs (`LABEL DOUBLE 3`). |
 | `CLEARSCREEN` / `CS` | Clear the trail, dots and labels; reset the turtle (position, heading, pen, colour, width). Variables, procedures and console are kept. |
 | `HIDETURTLE` / `HT` | Hide the turtle sprite. |
 | `SHOWTURTLE` / `ST` | Show the turtle sprite. |
@@ -112,7 +118,7 @@ See §6 for scoping rules.
 
 | Command | Description |
 |---|---|
-| `REPEAT n [body]` | Run body n times (n rounded). Negative n logs a warning and skips. |
+| `REPEAT n [body]` | Run body n times. n is rounded to the nearest whole number (`REPEAT 2.5` runs 3 times; UCBLogo truncates) — rounding keeps counts like `REPEAT 0.7 * 10` right despite floating-point drift. Negative n logs a warning and skips. |
 | `REPCOUNT` | Current iteration (1…n) of the innermost `REPEAT` in the current procedure. Error outside a `REPEAT`. |
 | `REPCOUNTMAX` | Total iteration count n of that `REPEAT`. |
 | `WHILE [cond] [body]` | Run body while cond is non-zero; cond is checked before each iteration. |
@@ -130,7 +136,7 @@ See §6 for scoping rules.
 | `STOP` | Leave the current procedure. At top level: end the program. |
 | `OUTPUT val` / `OP val` | Return val from the current procedure (see §2.5). |
 | `WAIT n` | Pause n seconds (n ≥ 0, capped at 30). The STOP button ends a WAIT immediately. |
-| `SPEED n` | Animation speed 0 (slowest) … 3 (fast) animated, 4 = instant — the same scale as the Options speed slider. Takes effect immediately and moves the slider. Outside 0–4: clamped with a warning. |
+| `SPEED n` | Animation speed 0 (slowest) … 3 (fast) animated, 4 = instant — the same scale as the Options speed slider. Takes effect immediately for the rest of the run, and the slider follows while the program runs; when a RUN ends the slider goes back to where the user set it. Typed in direct mode, `SPEED n` keeps its effect (it moves the slider for good). Outside 0–4: clamped with a warning. |
 
 ### 2.5 Procedures
 
@@ -140,11 +146,13 @@ TO name :param1 :param2
 END
 ```
 
-- Parameters are listed with `:` on the `TO` line and are private to each call.
+- Parameters are listed with `:` on the `TO` line and are private to each call. A name may appear only once (`TO F :A :A` is an error).
+- `TO … END` must stand outside every `[ ]` block (`REPEAT 2 [ TO X … END ]` is an error).
+- A call with too few inputs is an error that names them: `SQUARE` on its own → `SQUARE needs 1 input (:SIZE)`.
 - Procedure names must start with a letter or `_` and cannot redefine built-in words (`TO FD` is an error).
 - A procedure used as a **command** must not `OUTPUT` — `F` alone, where F outputs, is an error ("You don't say what to do with …").
-- A procedure used as a **value** must `OUTPUT`; falling off the end or `STOP` is an error. Its inputs are full expressions: `FACT :N - 1` means `FACT (:N - 1)`.
-- **Recursion:** a procedure call that is the last thing a procedure does (tail call) can repeat forever — `TO SPIRAL :S  FD :S RT 89  SPIRAL :S + 1  END`. Other recursion (e.g. a tree or the Dragon curve) may nest up to 10 000 levels; recursion inside expressions (procedures used as values) up to 500 levels.
+- A procedure used as a **value** must `OUTPUT`; falling off the end or `STOP` is an error. Its inputs are full expressions: `FACT :N - 1` means `FACT (:N - 1)`. Note that this differs from the built-in single-input functions: `SQRT 16 + 9` is `(SQRT 16) + 9` = 13, but a procedure `MYSQRT 16 + 9` is `MYSQRT (16 + 9)` = 5. Use `( )` when in doubt: `(MYSQRT 16) + 9`.
+- **Recursion:** a procedure call that is the last thing a procedure does (tail call) can repeat forever — `TO SPIRAL :S  FD :S RT 89  SPIRAL :S + 1  END`. A tail call gives the same result as any other call — the callee still sees the caller's variables (§6). Other recursion (e.g. a tree or the Dragon curve) may nest up to 10 000 levels; recursion inside expressions (procedures used as values) up to 500 levels.
 
 ```logo
 TO SQUARE :size
@@ -162,9 +170,9 @@ FD DOUBLE 50    ; forward 100
 
 | Command | Description |
 |---|---|
-| `MAKE :name val` | Set a variable (see §6 for which one). |
-| `LOCALMAKE :name val` | Create a variable private to the current procedure and set it. |
-| `LOCAL :a :b …` | Declare variables private to the current procedure; give them values later with `MAKE`. Reading one before it has a value is an error. |
+| `MAKE "name val` | Set a variable (see §6 for which one). `MAKE :name val` also works. |
+| `LOCALMAKE "name val` | Create a variable private to the current procedure and set it. |
+| `LOCAL "a "b …` | Declare variables private to the current procedure; give them values later with `MAKE`. Reading one before it has a value is an error. |
 | `PRINT val` / `PR val` | Print a value to the console (`0.1 + 0.2` prints `0.3`). Always shown, opens the console if hidden. |
 | `PRINT "word` | Print a word. |
 | `CLEARTEXT` / `CT` | Clear the console. |
@@ -180,7 +188,7 @@ Every numeric input accepts a full expression. Operators follow the usual maths 
 | highest | unary minus, math functions (`SIN`, `SQRT`, …) — bind to the single operand right after them |
 | 5 | `*` `/` `MOD` |
 | 4 | `+` `-` |
-| 3 | `=` `!=` `<` `>` `<=` `>=` |
+| 3 | `=` `!=` `<>` `<` `>` `<=` `>=` |
 | 2 | `AND` |
 | 1 (lowest) | `OR` |
 
@@ -202,11 +210,11 @@ An expression inside `( )` may span several lines.
 |---|---|
 | `+` `-` `*` | Addition, subtraction, multiplication. `-` before an operand is negation. |
 | `/` | Division. Error on division by zero. |
-| `MOD` | Remainder. Infix `10 MOD 3` → 1, or prefix `MOD 10 3`. Error on zero divisor. |
+| `MOD` | Remainder with the sign of the divisor (like UCBLogo `MODULO`): `10 MOD 3` → 1, `-7 MOD 3` → 2, so `:N MOD 360` is always 0 … 359. Infix or prefix `MOD 10 3`. Error on zero divisor. |
 
 ### 3.2 Comparison and logic
 
-Comparisons `>` `<` `=` `>=` `<=` `!=` return 1 or 0 (`=` is exact). `AND`, `OR` (infix) and `NOT` (prefix) treat 0 as false and anything else as true, and return 1 or 0. Both sides of `AND` / `OR` are always evaluated.
+Comparisons `>` `<` `=` `>=` `<=` `!=` (also written `<>`) return 1 or 0. They allow for floating-point drift: two numbers that agree to about 12 significant digits — what `PRINT` shows — are equal (near zero: closer than 10⁻¹²). So `0.1 + 0.2 = 0.3` is true, and `0.1 + 0.2 > 0.3` is false. `AND`, `OR` (infix) and `NOT` (prefix) treat 0 as false and anything else as true, and return 1 or 0. Both sides of `AND` / `OR` are always evaluated.
 
 ### 3.3 Math functions
 
@@ -220,10 +228,10 @@ Single-input functions bind to the one operand that follows (number, variable, q
 | `SQRT n` | Square root, n ≥ 0. |
 | `LN n` / `LOG n` | Natural / base-10 logarithm, n > 0. |
 | `EXP n` | eⁿ (n ≤ 709). |
-| `ABS n` `INT n` `ROUND n` `FLOOR n` `CEILING n` | Absolute value, truncate toward zero, round, round down, round up. |
+| `ABS n` `INT n` `ROUND n` `FLOOR n` `CEILING n` | Absolute value, truncate toward zero, round (halves away from zero: `ROUND -2.5` = −3), round down, round up. |
 | `RANDOM n` / `RND n` | Random whole number 0 … ⌊n⌋−1. n must be ≥ 1. |
 
-Two-input prefix functions (each input is a full expression):
+Two-input prefix functions (each input is a full expression — so a comparison or `+` after the second input belongs to it: `DISTANCE 0 0 > 5` means `DISTANCE 0 (0 > 5)`; write `(DISTANCE 0 0) > 5`):
 
 | Function | Description |
 |---|---|
@@ -252,7 +260,9 @@ Results that overflow to infinity are an error ("Number too large").
 
 ## 5. Coordinate System
 
-The origin (0, 0) is the centre of the canvas. X increases to the right, Y upward. One unit is one CSS pixel. Headings: 0° = north, clockwise positive.
+The origin (0, 0) is the centre of the canvas. X increases to the right, Y upward. One unit is one CSS pixel. Headings: 0° = north, clockwise positive; `HEADING` is always in [0, 360).
+
+Turtle positions and headings are kept on a 10⁻⁹ grid (far below a pixel), so a closed shape ends exactly where it started: after `REPEAT 4 [FD 100 RT 90]`, `XCOR` is 0, not 1.4e-14.
 
 ---
 
@@ -262,23 +272,25 @@ Blue Logo uses **dynamic scoping**, like UCBLogo: a procedure can read the varia
 
 | Situation | Behaviour |
 |---|---|
-| `MAKE :x …` | Updates the nearest existing `:x` — a parameter or `LOCAL` of the current procedure, of a calling procedure, a `FOR` variable, or a global. If no `:x` exists, a **global** is created. |
-| `LOCALMAKE :x …` / `LOCAL :x` | Creates `:x` in the current procedure (at top level: a global). It shadows outer variables of the same name until the procedure returns. |
+| `MAKE "x …` | Updates the nearest existing `:x` — a parameter or `LOCAL` of the current procedure, of a calling procedure, a `FOR` variable, or a global. If no `:x` exists, a **global** is created. |
+| `LOCALMAKE "x …` / `LOCAL "x` | Creates `:x` in the current procedure (at top level: a global). It shadows outer variables of the same name until the procedure returns. |
 | Procedure parameters | Private to each call. `MAKE` of a parameter changes only that call's copy. |
 | `FOR :v …` | `:v` exists only inside the loop. Everything else behaves as outside the loop (a `MAKE` in the body updates outer variables). |
 | `REPEAT` / `WHILE` / `IF` bodies | No new scope. |
 
 ```logo
-MAKE :COUNT 0
+MAKE "COUNT 0
 TO TICK
-  LOCALMAKE :STEP 1          ; private
-  MAKE :COUNT :COUNT + :STEP ; updates the global
+  LOCALMAKE "STEP 1          ; private
+  MAKE "COUNT :COUNT + :STEP ; updates the global
 END
 TICK TICK
 PRINT :COUNT                 ; 2
 ```
 
 **Recursive procedures that need their own working variables must use `LOCALMAKE`** (or parameters) — with plain `MAKE`, all levels share one global.
+
+Tail calls (§2.5) keep these rules: a procedure called as the last thing its caller does still sees the caller's `LOCALMAKE` variables. (Memory is reused only when the caller has nothing but parameters the callee shadows, so endless tail recursion that uses `LOCALMAKE` slowly uses more memory.)
 
 ---
 
@@ -291,6 +303,8 @@ PRINT :COUNT                 ; 2
 | **`REPCOUNT` is innermost only** | Use `FOR` with a named variable if you need an outer loop's count. |
 | **`HOME` does not draw** | Unlike UCBLogo, `HOME` never draws a line, even with the pen down. |
 | **Canvas edge ends the program** | There is no `WRAP` / `WINDOW` mode. |
+| **Procedures take whole expressions** | A user procedure's inputs, and those of two-input functions (`MAX`, `TOWARDS`, `DISTANCE`, …), are full expressions — unlike single-input functions such as `SQRT`. `(DISTANCE 0 0) > 5` needs the `( )`. See §2.5, §3.3. |
+| **Approximate comparisons** | `=` / `<` / … treat numbers within ~12 significant digits as equal (§3.2); there is no exact-equality operator. |
 | **Not implemented** | `FILL`, `FOREVER`, `SETXY`/`SETX`/`SETY`, file commands (use the SAVE / LOAD buttons). |
 
 ---
@@ -310,6 +324,9 @@ A runtime error halts the program and shows the line of the statement or value b
 | Value used as a command | `SIN produces a value — use it as an input, e.g. PRINT SIN 30` |
 | Extra value after a command | `Unexpected value -10 — the previous command already has all its inputs. …` |
 | Command used as a value | `RT is a command, not a value — a value was expected here` |
+| Too few inputs for a procedure | `SQ needs 1 input (:S)` / `R needs 2 inputs (:A :B), got only 1` |
+| Word used as a number | `"red is a word, not a number — for a variable write :red` |
+| Unknown colour | `SETCOLOR: unknown colour name RDE (colours: RED ORANGE …)` |
 | Undefined variable | `Unknown variable: :X` |
 | `LOCAL` variable read before set | `Variable :X has no value yet (declared with LOCAL)` |
 | `:XCOR` etc. with colon | `XCOR: use without colon (e.g. FD XCOR). …` |
@@ -318,7 +335,8 @@ A runtime error halts the program and shows the line of the statement or value b
 | Overflow | `Number too large (overflow)` |
 | Missing `)` / `]` | `Missing ) — a ( was opened but never closed` / `Missing ] — …` |
 | Missing `[` | `Expected [ but got: …` |
-| Missing `END` / stray `END` | `Procedure F (line 3): missing END` / `END without a matching TO (line 9)` |
+| Missing `END` / stray `END` | `Procedure F (line 3): missing END` / `END without a matching TO (line 9)` (after `LABEL`: `… — to draw the word END write LABEL "END`) |
+| `TO` in a block, repeated parameter | `TO inside [ ] (line 2): …` / `TO F: input :A is listed twice` |
 | Redefining a built-in | `TO: FD is a built-in word and cannot be redefined` |
 | `OUTPUT` from a command call | `You don't say what to do with 5 — F OUTPUTs a value but was used as a command` |
 | No `OUTPUT` from a value call | `F did not OUTPUT a value, but was used where a value is needed` |
@@ -334,7 +352,7 @@ Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLO
 
 ## 9. Examples
 
-31 built-in examples are available from the EXAMPLES panel.
+35 built-in examples are available from the EXAMPLES panel.
 
 | Title | Features demonstrated |
 |---|---|
@@ -361,5 +379,9 @@ Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLO
 | REPCOUNT — Expanding Spiral | `REPCOUNT` |
 | DOT — Sine Wave Scatter | `DOT`, `SCRWIDTH` / `SCRHEIGHT`, parentheses |
 | Precedence & Parentheses | Operator precedence, `( )` |
-| Global Counter & LOCALMAKE | `MAKE` from a procedure, `LOCALMAKE`, `LABEL "Word` |
+| Global Counter & LOCALMAKE | `MAKE` from a procedure, `LOCALMAKE` shadowing a global, `LABEL "Word` |
 | Tail Recursion — Endless Spiral | Unbounded tail recursion, canvas edge |
+| Clock Face | `MOD`, `LABEL` with numbers, `IFELSE`, `WAIT`, the turtle as a pointer |
+| Chase — TOWARDS and DISTANCE | `TOWARDS`, `DISTANCE`, `HEADING`, `WHILE`, `MOD` for angles, `( )` around two-input functions |
+| BREAK, CONTINUE and a Test | A procedure that OUTPUTs 1 / 0, `NOT`, `CONTINUE`, `BREAK` |
+| Tree — Recursion | Branching (non-tail) recursion with parameters only |

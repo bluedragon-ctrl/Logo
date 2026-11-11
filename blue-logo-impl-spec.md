@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.7 — November 2026
+## Version 8.8 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -81,14 +81,14 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `interpreter/io.ts` | The LogoIO contract (header comment) and `headlessIO()` (`HeadlessIO`). |
 | `interpreter/context.ts` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
 | `interpreter/execute.ts` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
-| `interpreter/scope.ts` | INTERPRETER header comment, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
+| `interpreter/scope.ts` | `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
 | `interpreter/tokenizer.ts` | `tokenize`, `newLine`. |
 | `interpreter/procedures.ts` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
-| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `noteTok`. |
+| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, word classes (`isReporterWord`, `isCommandWord`, `isBuiltinWord`), `checkProcInput`, `approxEq`, `evalExpr` and the precedence parser, `noteTok`. |
 | `interpreter/signals.ts` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
-| `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
+| `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `spendFrame`, `tick`, `STEPS_PER_FRAME`, `DEG_PER_FRAME`, `INSTANT_FLUSH`. |
 | `interpreter/commands.ts` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
-| `interpreter/runtime.ts` | `runExpr`, `runStack`, `run`. |
+| `interpreter/runtime.ts` | INTERPRETER header comment (frames, scopes, flow control, tail calls), `runExpr`, `runStack`, `run`. |
 | **editor/, format/** | |
 | `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`): the CodeMirror view, its extensions and highlight style, line indicator. |
 | `editor/logo-language.ts` | `logoLanguage`: CodeMirror `StreamLanguage` that classifies Logo tokens for highlighting (word lists from `CMD`, `CONTROL_WORDS`, `UNARY`, `BINARY2`, `QUERY_TOKENS`). |
@@ -116,12 +116,13 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | Method | Browser (`src/app.ts`) | `headlessIO()` |
 |---|---|---|
 | `log(msg, cls)` | `ui/console.ts` `log` | collects `{msg, cls}` in `.lines`; `.text()` joins them |
+| `logs(cls)` → bool | `ui/console.ts` `logs`: false when that class's console filter is off | always true |
 | `render()` | `render()` | no-op |
 | `paintLine(x1,y1,x2,y2,w,r,g,b)` / `paintLabel(lab)` | paint on `trailCanvas` | no-op |
 | `redraw()` | `rebuildTrailCanvas()` | no-op |
 | `clearText()` | empty `#console` | clears `.lines` |
 | `canvasSize()` → `{w, h}` | `{CW, CH}` | fixed (default 800 × 600) |
-| `setSpeed(n)` | moves the speed slider | no-op |
+| `setSpeed(n)` | moves the speed slider (the RUN button puts it back when the run ends; direct mode keeps it) | no-op |
 | `nextFrame()` / `macroYield()` | `requestAnimationFrame` / `setTimeout(0)` | `setTimeout(0)` |
 
 Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` stores the segment in `session.drawing` and then calls `io.paintLine`.
@@ -138,6 +139,7 @@ Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` st
 | `MAX_LOG_LINES` | 500 | Console line cap. |
 | `INSTANT_FLUSH` | 150 | Instant-mode steps between paint yields. |
 | `STEPS_PER_FRAME` | [1, 4, 16, 64] | Move sub-steps / instant commands per frame, by speed 0–3. |
+| `DEG_PER_FRAME` | [3, 12, 48, 192] | Degrees of turning per frame, by speed 0–3. |
 | `INLINE_THRESHOLD` | 8 | Max tokens for inline `[ block ]` in beautify. |
 
 ---
@@ -151,13 +153,13 @@ Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 | Field | Purpose |
 |---|---|
 | `stopped` | Kill switch. Set by `haltRun()` (STOP / CLR). Checked by `runStack`, `move`, `rotate`, `circle`. |
-| `execLine` | `{ n, col, text }`: source position of the statement or operand executed last (`noteTok`, called by `runStack` for every statement and by `parseUnary` for every operand). Appended to error messages. |
+| `execLine` | `{ n, col, text }`: source position of the statement or operand executed last (`noteTok`, called by `runStack` for every statement and by `parseUnary` for every operand; restored after a procedure used as a value returns, so a later error names the caller's line). Appended to error messages. |
 | `speed` | 0–4. Snapshot of the slider; `SPEED n` changes it mid-run (and moves the slider). |
 | `session`, `io` | What the program changes / where its output goes (§1.3). |
 | `procs` | `session.procs` (shortcut). |
 | `globals` | Root scope of this run (set by `run()`); `MAKE` falls back to it. |
 | `exprDepth` | Current expression nesting; checked by `deeper()` against `MAX_EXPR_DEPTH`. |
-| `instantStepCount`, `tickCount`, `steps`, `lastYield` | Yield bookkeeping (§2.9). |
+| `instantStepCount`, `frameUsed`, `steps`, `lastYield` | Yield bookkeeping (§2.9). `frameUsed` is the part (0 … 1) of the current animation frame already spent. |
 | `wake` | Set while `WAIT` sleeps; `haltRun()` calls it to end the sleep at once. |
 | `onFinish` | Optional callback run by `runProgram` after full unwind (CLR uses it). |
 
@@ -202,7 +204,7 @@ parsePrimary(p): '(' parseBinary(p,1) ')'   (paren > 0: the expression may span 
                  token       → resolveToken
 ```
 
-Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD` 5. Unary forms bind tighter than any binary operator. `AND`/`OR` are not short-circuit. A non-finite result throws "Number too large". `deeper(p, fn)` wraps every recursive construct (unary chains, parens, procedures-as-values) and throws a Logo error at `MAX_EXPR_DEPTH` instead of hitting the JS stack limit (Chromium survives > 4 000 levels; 500 leaves margin for other engines).
+Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD` 5. Unary forms bind tighter than any binary operator. `AND`/`OR` are not short-circuit. Comparisons use `approxEq` (equal within 10⁻¹² relative, absolute near zero); `MOD` has the sign of the divisor. Before each input of a user procedure, `checkProcInput` throws "NAME needs n inputs (:A :B)" when the next token is the end, `]`, `)` or a command word. A non-finite result throws "Number too large". `deeper(p, fn)` wraps every recursive construct (unary chains, parens, procedures-as-values) and throws a Logo error at `MAX_EXPR_DEPTH` instead of hitting the JS stack limit (Chromium survives > 4 000 levels; 500 leaves margin for other engines).
 
 ### 2.5 Trampoline Executor (`runStack`)
 
@@ -232,7 +234,7 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 | Leaf command | `frame.idx = await CMD[cmd](tokens, idx, vars, rctx)`. |
 | Anything else | Specific error (extra value, operator, value-producing word used as a command, unknown command). |
 
-**Tail-call rule:** before pushing a statement-level procedure frame, pop every top frame that has nothing left to run (`idx >= tokens.length`), stopping at loop frames and at expression boundaries (`procBoundary && !stmtCall`, which `runExpr` must keep to read `outputVal`). For direct self-recursion the new scope is based on the popped invocation's parent scope instead of chaining onto it, so endless recursive loops run in constant stack and memory.
+**Tail-call rule:** before pushing a statement-level procedure frame, pop every top frame that has nothing left to run (`idx >= tokens.length`), stopping at loop frames and at expression boundaries (`procBoundary && !stmtCall`, which `runExpr` must keep to read `outputVal`). A popped procedure frame's scope is also dropped — the new scope is based on its parent — when every variable it owns (`Object.keys`) is a parameter of the callee: those are shadowed, so the drop cannot be observed, and endless recursion (also mutual) runs in constant stack and memory. A caller with other locals (`LOCALMAKE`, `LOCAL`) stays in the chain, so dynamic scoping gives the same result in tail and non-tail position.
 
 **Responsiveness:** every 500 iterations `runStack` checks `Date.now() - rctx.lastYield`; after 40 ms without a yield it awaits a macrotask. Programs that never move the turtle therefore stay stoppable and do not freeze the page.
 
@@ -258,7 +260,7 @@ Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
 ### 2.7 Token Resolution
 
-`resolveToken(tok, vars, rctx) → number` handles single value tokens: `QUERY_TOKENS` (a `Map` of name → `(turtle, rctx) => value`; `SCRWIDTH`/`SCRHEIGHT` read `rctx.io.canvasSize()`: `XCOR YCOR HEADING PENDOWN? PD? PENUP? PU? SCRWIDTH SCRHEIGHT`), `REPCOUNT`/`REPCOUNTMAX`, `:var`/`"var`, and strict number literals (`/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/`). Errors distinguish unknown variables, queries written with a colon, commands used as values, stray brackets/operators and unknown tokens. Adding a query is one `QUERY_TOKENS` entry; `DOT`/`LABEL` argument detection (`isValueStart`) uses the same table.
+`resolveToken(tok, vars, rctx) → number` handles single value tokens: `QUERY_TOKENS` (a `Map` of name → `(turtle, rctx) => value`; `SCRWIDTH`/`SCRHEIGHT` read `rctx.io.canvasSize()`: `XCOR YCOR HEADING PENDOWN? PD? PENUP? PU? SCRWIDTH SCRHEIGHT`), `REPCOUNT`/`REPCOUNTMAX`, `:var` (a `"word` here is an error: words are not numbers), and strict number literals (`/^(\d+\.?\d*|\.\d+)(E[+-]?\d+)?$/`). Errors distinguish unknown variables, queries written with a colon, commands used as values, stray brackets/operators and unknown tokens. Adding a query is one `QUERY_TOKENS` entry; `DOT`/`LABEL`/`SETCOLOR` argument detection (`isValueStart(tok, rctx)`) uses the same table and also accepts user procedure names (they may OUTPUT).
 
 ### 2.8 Control-Flow Sentinel
 
@@ -268,10 +270,11 @@ Scopes are plain objects chained by prototype (dynamic scoping, as in UCBLogo):
 
 | Helper | Used by | Behaviour |
 |---|---|---|
-| `nextFrame(rctx)` | `move`, `rotate`, `tick` | Await `rctx.io.nextFrame()` (`requestAnimationFrame` in the page). |
+| `spendFrame(rctx, part)` | `move`, `rotate`, `tick` | Animated speeds share one budget per frame: add `part` to `rctx.frameUsed`; when it reaches 1, `render()` + `nextFrame` and start a new frame. A move sub-step costs `1 / STEPS_PER_FRAME[speed]`, a degree of turning `1 / DEG_PER_FRAME[speed]`, a `tick` like a sub-step — so many short commands animate as fast as one long one, and `RT 0` / `FD 0` cost nothing. |
+| `nextFrame(rctx)` | `spendFrame` | Await `rctx.io.nextFrame()` (`requestAnimationFrame` in the page). |
 | `macroYield(rctx)` | instant `move`, `tick`, `runStack` | Await `rctx.io.macroYield()` (`setTimeout(0)`) — lets the browser paint and handle clicks. |
 | `sleep(ms, rctx)` | `WAIT` | Cancellable timer; `rctx.wake` ends it early. |
-| `tick(rctx)` | `SETPOS`, `DOT`, `LABEL` | Animated speeds: `render()` and one frame per `STEPS_PER_FRAME[speed]` calls. Instant: counts toward `INSTANT_FLUSH`. |
+| `tick(rctx)` | `SETPOS`, `DOT`, `LABEL` | Animated speeds: `spendFrame(rctx, 1 / STEPS_PER_FRAME[speed])`. Instant: counts toward `INSTANT_FLUSH`. |
 
 All update `rctx.lastYield`.
 
@@ -343,9 +346,9 @@ Both styles are centred on the pen position and show the pen state as a dot ther
 | 3 | 64 | 192 |
 | 4 (instant) | whole move, no frame | whole turn |
 
-- **`move(dist, rctx)`** computes the end point and clips it with `clipForRun` → `clipToCanvas(…, w, h)` against `io.canvasSize()` (exact segment/rectangle intersection). Animated: `round(len × 1.2)` sub-steps interpolated from the start point, each painted with `paintLine`; one `nextFrame` per `STEPS_PER_FRAME[speed]` steps; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
+- **`move(dist, rctx)`** computes the end point and clips it with `clipForRun` → `clipToCanvas(…, w, h)` against `io.canvasSize()` (exact segment/rectangle intersection). The end point is snapped to a 10⁻⁹ grid (`snap`), so closed shapes return exactly to their start. Animated: `round(len × 1.2)` sub-steps (none for a zero-length move) interpolated from the start point, each painted with `paintLine` and paid for with `spendFrame(rctx, 1 / STEPS_PER_FRAME[speed])`; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
 - **`SETPOS`** uses the same clipping and `ouch(rctx)`, then `tick()`.
-- **`rotate(deg, rctx)`** animates in `round(|deg| / DPF)` frames; snaps to `start + deg` unless stopped.
+- **`rotate(deg, rctx)`** turns in pieces that fill the current frame's remaining budget (`DEG_PER_FRAME[speed]` degrees per frame, `spendFrame`); at the end, unless stopped, the heading is `normAngle(start + deg)` — normalised to [0, 360) and snapped to 10⁻⁹. Instant: `normAngle(angle + deg)` at once.
 - **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
 
 ---

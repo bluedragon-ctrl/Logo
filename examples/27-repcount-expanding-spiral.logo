@@ -1,6 +1,5 @@
 ;; title: REPCOUNT — Expanding Spiral
 ;; desc: REPCOUNT gives the current iteration number (1..n) inside REPEAT
-; REPCOUNT — Expanding Spiral
 ; Each side is REPCOUNT * 3 long, so the triangle spiral grows;
 ; the colour fades from blue to red as REPCOUNT counts up
 SETWIDTH 2

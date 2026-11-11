@@ -1,16 +1,15 @@
 ;; title: Comments
 ;; desc: Using ; to annotate code — comments are ignored by the interpreter
-; Comments
 ; Draw a colourful spiral
 ; Each arm gets longer and rotates
-MAKE :STEP 4  ; starting step size
-MAKE :R 220  ; start red
-MAKE :B 50  ; start blue
+MAKE "STEP 4  ; starting step size
+MAKE "R 220  ; start red
+MAKE "B 50  ; start blue
 REPEAT 60 [
   SETCOLOR :R 80 :B  ; cycle colours
   FD :STEP
   RT 31
-  MAKE :STEP :STEP + 1
-  MAKE :R :R - 3
-  MAKE :B :B + 3
+  MAKE "STEP :STEP + 1
+  MAKE "R :R - 3
+  MAKE "B :B + 3
 ]

@@ -1,4 +1,4 @@
-import { INSTANT_FLUSH, STEPS_PER_FRAME, macroYield, nextFrame } from '../interpreter/pacing.ts';
+import { DEG_PER_FRAME, INSTANT_FLUSH, STEPS_PER_FRAME, macroYield, spendFrame } from '../interpreter/pacing.ts';
 import { formatNum } from '../interpreter/scope.ts';
 import { STOP_SIGNAL } from '../interpreter/signals.ts';
 import { trailPushIfRoom, trailPushQuiet } from './drawing.ts';
@@ -27,6 +27,13 @@ export function clipForRun(rctx: RunContext, x0: number, y0: number, x1: number,
 // float precision loss over long programs).
 function advanceWalk(session: Session): void { session.walkTick = (session.walkTick + 1) & 0xFFFF; }
 
+// Floating-point drift: sin/cos of 90°, 180° … are not exactly 0, so after
+// REPEAT 4 [FD 100 RT 90] XCOR would be 1.4e-14. Positions and headings are kept
+// on a 1e-9 grid (far below a pixel), so closed shapes end exactly where they began.
+const snap = (v: number): number => Math.round(v * 1e9) / 1e9;
+// normAngle: heading in [0, 360), snapped like positions (RT 0.1 × 3600 → 0).
+export function normAngle(a: number): number { const r = snap(((a % 360) + 360) % 360); return r >= 360 ? 0 : r; }
+
 // ouch(rctx): the turtle reached the canvas edge — end the run (FENCE behaviour).
 export function ouch(rctx: RunContext): never {
   rctx.session.isMoving = false; rctx.io.render();
@@ -37,17 +44,18 @@ export function ouch(rctx: RunContext): never {
 // move(dist, rctx): translate turtle by dist along its heading (dist < 0 = backward).
 // If the path leaves the canvas, the turtle walks to the edge and the run stops.
 //
-// Animated mode (speed 0–3): the path is split into ~1.2 sub-steps per pixel and
-//   STEPS_PER_FRAME[speed] sub-steps are drawn per animation frame. Sub-steps are
-//   painted only; one trail segment is stored for the whole move (or the part
-//   walked before STOP).
+// Animated mode (speed 0–3): the path is split into ~1.2 sub-steps per pixel; each
+//   costs 1/STEPS_PER_FRAME[speed] of a frame (spendFrame — the budget is shared
+//   with the commands before and after). Sub-steps are painted only; one trail
+//   segment is stored for the whole move (or the part walked before STOP). A move
+//   of length 0 costs nothing.
 // Instant mode (speed 4): one segment, no yield; every INSTANT_FLUSH moves the
 //   browser gets a macrotask to paint progress.
 export async function move(dist: number, rctx: RunContext): Promise<void> {
   const { session, io } = rctx, turtle = session.turtle;
   const a = turtle.angle * Math.PI / 180;
   const sx = turtle.x, sy = turtle.y;
-  let endX = sx + Math.sin(a) * dist, endY = sy + Math.cos(a) * dist;
+  let endX = snap(sx + Math.sin(a) * dist), endY = snap(sy + Math.cos(a) * dist);
   const hit = clipForRun(rctx, sx, sy, endX, endY);
   if(hit) [endX, endY] = hit;
   const col = turtle.color, w = turtle.width;
@@ -67,7 +75,7 @@ export async function move(dist: number, rctx: RunContext): Promise<void> {
   }
 
   const SPF   = STEPS_PER_FRAME[rctx.speed] || 1;
-  const steps = Math.max(1, Math.round(Math.hypot(endX - sx, endY - sy) * 1.2)); // 1.2× → smoother diagonals
+  const steps = moved ? Math.max(1, Math.round(Math.hypot(endX - sx, endY - sy) * 1.2)) : 0; // 1.2× → smoother diagonals
   const pen   = turtle.pen && moved;
   session.isMoving = true;
   for(let i = 1; i <= steps && !rctx.stopped; i++){
@@ -76,7 +84,7 @@ export async function move(dist: number, rctx: RunContext): Promise<void> {
     else { turtle.x = sx + (endX - sx) * i / steps; turtle.y = sy + (endY - sy) * i / steps; }
     if(pen) io.paintLine(ox, oy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
     advanceWalk(session);
-    if(i % SPF === 0 || i === steps){ io.render(); await nextFrame(rctx); }
+    await spendFrame(rctx, 1 / SPF);
   }
   session.isMoving = false;
   // Store what was actually walked (all of it, or up to where STOP interrupted).
@@ -86,17 +94,22 @@ export async function move(dist: number, rctx: RunContext): Promise<void> {
 }
 
 // rotate(deg, rctx): turn by deg degrees (positive = clockwise, Logo convention).
-// Animated: [3,12,48,192][speed] degrees per frame. Instant: single update.
+// Animated: DEG_PER_FRAME[speed] degrees per frame, from the shared frame budget
+// (the turn first fills what is left of the current frame). Instant: single update.
+// The final heading is normalised to [0, 360).
 export async function rotate(deg: number, rctx: RunContext): Promise<void> {
   const turtle = rctx.session.turtle;
-  if(rctx.speed >= 4){ turtle.angle += deg; return; }
-  const DPF = [3,12,48,192][rctx.speed] || 3; // degrees per rAF frame
-  const steps = Math.max(1, Math.round(Math.abs(deg) / DPF));
-  const start = turtle.angle;
-  for(let i = 1; i <= steps && !rctx.stopped; i++){
-    turtle.angle = start + deg * (i / steps); rctx.io.render(); await nextFrame(rctx);
+  if(rctx.speed >= 4){ turtle.angle = normAngle(turtle.angle + deg); return; }
+  const DPF = DEG_PER_FRAME[rctx.speed] || 3;
+  const total = Math.abs(deg), sign = Math.sign(deg), start = turtle.angle;
+  let done = 0;
+  while(total - done > 1e-9 && !rctx.stopped){
+    const part = Math.min(total - done, DPF * (1 - rctx.frameUsed));
+    done += part;
+    turtle.angle = start + sign * done;
+    await spendFrame(rctx, part / DPF);
   }
-  if(!rctx.stopped) turtle.angle = start + deg;
+  if(!rctx.stopped) turtle.angle = normAngle(start + deg);
   rctx.io.render();
 }
 

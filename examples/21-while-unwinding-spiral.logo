@@ -1,11 +1,10 @@
 ;; title: WHILE — Unwinding Spiral
 ;; desc: WHILE loop runs until a condition becomes false
-; WHILE — Unwinding Spiral
 ; Colour sweeps blue -> purple -> red as spiral grows
-MAKE :R 0
+MAKE "R 0
 WHILE [ :R < 60 ] [
   SETCOLOR :R * 4 0 240 - :R * 4
   FD :R + 5
   RT 29
-  MAKE :R :R + 1
+  MAKE "R :R + 1
 ]

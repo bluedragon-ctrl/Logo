@@ -23,7 +23,8 @@ function token(stream: StringStream): string | null {
   if(stream.peek() === ';') { stream.skipToEnd(); return 'comment'; }
   if(stream.match(/^[\[\]]/)) return 'squareBracket';
   if(stream.match(/^[()]/))   return 'paren';
-  if(stream.match(/^(>=|<=|!=|[+\-*\/=><~])/)) return 'operator';
+  if(stream.match(/^((\d+\.?\d*|\.\d+)e[+-]\d+)(?![^\s\[\]()+\-*\/=><~;])/i)) return 'number'; // 1E-5
+  if(stream.match(/^(>=|<=|!=|<>|[+\-*\/=><~])/)) return 'operator';
   const m = stream.match(WORD);
   if(!m || m === true) { stream.next(); return null; }
   const w = m[0], up = w.toUpperCase();
