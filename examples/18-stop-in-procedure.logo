@@ -2,9 +2,9 @@
 ;; desc: Procedure exits early with STOP when condition is met
 ; STOP in Procedure
 TO DRAW :N
-  IF :N > 100 [ STOP ]
+  IF :N > 200 [ STOP ]
   FD :N
   RT 91
-  DRAW :N + 2
+  DRAW :N + 4
 END
-DRAW 2
+DRAW 4

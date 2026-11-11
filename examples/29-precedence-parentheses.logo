@@ -6,6 +6,6 @@ PRINT (2 + 3) * 4    ; 20
 PRINT 10 - 2 - 3     ; 5
 ; A regular polygon whose side shrinks with the number of sides
 TO POLY :N
-  REPEAT :N [ FD 600 / (:N + 2) RT 360 / :N ]
+  REPEAT :N [ FD 900 / (:N + 2) RT 360 / :N ]
 END
 FOR :N 3 8 [ POLY :N ]

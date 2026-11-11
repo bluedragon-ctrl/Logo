@@ -1,10 +1,10 @@
 ;; title: Sunburst
-;; desc: Spokes radiating from the center
+;; desc: Spokes radiating from the centre
 ; Sunburst
-MAKE :LEN 20
+MAKE :LEN 40
 REPEAT 24 [
   FD :LEN
   BK :LEN
   RT 15
-  MAKE :LEN :LEN + 2
+  MAKE :LEN :LEN + 6
 ]

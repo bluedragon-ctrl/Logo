@@ -1,11 +1,11 @@
 ;; title: REPCOUNT — Expanding Spiral
 ;; desc: REPCOUNT gives the current iteration number (1..n) inside REPEAT
 ; REPCOUNT — Expanding Spiral
-; Each step forward uses REPCOUNT as the distance,
-; and REPCOUNT * 3 as the turn angle for a tightening spiral
-SETWIDTH 1
-REPEAT 60 [
-  SETCOLOR REPCOUNT * 4 200 - REPCOUNT * 3 80
-  FD REPCOUNT * 2
-  RT REPCOUNT * 3
+; Each side is REPCOUNT * 3 long, so the triangle spiral grows;
+; the colour fades from blue to red as REPCOUNT counts up
+SETWIDTH 2
+REPEAT 70 [
+  SETCOLOR REPCOUNT * 3 40 255 - REPCOUNT * 3
+  FD REPCOUNT * 3
+  RT 121
 ]

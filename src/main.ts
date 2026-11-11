@@ -7,6 +7,7 @@ import './ui/code-buttons.ts';
 import './ui/program.ts';
 import { runDirectCommand } from './ui/direct.ts';
 import './ui/overlays.ts';
+import './ui/reference-panel.ts';
 import './ui/files.ts';
 import './ui/autosave.ts';
 import './ui/options.ts';

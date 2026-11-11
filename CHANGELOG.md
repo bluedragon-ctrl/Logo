@@ -4,6 +4,21 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.7  2026-11-11
+**VISUAL PASS, PART 2A: COMMANDS AND EXAMPLES PANELS; EXAMPLES IN THE TESTS**
+
+The language is unchanged. Several examples were resized or tidied (below), so their pictures differ from v8.6.
+- ~ CHANGE: Commands panel: one table for all sections, so the columns line up; a search box (focused on open) filters by command or description; sections regrouped (Motion, Pen and drawing, Loops, Decisions, Procedures, Variables, Console and time, Maths) and every description reworded in the same plain style. Each row has a Try button that opens direct mode with an example line ready to run with Enter. Colours are clickable swatches built from the interpreter's own colour table (GRAY / GREY shown together).
+- ~ CHANGE: Examples panel: a compact grid of cards with a picture of what each example draws, its title and description, instead of the full code of every example. The pictures are drawn by running the examples headlessly the first time the panel opens; the page's program, variables and drawing are not touched.
+- ~ CHANGE: Examples reviewed on the new beige canvas. Small drawings made bigger (Square, Triangle, Circle, Star, Spinning Squares, Sunburst, Coloured Star, House, Flower, Bouncing Counter, Diamond, Compass Rose, STOP in Procedure, OUTPUT, SPEED, Precedence, Global Counter); FOR Starburst no longer reaches the edge of a small canvas; the Dragon Curve is centred and smaller (it hit the edge below 500 px height); REPCOUNT is now a growing triangle spiral with a blue-to-red fade; the Colour Wheel has thicker, longer spokes; OUTPUT now uses its SQR procedure; descriptions spell colour / centre consistently.
+- + ADDITION: `src/reference.ts`: the Commands panel content as data; `ui/reference-panel.ts` renders it. A unit test fails if a built-in word is missing from it or if it lists a word that does not exist, and every Try line must run without an error.
+- + ADDITION: Tests: every example must fit a 640 × 480 canvas (no OUCH, except the endless spiral), and the drawing of every example without RND / RANDOM is a Vitest snapshot: a 64 × 24 character picture of the canvas, segment / dot / label counts, bounds and a hash of every segment. Any change to what an example draws now shows up as a readable diff (`npx vitest run -u` to accept an intended change).
+- + ADDITION: Browser checks: the Commands panel (one table, search, no-match message, Try fills direct mode) and the Examples panel (a non-blank picture for every example, a click loads the code).
+- ~ CHANGE: `render/paint.ts`: `paintDrawing` paints a drawing onto any 2D context; the trail layer and the example pictures share it (the canvas is painted exactly as before). `escHtml` also escapes `"`.
+- - REMOVAL: The static reference tables and the code previews in `index.html`.
+
+---
+
 ## v8.6  2026-11-11
 **VISUAL PASS, PART 1: READABLE FONTS, CALM COLOURS, FLAT CANVAS AND TURTLE**
 

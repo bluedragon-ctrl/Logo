@@ -1,8 +1,8 @@
 // ── Utilities ─────────────────────────────────────────────────────────────────
-// escHtml: escape a string for safe insertion into innerHTML.
-// Used by renderLines (editor highlighting) and buildExamples (overlay previews).
+// escHtml: escape a string for safe insertion into innerHTML, as text or as a
+// double-quoted attribute value.
 export function escHtml(s: string): string {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // byId: document.getElementById that fails loudly (at start-up) if index.html

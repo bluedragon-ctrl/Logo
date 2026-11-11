@@ -1,4 +1,4 @@
 ;; title: Circle
-;; desc: Draw a circle with radius 80 pixels
+;; desc: Draw a circle with radius 120 pixels
 ; Circle
-CIRCLE 80
+CIRCLE 120

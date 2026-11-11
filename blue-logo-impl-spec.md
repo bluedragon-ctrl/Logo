@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.6 — November 2026
+## Version 8.7 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -53,7 +53,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 | Path | Contents |
 |---|---|
-| `index.html` | Markup only: left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
+| `index.html` | Markup only: left panel, canvas panel, overlays (their content is built by `ui/`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
 | `src/app.ts` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
 | `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS: design tokens (colours, font stacks, `--fs-base`), the VT323 `@font-face`. |
@@ -61,13 +61,15 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `src/assets/logo.svg` | The app logo (favicon and header): the canvas turtle without the pen dot. Keep it in sync with `render/sprite.ts`. |
 | `src/util.ts` | `escHtml()`, `byId<T>(id)` (throws if `index.html` lacks the element), `context2d(canvas)`. |
 | `src/types/` | `file-system-access.d.ts` — the File System Access API (not in TypeScript's DOM library). |
+| `src/reference.ts` | `REFERENCE` — the Commands panel content as data (sections of `{ syntax, desc, try? }`), `syntaxWords`. `tests/unit/reference.test.ts` checks it lists every built-in word and nothing else, and runs every `try` line. |
 | `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
 | `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` lines are metadata; the rest is the code. The number prefix sets the order. |
 | **render/** | |
 | `render/canvas.ts` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
 | `render/sprite.ts` | `drawTurtleSprite` — the flat vector turtle, drawn each frame. |
 | `render/background.ts` | `drawBackground` (flat fill), `canvasStyle`/`turtleStyle` + setters. |
-| `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing`). |
+| `render/paint.ts` | `paintDrawing(ctx, drawing, hw, hh, minWidth?)`, `paintLabelOn`, `drawingBounds`, `LABEL_FONT` — pure painters of a drawing onto any 2D context (trail layer and example pictures). |
+| `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing` with `paintDrawing`). |
 | `render/render.ts` | `render()` (background → trail → turtle; reads `session.turtle`, `walkTick`, `isMoving`). |
 | **turtle/** | |
 | `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
@@ -94,8 +96,10 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | **ui/** | |
 | `ui/console.ts` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
 | `ui/program.ts` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
-| `ui/direct.ts` | Direct-mode state, `runDirectCommand`, direct-mode handlers. |
-| `ui/examples-overlay.ts`, `ui/overlays.ts`, `ui/options.ts` | Examples list, `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
+| `ui/direct.ts` | Direct-mode state, `runDirectCommand`, `tryInDirect` (open direct mode with a line ready to run), direct-mode handlers. |
+| `ui/examples-overlay.ts` | Examples panel: a card per example with a picture (`runForThumbnail` runs it headlessly, `paintDrawing` scales it into the card). |
+| `ui/reference-panel.ts` | Commands panel: builds one table from `REFERENCE` plus colour swatches from `COLOR_NAMES`; search filter; Try buttons. |
+| `ui/overlays.ts`, `ui/options.ts` | `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
 | `ui/splitter.ts`, `ui/code-buttons.ts`, `ui/files.ts`, `ui/resize.ts` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
 | `ui/autosave.ts` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
@@ -312,7 +316,7 @@ A flat fill: BEIGE `#f4eedf` (default) or WHITE `#ffffff`. Nothing is cached; sa
 | `trailPushQuiet(rctx, …)` | Cap check + store, no paint — for segments already painted step by step. |
 | `segment(drawing, i)` | Read one segment as `[x1, y1, x2, y2, w, r, g, b]` (tests). |
 | `paintLine(...)` (`render/trail.ts`) | Paint a segment/dot onto `trailCanvas` without storing it. |
-| `rebuildTrailCanvas()` (`render/trail.ts`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
+| `rebuildTrailCanvas()` (`render/trail.ts`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels with `paintDrawing` (`render/paint.ts`). |
 | `clearScreen(session, io)` (`interpreter/session.ts`) | Reset drawing and turtle; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
 
 `0 ≤ len ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`capWarned`).
@@ -399,7 +403,13 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 
 ### 4.6 Overlays and Options
 
-One overlay at a time (`openOverlay` toggles, Escape closes all): commands reference (static `#ref-body` tables), examples (built from `EXAMPLES`), options:
+One overlay at a time (`openOverlay` toggles, Escape closes all): Commands, Examples, Options.
+
+**Commands** (`ui/reference-panel.ts`): one table built from `REFERENCE` (`src/reference.ts`), so the columns line up across sections, then the colour swatches (from `COLOR_NAMES`; aliases with the same colour are folded: GRAY / GREY). Opening it focuses the search box, which filters rows by syntax and description (Escape clears it). **Try** (and a click on a swatch) opens direct mode with the example line in the input, ready to run with Enter; nothing runs by itself.
+
+**Examples** (`ui/examples-overlay.ts`): a grid of cards (picture, title, description); a click loads the code into the editor. The pictures are made the first time the panel opens, one example at a time: `runForThumbnail` runs the example headlessly in its own session (`headlessIO` on an 800 × 600 world, yields resolved at once, 1.5 s cap), and the drawing is scaled to fit the card (at most 1.5×, lines at least 1 px). The page's session is never touched.
+
+Options:
 
 | Section | Controls |
 |---|---|
@@ -486,7 +496,7 @@ CMD['MYCOMMAND'] = CMD['MC'] = async (t, i, v, rctx) => {
 - Read and change state through `rctx.session` (`turtle`, `drawing`); produce output only through `rctx.io` (`log`, `render`, …). Never import from `render/` or `ui/` — lint fails.
 - If it draws without moving through `move()`, store via `trailPushIfRoom(rctx, …)` / `addLabel(rctx, …)` and finish with `await tick(rctx)` so pacing and responsiveness match other commands.
 - If it reads a word argument, use `wordArg`; if an argument is optional, use `isValueStart`.
-- Add it to the `#ref-body` table and, if it shows something new, to `EXAMPLES`. Built-in names are automatically protected from `TO` redefinition.
+- Add it to `REFERENCE` (`src/reference.ts`; the unit test fails until it is listed) and, if it shows something new, to `EXAMPLES`. Built-in names are automatically protected from `TO` redefinition.
 
 ### 6.2 Adding a Loop Construct
 
@@ -509,4 +519,4 @@ Put it in the folder of its layer, `export` only what other modules use, and imp
 
 ### 6.6 Adding an Example
 
-Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically, headless and in the browser (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in `tests/cases.js` if it is meant to stop at the edge).
+Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically, headless and in the browser (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in `tests/cases.js` if it is meant to stop at the edge). It must also fit a 640 × 480 canvas (no OUCH), and its drawing is snapshotted (`tests/unit/__snapshots__/examples.test.ts.snap`: a character picture of the canvas, counts, bounds and a hash of every segment) unless it uses `RND` / `RANDOM`. A new example writes its snapshot on the first run; after an intended change to an example or to the drawing code, run `npx vitest run -u` and review the snapshot diff. The Examples panel shows its picture automatically.
