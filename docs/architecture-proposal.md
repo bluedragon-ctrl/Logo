@@ -1,6 +1,6 @@
 # Blue Logo — Architecture Review & Modernisation Proposal
 
-*November 2026, based on v8.0. Status: agreed direction (see §5). Phases 0–2 done (v8.1–v8.3); phase 3 next. The project was renamed from Claude Logo to Blue Logo in v8.3.*
+*November 2026, based on v8.0. Status: agreed direction (see §5). Phases 0–3 done (v8.1–v8.4). Agreed order from here: remaining technical work, then a visual / interface pass, then phase 4. The project was renamed from Claude Logo to Blue Logo in v8.3.*
 
 The goal is to turn a family project into a teaching tool used every week. That changes the priorities:
 - it must never lose a pupil's work,
@@ -187,7 +187,7 @@ Each phase is a separate PR and leaves the app fully working. Phases 1–3 shoul
 | **0b** ✅ | Self-host the VT323 font. Autosave to localStorage. (v8.1) | S | Low |
 | **1** ✅ | Vite build. Mechanical split of the HTML into `src/` modules (no logic changes). Examples → `.logo` files. Playwright test runs against the built site. Pages deploys `dist/`. (v8.2: ES modules in plain JS; ESLint added early to catch missing imports.) | M | Medium: mostly moving code; the existing test suite is the safety net |
 | **2** ✅ | `LogoIO` injection + `Session` object. Vitest; move language cases to unit tests and add tokenizer/parser/beautify tests. ESLint boundary rule. (v8.3: `rctx.session` + `rctx.io`; cases shared by Vitest and Playwright.) | M | Low–medium |
-| **3** | TypeScript: interpreter strict first, then render/turtle, then UI. | M | Low (incremental) |
+| **3** ✅ | TypeScript: interpreter strict first, then render/turtle, then UI. (v8.4: all of `src/` and the unit tests, strict; core also checked without the DOM.) | M | Low (incremental) |
 | **4** | Teaching features: share link, friendlier errors, lessons, PWA. | M–L | Low |
 | **5** | Run-line highlight and step mode; CodeMirror if it makes these easier. Optionally positioned tokens. | L | Medium |
 

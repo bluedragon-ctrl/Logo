@@ -4,6 +4,20 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.4  2026-11-11
+**TYPESCRIPT — the whole app and the unit tests in strict TypeScript**
+
+No change in behaviour: every deterministic example draws a pixel-identical picture compared with v8.1.
+- ~ CHANGE: All of `src/` is TypeScript in strict mode (`.js` → `.ts`; imports use the `.ts` file names). Vite strips the types when building; `tsc` only type-checks. The unit tests are TypeScript too.
+- + ADDITION: `interpreter/types.ts` — the shared types (`Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …). The runStack frames are a typed union, so each loop kind's fields are checked.
+- + ADDITION: `tsconfig.core.json` type-checks the interpreter, turtle and formatter without the DOM library: using a browser API there is now a type error (replaces the ESLint globals rule). The ESLint import boundary stays.
+- + ADDITION: `npm run typecheck`; `npm run lint` runs it before ESLint (now with typescript-eslint).
+- + ADDITION: `byId<T>(id)` / `context2d(canvas)` in `util.ts`: a missing element in `index.html` fails at start-up with a clear message.
+- ~ CHANGE: Small fixes found by the type checker, without visible effect: the editor's paste handler no longer reads the non-standard `window.clipboardData`; file-picker errors are checked with `instanceof DOMException`; the sprite's eye openness is a number, not a flag.
+- - REMOVAL: The unused `stopFired` frame field.
+
+---
+
 ## v8.3  2026-11-10
 **BLUE LOGO — new name; interpreter runs without a browser; unit tests**
 

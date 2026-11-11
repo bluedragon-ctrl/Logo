@@ -1,13 +1,13 @@
 # Blue Logo
 
-Browser-based Logo turtle graphics environment for teaching. Plain JavaScript ES modules in `src/`, built with Vite into a static site and served on GitHub Pages. No framework and no runtime dependencies.
+Browser-based Logo turtle graphics environment for teaching. TypeScript (strict) ES modules in `src/`, built with Vite into a static site and served on GitHub Pages. No framework and no runtime dependencies.
 
 ```
 npm install        # once
 npm run dev        # dev server with live reload
 npm test           # unit tests + build + browser tests (must pass)
 npm run test:watch # unit tests in watch mode (Vitest, ~1 s)
-npm run lint       # ESLint (must pass)
+npm run lint       # type check (tsc, twice) + ESLint (must pass)
 ```
 
 The built app does not run from `file://` (browsers block module scripts there). Use `npm run dev`, or `npm run preview` after `npm run build`.
@@ -23,7 +23,7 @@ Specification is split into two files:
 | Path | Purpose |
 |---|---|
 | `index.html` | The app's markup (Vite entry). `%APP_VERSION%` is filled in at build time. |
-| `src/` | The app: `main.js` (entry), `app.js` (the page's session + browser IO), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`. Module map: impl-spec §1.2. |
+| `src/` | The app: `main.ts` (entry), `app.ts` (the page's session + browser IO), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`. Module map: impl-spec §1.2. |
 | `examples/` | One `.logo` file per example (`;; title:` / `;; desc:` header lines). Loaded at build time; the number prefix sets the order. |
 | `versions/` | Frozen single-file HTML versions up to v8.1 (from when the project was called "Claude Logo"; file names kept so old links work). Deployed to Pages at `/versions/…` and at the root (old links keep working). Never edited. |
 | `blue-logo-lang-spec.md` | Language specification. |
@@ -32,26 +32,29 @@ Specification is split into two files:
 | `TODO.md` | Open work items. |
 | `REVIEW.md` | v7.3 project review (all items resolved in v8.0; kept for reference). |
 | `tests/cases.js` | Language regression cases, shared by the unit and browser tests. |
-| `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.js` runs a program headlessly. |
+| `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.ts` runs a program headlessly. |
 | `tests/run-examples.js` | Browser test (Playwright) against the built `dist/`: all examples, beautify idempotency, the shared cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
 | `third-party/` | Licenses of bundled third-party assets (VT323 font, OFL). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
-| `package.json` | Version number, scripts and dev tooling (Vite, Vitest, ESLint, Playwright). |
-| `vite.config.js`, `eslint.config.js` | Build, Vitest and lint configuration (including the core boundary rule). |
+| `package.json` | Version number, scripts and dev tooling (Vite, Vitest, TypeScript, ESLint, Playwright). |
+| `vite.config.js`, `eslint.config.js` | Build, Vitest and lint configuration (including the core import boundary). |
+| `tsconfig.json` | TypeScript, strict, for `src/` and `tests/unit/` (type check only — Vite strips types when building). |
+| `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
+| `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.3** (`package.json` → `8.3.0`)
+Current version: **v8.4** (`package.json` → `8.4.0`)
 
 ---
 
 ## Architecture in one paragraph
 
-Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — contenteditable with syntax highlighting, caret preservation and its own undo history; `format/beautify.js`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.js` imports everything; UI modules wire their DOM handlers on import.
+Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — contenteditable with syntax highlighting, caret preservation and its own undo history; `format/beautify.ts`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.ts` imports everything; UI modules wire their DOM handlers on import.
 
-**The core has no DOM** — `interpreter/`, `turtle/`, `format/` see no browser globals and cannot import `render/`, `ui/`, `editor/`, `app.js` (ESLint enforces it). That is what lets Vitest run the interpreter in Node.
-- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving }`), reached as `rctx.session`. The page has one, exported by `src/app.js`; tests make a fresh one per case.
-- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.js`): `log`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.js`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
+**The core has no DOM** — `interpreter/`, `turtle/`, `format/` cannot use browser APIs (`tsconfig.core.json` type-checks them without the DOM library) and cannot import `render/`, `ui/`, `editor/`, `app.ts` (ESLint `no-restricted-imports`). That is what lets Vitest run the interpreter in Node.
+- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
+- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
 
 **Module state rule:** change session fields, never replace the session (`session.turtle` and `session.procs` are reset in place, too). For UI state held in module variables, a module never assigns to a variable it imports (ES modules forbid it; ESLint `no-import-assign` catches it) — the owner exports a setter: `setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`. Export only what other modules use.
 
@@ -77,6 +80,15 @@ Created by `makeRunContext(speed, session, io)` per run. Fields: `session`, `io`
 - STOP / CLR call `haltRun()` — never set `stopped` directly (WAIT needs `rctx.wake`).
 - Use `CW` / `CH` (logical canvas size) for geometry, never `canvas.width/height` (those are device pixels).
 - Every long-running path yields (`nextFrame` / `macroYield` / `tick`), so STOP always works.
+
+### TypeScript conventions
+
+- Strict mode everywhere. `npm run lint` runs both type checks; Vite and Vitest only strip types, so **a type error shows up in lint, not in `npm run dev`**.
+- Imports use the real file name with `.ts` (`import { run } from './runtime.ts'`); type-only imports use `import type` (ESLint enforces it).
+- Shared core types live in `interpreter/types.ts` (types only, no runtime code). Types used by one module stay in it (the runStack frame union in `runtime.ts`, `Parser` in `expr.ts`).
+- DOM lookups go through `byId<T>(id)` / `context2d(canvas)` (`util.ts`): they throw at start-up if `index.html` lacks the element, so the rest of the code needs no null checks.
+- Avoid `any`; narrow dynamic values instead (`e instanceof Error`, `errorText(e)` in `execute.ts`).
+- `tests/run-examples.js` and `tests/cases.js` stay JavaScript (run by plain Node); `tests/cases.d.ts` types the cases for the unit tests.
 
 ---
 
@@ -110,13 +122,13 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 
 | Folder / file | Main contents |
 |---|---|
-| `app.js` | The page's `session` and browser `io` |
-| `render/` | `canvas.js` (CW/CH/DPR) · `sprite.js` · `background.js` · `trail.js` (`trailCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas`) · `render.js` |
-| `turtle/` | `state.js` (`mkTurtle`, `resetTurtle`) · `drawing.js` (segment + label store) · `motion.js` (`move`, `rotate`, `circle`, `clipToCanvas`, `ouch`) |
-| `interpreter/` | `session.js` · `io.js` (LogoIO, `headlessIO`) · `context.js` (`makeRunContext`, `haltRun`) · `execute.js` (`parseProgram`, `registerProcs`, `execute`) · `scope.js` · `tokenizer.js` · `procedures.js` · `expr.js` · `signals.js` · `pacing.js` · `commands.js` (`CMD`) · `runtime.js` (`runStack`, `run`, `runExpr`) |
-| `editor/editor.js`, `format/beautify.js` | Editor + undo history; pure formatter |
-| `ui/` | `console.js` (`log`) · `program.js` (`runProgram`, RUN/STOP/CLR) · `direct.js` · `splitter.js` · `overlays.js` · `examples-overlay.js` · `options.js` · `files.js` · `autosave.js` · `resize.js` · `code-buttons.js` |
-| `examples.js` | Loads `examples/*.logo` |
+| `app.ts` | The page's `session` and browser `io` |
+| `render/` | `canvas.ts` (CW/CH/DPR) · `sprite.ts` · `background.ts` · `trail.ts` (`trailCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas`) · `render.ts` |
+| `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label store) · `motion.ts` (`move`, `rotate`, `circle`, `clipToCanvas`, `ouch`) |
+| `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
+| `editor/editor.ts`, `format/beautify.ts` | Editor (`Editor` interface) + undo history; pure formatter |
+| `ui/` | `console.ts` (`log`) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` · `splitter.ts` · `overlays.ts` · `examples-overlay.ts` · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
+| `examples.ts` | Loads `examples/*.logo` |
 
 ---
 
@@ -124,17 +136,18 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 
 | Task | Read these sections |
 |---|---|
-| Add a CMD command | `interpreter/commands.js` — copy a nearby handler; impl-spec §6.1 |
-| Add a math function / query / operator | `interpreter/expr.js`; impl-spec §6.3 |
-| Add a loop construct | `interpreter/runtime.js` (`isRepeat`/`isWhile`/`isFor` + `isLoopFrame`); impl-spec §6.2 |
-| Change scoping | `interpreter/scope.js` (header comment, `setVar` / `procScopeOf` / `repeatInfo`); lang-spec §6 |
-| Change animation / pacing | `turtle/motion.js`, `interpreter/pacing.js`, `io.nextFrame` in `src/app.js` |
-| Add a side effect (new output) | a method in the LogoIO contract (`interpreter/io.js`), implemented in `src/app.js` and `headlessIO()` |
-| Change error reporting | `interpreter/execute.js` (`execute`) + `rctx.execLine` |
-| Change STOP / CLR | `interpreter/context.js` (`haltRun`) + `ui/program.js` |
-| Change trail storage / rendering | `turtle/drawing.js` (data) · `render/trail.js` + `render/render.js` (painting) |
-| Change editor / highlighting / undo | `editor/editor.js` |
-| Change beautify formatting | `format/beautify.js` — pure function, safe to edit in isolation |
+| Add a CMD command | `interpreter/commands.ts` — copy a nearby handler; impl-spec §6.1 |
+| Add a math function / query / operator | `interpreter/expr.ts`; impl-spec §6.3 |
+| Add a loop construct | `interpreter/runtime.ts` (`isRepeat`/`isWhile`/`isFor` + `isLoopFrame`); impl-spec §6.2 |
+| Change scoping | `interpreter/scope.ts` (header comment, `setVar` / `procScopeOf` / `repeatInfo`); lang-spec §6 |
+| Change animation / pacing | `turtle/motion.ts`, `interpreter/pacing.ts`, `io.nextFrame` in `src/app.ts` |
+| Add a side effect (new output) | a method in the `LogoIO` interface (`interpreter/types.ts`), implemented in `src/app.ts` and `headlessIO()` (`interpreter/io.ts`) — the compiler points at both |
+| Add state a program changes | a field in `Session` (`interpreter/types.ts`) + `createSession()` |
+| Change error reporting | `interpreter/execute.ts` (`execute`) + `rctx.execLine` |
+| Change STOP / CLR | `interpreter/context.ts` (`haltRun`) + `ui/program.ts` |
+| Change trail storage / rendering | `turtle/drawing.ts` (data) · `render/trail.ts` + `render/render.ts` (painting) |
+| Change editor / highlighting / undo | `editor/editor.ts` |
+| Change beautify formatting | `format/beautify.ts` — pure function, safe to edit in isolation |
 | Add or edit an example | `examples/NN-name.logo`; impl-spec §6.6 |
 
 ---
@@ -200,7 +213,7 @@ Severity markers in reviews use 🔴 (bug) / 🟡 (design) / 🟢 (polish). Use 
 3. Read the code section you are changing, not just the lines around the change.
 
 ### Adding a command
-1. Register in `CMD` in `interpreter/commands.js` (impl-spec §6.1); add aliases (`CMD['ALIAS'] = CMD['FULLNAME']`).
+1. Register in `CMD` in `interpreter/commands.ts` (impl-spec §6.1); add aliases (`CMD['ALIAS'] = CMD['FULLNAME']`).
 2. Validate input; clamp + warn or throw, consistent with lang-spec §8.
 3. State via `rctx.session`, output via `rctx.io` — no imports from `render/` / `ui/` (lint fails).
 4. If it draws without `move()`, store via `trailPushIfRoom(rctx, …)` / `addLabel(rctx, …)` and end with `await tick(rctx)`.
@@ -226,12 +239,13 @@ npm test                              # vitest run, vite build, then node tests/
 npm run test:unit                     # unit tests only (Node, ~1 s); npm run test:watch to re-run on save
 node tests/run-examples.js            # browser test of the existing dist/ build (served on a local port under /Logo/)
 node tests/run-examples.js versions/claude-logo-v8.1.html   # or an archived single-file version
-npm run lint                          # ESLint: missing imports, writes to imports, unused code, DOM in the core
+npm run typecheck                     # tsc for the app + tests, and for the core without the DOM
+npm run lint                          # typecheck, then ESLint (unused code, type-only imports, core import boundary)
 ```
 
-**Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.js` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
+**Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.ts` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
 
-**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.js` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
+**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
 
 Manual checks still worth doing for UI changes: animated runs at speed 0 look right, STOP mid-animation, resize while idle and while running, font sizes, console toggle, HiDPI sharpness, Ctrl+Z in the editor.
 

@@ -1,6 +1,6 @@
 {
   "name": "blue-logo",
-  "version": "8.3.0",
+  "version": "8.4.0",
   "private": true,
   "type": "module",
   "description": "Browser-based Logo turtle graphics for teaching",
@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "npm run typecheck && eslint .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
     "test": "vitest run && vite build && node tests/run-examples.js",
     "test:unit": "vitest run",
     "test:watch": "vitest"
@@ -18,6 +19,8 @@
     "eslint": "^9.39.5",
     "globals": "^17.14.0",
     "playwright": "1.63.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
     "vite": "^8.3.7",
     "vitest": "^5.1.0"
   }

@@ -11,7 +11,8 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [x] Embedded VT323 font; autosave to localStorage (v8.1)
 - [x] Phase 1: Vite build, split into `src/` modules, examples as `.logo` files (v8.2)
 - [x] Phase 2: `LogoIO` injection + `Session`, Vitest unit tests, ESLint boundary rule; renamed to Blue Logo (v8.3)
-- [ ] Next: phase 3 — TypeScript, interpreter (strict) first
+- [x] Phase 3: TypeScript, strict, everywhere (v8.4)
+- [ ] Next: remaining technical work (see below), then a visual / interface pass, then phase 4 teaching features
 
 ### Repo
 - [ ] Tag releases on `main` (`v8.1`, `v8.2`, `v8.3`; optionally older ones from history)
