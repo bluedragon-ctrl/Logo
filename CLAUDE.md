@@ -23,7 +23,7 @@ Specification is split into two files:
 | Path | Purpose |
 |---|---|
 | `index.html` | The app's markup (Vite entry). `%APP_VERSION%` is filled in at build time. |
-| `src/` | The app: `main.ts` (entry), `app.ts` (the page's session + browser IO), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`. Module map: impl-spec §1.2. |
+| `src/` | The app: `main.ts` (entry), `app.ts` (the page's session + browser IO), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`, `assets/logo.svg` (app logo = the turtle; keep in sync with `render/sprite.ts`). Module map: impl-spec §1.2. |
 | `examples/` | One `.logo` file per example (`;; title:` / `;; desc:` header lines). Loaded at build time; the number prefix sets the order. |
 | `versions/` | Frozen single-file HTML versions up to v8.1 (from when the project was called "Claude Logo"; file names kept so old links work). Deployed to Pages at `/versions/…` and at the root (old links keep working). Never edited. |
 | `blue-logo-lang-spec.md` | Language specification. |

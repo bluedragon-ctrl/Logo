@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-21 -23 42 42">
+  <!-- Blue Logo turtle: the canvas turtle (src/render/sprite.ts) without the pen dot. Keep the two in sync. -->
+  <g stroke="#1f4a85" stroke-width="1.5" stroke-linejoin="round">
+    <g fill="#9cc5f2">
+      <ellipse cx="-10" cy="-7" rx="4" ry="5"/>
+      <ellipse cx="10" cy="-7" rx="4" ry="5"/>
+      <ellipse cx="-10" cy="8" rx="4" ry="5"/>
+      <ellipse cx="10" cy="8" rx="4" ry="5"/>
+      <path d="M-3 11 L0 17 L3 11 Z"/>
+      <ellipse cx="0" cy="-16" rx="5.5" ry="6"/>
+    </g>
+    <ellipse cx="0" cy="0" rx="11" ry="13" fill="#3b7dd8"/>
+    <path d="M0 -7 L5.196 -3.5 L5.196 3.5 L0 7 L-5.196 3.5 L-5.196 -3.5 Z" fill="#69a5ec" stroke-width="1"/>
+  </g>
+  <circle cx="-2.3" cy="-18" r="1.1" fill="#13233a"/>
+  <circle cx="2.3" cy="-18" r="1.1" fill="#13233a"/>
+</svg>

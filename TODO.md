@@ -36,7 +36,7 @@ Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and dete
 ### Visual / interface pass
 - [x] Part 1 (v8.6): system fonts, contrast, calm colours, syntax highlighting, sentence case, flat beige canvas, flat vector turtle
 - [ ] Part 2 — canvas: optional grid with x/y axes; readable font for LABEL text (currently VT323 16 px); turtle size / pen-point review
-- [ ] Part 2 — layout: labelled toolbar (≡ ⎘ ⚙ → text or icon + text, "L:1" → "Ln 1"); Save as PNG next to Save / Load; Commands reference as a docked, searchable panel (one aligned table); compact examples list with preview; drop emoji in headings; move the version out of the header
+- [ ] Part 2 — layout: labelled toolbar (≡ ⎘ ⚙ → text or icon + text, "L:1" → "Ln 1"); Save as PNG next to Save / Load; Commands reference as a docked, searchable panel (one aligned table); compact examples list with preview; drop emoji in overlay headings (the header already uses the turtle logo); move the version out of the header
 - [ ] Optional: light theme; "Retro" theme (VT323, sand, the old cartoon turtle)
 
 ### Later (agreed order)

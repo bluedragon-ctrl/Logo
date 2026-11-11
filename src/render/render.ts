@@ -20,12 +20,12 @@ function drawSimpleTurtle(turtle: Turtle): void {
   ctx.rotate(turtle.angle*Math.PI/180);
   // triangle: tip 12px forward (+y = north at angle 0, standard Logo convention), base ±7px
   ctx.beginPath();ctx.moveTo(0,-12);ctx.lineTo(7,6);ctx.lineTo(-7,6);ctx.closePath();
-  ctx.fillStyle='#4f9a5a';ctx.fill();
-  ctx.strokeStyle='#2b5e33';ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
+  ctx.fillStyle='#3b7dd8';ctx.fill();
+  ctx.strokeStyle='#1f4a85';ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
   // pen-state indicator dot at centre
   ctx.beginPath();ctx.arc(0,0,3,0,Math.PI*2);
   ctx.fillStyle=turtle.pen?'#e0393b':'#ffffff';ctx.fill();
-  ctx.strokeStyle=turtle.pen?'#ffffff':'#2b5e33';ctx.lineWidth=1;ctx.stroke();
+  ctx.strokeStyle=turtle.pen?'#ffffff':'#1f4a85';ctx.lineWidth=1;ctx.stroke();
   ctx.restore();
 }
 export function render(){

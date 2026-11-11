@@ -4,12 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Blue Logo</title>
+<link rel="icon" type="image/svg+xml" href="/src/assets/logo.svg">
 <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
 
 <div id="panel">
-  <h1>🐢 BLUE LOGO <span class="version">v%APP_VERSION%</span></h1>
+  <h1><img class="logo" src="/src/assets/logo.svg" alt=""> BLUE LOGO <span class="version">v%APP_VERSION%</span></h1>
   <div id="split">
     <div id="code-label"><span>Code</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">Log</button><button id="btn-save-file" title="Save program to file">Save</button><button id="btn-load-file" title="Load program from file">Load</button><button id="opt-btn" title="Options">⚙</button></span></div>
     <div id="code-wrap">

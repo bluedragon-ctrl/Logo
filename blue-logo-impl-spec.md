@@ -58,6 +58,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS: design tokens (colours, font stacks, `--fs-base`), the VT323 `@font-face`. |
 | `src/assets/fonts/` | `VT323-Regular.woff2` (latin subset). |
+| `src/assets/logo.svg` | The app logo (favicon and header): the canvas turtle without the pen dot. Keep it in sync with `render/sprite.ts`. |
 | `src/util.ts` | `escHtml()`, `byId<T>(id)` (throws if `index.html` lacks the element), `context2d(canvas)`. |
 | `src/types/` | `file-system-access.d.ts` — the File System Access API (not in TypeScript's DOM library). |
 | `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
@@ -324,7 +325,7 @@ A flat fill: BEIGE `#f4eedf` (default) or WHITE `#ffffff`. Nothing is cached; sa
 
 Both styles are centred on the pen position and show the pen state as a dot there: red = pen down, white = pen up.
 
-**TURTLE (default):** a flat vector turtle (`drawTurtleSprite`, about 26 × 40 px: shell with a centre plate, head with eyes, four legs, tail), drawn straight into the main context every frame in logical units, so it is sharp at any DPR. While `session.isMoving` the legs swing in diagonal pairs, driven by `session.walkTick` (16-bit counter); a resting turtle is static.
+**TURTLE (default):** a blue flat vector turtle — the same drawing as the app logo `src/assets/logo.svg` (`drawTurtleSprite`, about 26 × 40 px: shell with a centre plate, head with eyes, four legs, tail), drawn straight into the main context every frame in logical units, so it is sharp at any DPR. While `session.isMoving` the legs swing in diagonal pairs, driven by `session.walkTick` (16-bit counter); a resting turtle is static.
 
 **TRIANGLE:** small triangle with the same pen-state dot.
 

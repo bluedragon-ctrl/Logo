@@ -15,7 +15,8 @@ Logo programs behave exactly as before; only the look changes.
 - + ADDITION: Syntax highlighting: commands, control words, TO / END, functions, :variables, numbers, "words and comments each have their own colour.
 - ~ CHANGE: Sentence case in the interface ("Run", "Clear screen on run", "Motion"); capitals stay for Logo commands. The CLR button is labelled "Clear".
 - ~ CHANGE: Canvas: plain beige (`#f4eedf`) is the default instead of the parchment gradient with random sand grains; White remains. The background is a flat fill (no cache, no grains).
-- ~ CHANGE: Turtle: a flat vector drawing (shell, plate, head, legs, tail; legs swing while moving) replaces the 64 px gradient sprite. It is drawn in logical units each frame (sharp at any zoom / DPR), is about 40 px long instead of 64, and is centred on the pen position with a dot marking it (red = pen down, white = pen up). The triangle turtle uses the same colours and dot. Options: Turtle / Triangle.
+- ~ CHANGE: Turtle: a blue flat vector drawing (shell, plate, head, legs, tail; legs swing while moving) replaces the 64 px gradient sprite. It is drawn in logical units each frame (sharp at any zoom / DPR), is about 40 px long instead of 64, and is centred on the pen position with a dot marking it (red = pen down, white = pen up). The triangle turtle uses the same colours and dot. Options: Turtle / Triangle.
+- + ADDITION: The blue turtle is the app's logo: `src/assets/logo.svg` is the favicon and replaces the 🐢 emoji in the header.
 - - REMOVAL: `buildGrains`, `buildBgCache`, `buildSprite`, `spr`, `SPRITE_SIZE`, `SPRITE_OFFSET`, `spriteCenter`.
 - + ADDITION: Browser check: the canvas is plain beige by default and the page font is not VT323.
 

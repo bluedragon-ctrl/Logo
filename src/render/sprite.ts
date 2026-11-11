@@ -9,11 +9,12 @@ import type { Turtle } from '../interpreter/types.ts';
 // Animation: while the turtle moves (session.isMoving) the legs swing in
 // diagonal pairs, driven by session.walkTick; a resting turtle is static.
 
-const OUTLINE = '#2b5e33';
-const SHELL   = '#4f9a5a';
-const PLATE   = '#68b371';   // centre plate on the shell
-const SKIN    = '#8cc47b';   // head, legs, tail
-const EYE     = '#1d2b1f';
+// Blue turtle — the same drawing is the app's icon (src/assets/logo.svg; keep in sync).
+const OUTLINE = '#1f4a85';
+const SHELL   = '#3b7dd8';
+const PLATE   = '#69a5ec';   // centre plate on the shell
+const SKIN    = '#9cc5f2';   // head, legs, tail
+const EYE     = '#13233a';
 const PEN_DOWN = '#e0393b';
 
 function oval(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number): void {
