@@ -1,5 +1,5 @@
 # Blue Logo — Language Specification
-## Version 8.5 — November 2026
+## Version 8.6 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -130,7 +130,7 @@ See §6 for scoping rules.
 | `STOP` | Leave the current procedure. At top level: end the program. |
 | `OUTPUT val` / `OP val` | Return val from the current procedure (see §2.5). |
 | `WAIT n` | Pause n seconds (n ≥ 0, capped at 30). The STOP button ends a WAIT immediately. |
-| `SPEED n` | Animation speed 0 (slowest) … 3 (fast) animated, 4 = instant — the same scale as the OPTIONS slider. Takes effect immediately and moves the slider. Outside 0–4: clamped with a warning. |
+| `SPEED n` | Animation speed 0 (slowest) … 3 (fast) animated, 4 = instant — the same scale as the Options speed slider. Takes effect immediately and moves the slider. Outside 0–4: clamped with a warning. |
 
 ### 2.5 Procedures
 

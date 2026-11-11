@@ -4,6 +4,23 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.6  2026-11-11
+**VISUAL PASS, PART 1: READABLE FONTS, CALM COLOURS, FLAT CANVAS AND TURTLE**
+
+Logo programs behave exactly as before; only the look changes.
+- ~ CHANGE: The interface uses the system UI font and code / console / examples use the system monospace font instead of the VT323 pixel font everywhere. Base sizes raised (14 px interface, 15 px code). VT323 remains for the title and for LABEL text on the canvas. Nothing new is downloaded.
+- ~ CHANGE: Font size option (Small / Medium / Large = 1 / 1.25 / 1.5) scales the reading text (editor, console, direct input, overlays) and no longer widens the side panel; the panel width follows the window (`clamp(360px, 32vw, 520px)`).
+- ~ CHANGE: Contrast: every text colour is at least 4.5:1 on its background (line numbers were 2.4:1, comments 2.6:1, the editor placeholder 1.9:1); toolbar buttons are no longer drawn at 60 % opacity.
+- ~ CHANGE: Calm dark palette defined as CSS variables. Buttons are neutral; only Run (green) and Stop (red) are coloured; a single accent blue marks focus and active toggles. Overlays restyled to match.
+- + ADDITION: Syntax highlighting: commands, control words, TO / END, functions, :variables, numbers, "words and comments each have their own colour.
+- ~ CHANGE: Sentence case in the interface ("Run", "Clear screen on run", "Motion"); capitals stay for Logo commands. The CLR button is labelled "Clear".
+- ~ CHANGE: Canvas: plain beige (`#f4eedf`) is the default instead of the parchment gradient with random sand grains; White remains. The background is a flat fill (no cache, no grains).
+- ~ CHANGE: Turtle: a flat vector drawing (shell, plate, head, legs, tail; legs swing while moving) replaces the 64 px gradient sprite. It is drawn in logical units each frame (sharp at any zoom / DPR), is about 40 px long instead of 64, and is centred on the pen position with a dot marking it (red = pen down, white = pen up). The triangle turtle uses the same colours and dot. Options: Turtle / Triangle.
+- - REMOVAL: `buildGrains`, `buildBgCache`, `buildSprite`, `spr`, `SPRITE_SIZE`, `SPRITE_OFFSET`, `spriteCenter`.
+- + ADDITION: Browser check: the canvas is plain beige by default and the page font is not VT323.
+
+---
+
 ## v8.5  2026-11-11
 **POSITIONED TOKENS + CODEMIRROR EDITOR**
 

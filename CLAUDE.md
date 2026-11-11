@@ -44,7 +44,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.5** (`package.json` → `8.5.0`)
+Current version: **v8.6** (`package.json` → `8.6.0`)
 
 ---
 
@@ -165,7 +165,6 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | `INSTANT_FLUSH` | 150 | Instant-mode steps between paint yields |
 | `STEPS_PER_FRAME` | [1, 4, 16, 64] | Animated steps per frame by speed 0–3 |
 | `INLINE_THRESHOLD` | 8 | Max tokens for inline `[ block ]` in beautify |
-| `SPRITE_SIZE` / `SPRITE_OFFSET` | 64 px / 18.8 px | Turtle sprite size / nose-to-centre offset |
 
 ---
 
@@ -256,7 +255,7 @@ Manual checks still worth doing for UI changes: animated runs at speed 0 look ri
 - [ ] Resize smaller/larger — trail rebuilds correctly and stays sharp
 - [ ] Console collapse/expand; drag while collapsed auto-expands
 - [ ] Speed 0–4 and SPEED command; instant mode toggled mid-session
-- [ ] Font sizes scale all UI text
+- [ ] Font sizes scale the editor, console and overlay text
 - [ ] Error messages show the correct source line (top level and inside procedures)
 - [ ] Editor undo/redo, example load undo
 - [ ] No dead variables, no `console.log`
@@ -287,6 +286,7 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Tail calls** are unbounded; other recursion is capped (10 000 frames; 500 levels inside expressions).
 - **Numbers only.** `"words` exist only for LABEL / PRINT / colour names.
 - **Autosave:** the editor text lives in localStorage under `blue-logo:program` (the pre-v8.3 key `claude-logo:program` is migrated once); `editor.onChange` drives it, `editor.initValue` restores it without an undo step.
-- **No third-party requests:** the font is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
+- **No third-party requests:** the UI uses system fonts; VT323 (title + LABEL only) is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
+- **Look:** colours and font stacks are CSS variables in `:root` of `app.css` (impl-spec §4.1a); syntax colours are in `editor.ts`. Keep text at ≥ 4.5:1 contrast, buttons neutral (only Run / Stop coloured), sentence case except Logo commands.
 - **Editor = CodeMirror 6** (`src/editor/`): it owns text, caret, undo, IME and paste. The rest of the app uses only the `Editor` interface (`getValue`, `setValue`, `initValue`, `onChange`, `focus`). `document.execCommand('copy')` remains only as the copy-button fallback.
 - **Not implemented:** `FILL`, `FOREVER`, `SETXY`, list/string values, short-circuit `AND`/`OR`.

@@ -24,8 +24,8 @@ export interface Editor {
 // Colours: app.css (#editor .cm-…) and the HighlightStyle below.
 
 const PLACEHOLDER = [
-  '; Welcome to BLUE LOGO',
-  '; Type commands below and press RUN',
+  '; Welcome to Blue Logo',
+  '; Type commands here and press Run',
   ';',
   '; Move:    FD 100   BK 50   RT 90   LT 45',
   '; Draw:    CIRCLE 80   SETCOLOR 200 50 50',
@@ -34,14 +34,23 @@ const PLACEHOLDER = [
   '; Procs:   TO SQUARE',
   ';            REPEAT 4 [FD 80 RT 90]  END',
   ';',
-  '; Click EXAMPLES for more',
-  '; ? COMMANDS for reference',
+  '; Examples: ready-made programs',
+  '; Commands: the full reference',
 ].join('\n');
 
-// Only comments have their own colour for now; every other token class is tagged
-// by logoLanguage, so colouring more of them is a change here.
+// Token colours (logoLanguage tags every class). Chosen for at least 4.5:1 contrast
+// on the editor background (--surface in app.css); plain text, operators and
+// user procedure names stay in the default text colour.
 const logoHighlight = HighlightStyle.define([
-  { tag: tags.comment, color: '#556' },
+  { tag: tags.comment,                      color: '#8b94a3' },
+  { tag: tags.keyword,                      color: '#7cc0ff' },                    // commands (FD, SETCOLOR…)
+  { tag: tags.controlKeyword,               color: '#d29bf0' },                    // REPEAT, IF, FOR…
+  { tag: tags.definitionKeyword,            color: '#d29bf0', fontWeight: 'bold' }, // TO / END
+  { tag: tags.function(tags.variableName),  color: '#6fd3d3' },                    // math functions, queries
+  { tag: tags.variableName,                 color: '#f0c674' },                    // :x
+  { tag: tags.number,                       color: '#f2a46c' },
+  { tag: tags.string,                       color: '#9fd68b' },                    // "word
+  { tag: [tags.squareBracket, tags.paren],  color: '#c3c9d3' },
 ]);
 
 export const editor: Editor = (function(): Editor {

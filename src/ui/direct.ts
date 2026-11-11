@@ -18,7 +18,7 @@ let directHistoryIdx = -1;
 export async function runDirectCommand(rawText: string): Promise<boolean> {
   const cmdText = rawText.trim();
   if (!cmdText) return true;
-  if (activeRctx) { log('Busy — a program is running. Press STOP first.', 'err'); return false; }
+  if (activeRctx) { log('Busy — a program is running. Press Stop first.', 'err'); return false; }
 
   // Save to history (deduplicate consecutive identical commands)
   if (directHistory[directHistory.length - 1] !== cmdText) directHistory.push(cmdText);
@@ -46,7 +46,7 @@ btnDirect.onclick = function() {
   directMode = !directMode;
   btnDirect.classList.toggle('dm-active', directMode);
   byId('direct-panel').classList.toggle('dm-open', directMode);
-  // Switch console label text to "▸ TERMINAL" in direct mode
+  // Switch console label text to "Terminal" in direct mode
   byId('console-label').classList.toggle('dm-terminal', directMode);
   // Console-label is shown when consoleVisible OR directMode (terminal header always needed)
   byId('console-label').style.display =
