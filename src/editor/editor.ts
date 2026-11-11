@@ -15,6 +15,20 @@ export interface Editor {
   initValue(src: string): void;
   onChange(fn: () => void): void;
   focus(): void;
+  /** Insert text at the caret (on a line of its own), as one undo step. */
+  insert(text: string): void;
+  /** F1 in the editor: fn gets the word at the caret ('' if none). */
+  onHelp(fn: (word: string) => void): void;
+}
+
+// wordAt(line, col): the Logo word around column col of a line ('' between words).
+// Word characters are those of the tokenizer: anything but space, brackets, operators and ;.
+export function wordAt(line: string, col: number): string {
+  const isWord = (ch: string | undefined) => !!ch && !/[\s\[\]()+\-*\/=><~;]/.test(ch);
+  let a = col, b = col;
+  while(isWord(line[a - 1])) a--;
+  while(isWord(line[b])) b++;
+  return line.slice(a, b);
 }
 
 // ── Code editor (CodeMirror 6) ───────────────────────────────────────────────
@@ -55,6 +69,13 @@ const logoHighlight = HighlightStyle.define([
 
 export const editor: Editor = (function(): Editor {
   const changeListeners: (() => void)[] = [];
+  const helpListeners: ((word: string) => void)[] = [];
+  const showHelp = (view: EditorView): boolean => {
+    const head = view.state.selection.main.head, line = view.state.doc.lineAt(head);
+    const word = wordAt(line.text, head - line.from);
+    helpListeners.forEach(fn => fn(word));
+    return true;
+  };
   const lnIndicator = byId('ln-indicator');
 
   const insertSpaces = (view: EditorView): boolean => {
@@ -76,6 +97,7 @@ export const editor: Editor = (function(): Editor {
     keymap.of([
       { key: 'Tab', run: insertSpaces, shift: indentLess },
       { key: 'Mod-/', run: toggleComment },
+      { key: 'F1', run: showHelp, preventDefault: true },
       ...historyKeymap,
       ...defaultKeymap,
     ]),
@@ -110,5 +132,19 @@ export const editor: Editor = (function(): Editor {
     },
     onChange(fn: () => void){ changeListeners.push(fn); },
     focus(){ view.focus(); },
+    insert(text: string){
+      const { from, to } = view.state.selection.main, doc = view.state.doc;
+      const before = from > 0 && doc.sliceString(from - 1, from) !== '\n' ? '\n' : '';
+      const after = to < doc.length && doc.sliceString(to, to + 1) !== '\n' ? '\n' : '';
+      const insert = before + text + (after || (to === doc.length ? '\n' : ''));
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: { anchor: from + before.length + text.length },
+        scrollIntoView: true,
+        userEvent: 'input.paste',
+        annotations: isolateHistory.of('full'),
+      });
+    },
+    onHelp(fn: (word: string) => void){ helpListeners.push(fn); },
   };
 })();

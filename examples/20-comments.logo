@@ -1,5 +1,6 @@
 ;; title: Comments
 ;; desc: Using ; to annotate code — comments are ignored by the interpreter
+;; topic: First steps
 ; Draw a colourful spiral
 ; Each arm gets longer and rotates
 MAKE "STEP 4  ; starting step size

@@ -1,5 +1,7 @@
 ;; title: Diamond
 ;; desc: Uses SETPOS to jump directly to coordinates
+;; topic: First steps
+;; shows: SETPOS
 MAKE "N -150
 PU
 SETPOS 0 150

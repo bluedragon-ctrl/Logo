@@ -1,5 +1,7 @@
 ;; title: Arc Flowers
 ;; desc: ARC petals on a SETBG night sky; IFELSE as a value picks the petal count, FOREVER + BREAK adds stars
+;; topic: Colour
+;; shows: ARC, SETBG, IFELSE, FOREVER, BREAK
 
 ; A petal: two 60° arcs; the turns bring the turtle back where it started.
 TO PETAL :R

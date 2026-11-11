@@ -4,6 +4,16 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.10  2026-11-11
+**COMMANDS AND EXAMPLES PANELS: SEPARATE COMMANDS, SEARCH, LINKS**
+- ~ CHANGE: Commands panel — every command is its own row that opens into a card: a longer explanation, other ways to write it, two or three examples (Try in direct mode, Insert into the program at the caret), See also links and "Used in": pictures of the examples that use it, plus "All n examples →". `REFERENCE` entries gained `more`, `forms`, `examples` (replacing `try`), `see`, `tags`; variants such as SETCOLOR r g b / name, DOT / DOT x y, FOR with a step are folded into one command.
+- ~ CHANGE: Commands search ranks its hits (exact word or alias first, so `fd` finds FORWARD; then word prefixes, synonyms such as turn / colour / loop, descriptions) and shows them as one list, best first. Group chips (Motion, Pen and drawing, Loops, …, Colours) show one group. Keyboard: ↓ into the list, ↑ ↓, Enter opens a card.
+- ~ CHANGE: Examples panel — search (title, idea, or a command the example uses), topic chips with counts (new `;; topic:` header line in every example file), a "uses FOR" filter reached from a command card, and a preview (larger picture, commands used as links to their cards, the code) with "Open in editor" — a click on a card no longer replaces the program at once.
+- + ADDITION: F1 in the editor opens the card of the command at the caret.
+- + ADDITION: `;; shows:` example header — the commands an example is about; it is listed first under those commands. Which commands an example uses is found with the tokenizer (`EXAMPLES[n].uses`), so "Used in" never goes out of date.
+- ~ CHANGE: example pictures moved to `ui/thumbs.ts` (each example run once and cached, any size); `ui/help-nav.ts` links the two panels; `editor.insert` / `editor.onHelp`.
+- + ADDITION: tests — every command has an example and every example runs, every word is documented once, See also links resolve, search ranking, example topics / `shows` / `uses`; browser checks for chips, cards, Insert, See also, Used in, F1, Examples search / topics / preview / filter.
+
 ## v8.9  2026-11-11
 **LANGUAGE ADDITIONS, STEP 1 (SETXY, FOREVER, ARC, SETBG, IFELSE AS A VALUE, SHORT-CIRCUIT AND / OR)**
 - + ADDITION: `SETXY x y` (= `SETPOS`), `SETX x`, `SETY y` — draw like SETPOS, OUCH at the edge.

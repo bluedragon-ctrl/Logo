@@ -11,6 +11,10 @@ export function openOverlay(id: string): void {
   });
 }
 export function closeOverlay(id: string): void { byId(id).classList.remove('open'); }
+// showOverlay: opens the target (never toggles it closed) and closes the others.
+export function showOverlay(id: string): void {
+  OVERLAYS.forEach(oid => byId(oid).classList.toggle('open', oid === id));
+}
 
 byId('btn-ref').onclick      = ()=>openOverlay('ref-overlay');
 byId('btn-ref-close').onclick = ()=>closeOverlay('ref-overlay');

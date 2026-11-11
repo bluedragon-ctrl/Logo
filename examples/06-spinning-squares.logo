@@ -1,5 +1,7 @@
 ;; title: Spinning Squares
 ;; desc: Eight squares rotated around the centre
+;; topic: Loops
+;; shows: REPEAT
 REPEAT 8 [
   REPEAT 4 [ FD 110 RT 90 ]
   RT 45

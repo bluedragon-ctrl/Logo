@@ -1,5 +1,7 @@
 ;; title: Coloured Star
 ;; desc: Star with thick red lines
+;; topic: Colour
+;; shows: SETWIDTH, SETCOLOR
 SETCOLOR 200 40 20
 SETWIDTH 4
 REPEAT 5 [ FD 200 RT 144 ]

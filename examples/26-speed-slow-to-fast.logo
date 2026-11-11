@@ -1,5 +1,7 @@
 ;; title: SPEED — Slow to Fast
 ;; desc: Draws the same square 4 times, each faster than the last
+;; topic: First steps
+;; shows: SPEED
 ; Each pass through the loop increases speed 1→4
 SETWIDTH 2
 FOR :S 1 4 [

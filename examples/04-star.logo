@@ -1,3 +1,5 @@
 ;; title: Star
 ;; desc: Five pointed star — 144 degree turns
+;; topic: First steps
+;; shows: REPEAT, RT
 REPEAT 5 [ FD 200 RT 144 ]

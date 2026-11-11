@@ -1,4 +1,6 @@
 ;; title: Square
 ;; desc: The classic — 4 sides, 90 degree turns
+;; topic: First steps
+;; shows: REPEAT, FD, RT
 ; Logo doesn't mind upper or lower case: fd = FD
 repeat 4 [ fd 150 rt 90 ]

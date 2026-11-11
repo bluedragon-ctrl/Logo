@@ -1,5 +1,7 @@
 ;; title: Named Colours — Colour Wheel
 ;; desc: Six spokes using named colours and LABEL
+;; topic: Colour
+;; shows: SETCOLOR, LABEL
 ; Colour wheel — named colours and LABEL
 HT SETWIDTH 6
 PU HOME PD
