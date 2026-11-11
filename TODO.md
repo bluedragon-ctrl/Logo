@@ -44,9 +44,9 @@ Missing language features (review of Nov 2026), in the agreed order:
 - [ ] Maybe later: an interactive example (it cannot be in `examples/` while every example must finish on its own in the tests); a click queue (`CLICKP`) if polling `BUTTONP` proves too coarse
 
 **Step 3 — v9.0: words and lists (MAJOR, breaking)**
-- [x] Design written: `docs/design-v9-lists.md` (value model, list literals, primitives, binding change, phases A–D, open questions). Implementation later, as its own release series.
+- [x] Design written and decided: `docs/design-v9-lists.md` — follows UCBLogo (value model, list literals, primitives with UCBLogo names, `true` / `false`, FOREACH templates, UCBLogo input binding, phases A–D). Implementation later, as its own release series.
 - [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. See the design document; lists cannot be changed in place.
-- [ ] Decide whether two-input functions (`DISTANCE`, `TOWARDS`, `MAX` …) should bind their inputs like `SQRT` does — `DISTANCE 0 0 > 5` currently means `DISTANCE 0 (0 > 5)` (documented in lang-spec §3.3 / §7; a breaking change, so together with lists)
+- [ ] UCBLogo rules in v9.0 (decided, design §6 / §2): every prefix function input is a full expression (`SQRT 16 + 9` = 5, drops the v8 one-operand rule); predicates and comparisons output `true` / `false` and conditions require them
 
 Not planned: multiple turtles, property lists, file I/O (SAVE / LOAD buttons cover it), `DEFINE` / `TEXT`, macros, `CATCH` / `THROW`.
 
