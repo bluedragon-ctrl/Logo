@@ -2,7 +2,8 @@
 // for snapshot tests. Snapshot diffs then show WHAT changed, not just that a
 // number changed:
 //   segments 120 · dots 0 · labels 0 · bounds x -224..220 y -225..208 · hash 1a2b3c4d
-//   a COLS × ROWS character picture of the whole canvas: # line, o dot, labels as text
+//   a COLS × ROWS character picture of the whole canvas: # line, o dot, + filled, labels as text
+//   (fills appear in the header and the hash only when there are some)
 // The hash covers every segment (coordinates and width to 0.01, colour) and label,
 // so any change to the picture changes it, including ones too small to see in the
 // character grid.
@@ -26,6 +27,15 @@ export function drawingPicture(d: Drawing, width: number, height: number): strin
   };
   const r2 = (v: number) => Math.round(v * 100) / 100;
   let dots = 0, x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, data = '';
+  // Fills first, so lines are drawn over them: a cell is filled when its centre is
+  // inside the polygon (non-zero winding, like the canvas).
+  for (const f of d.fills) {
+    data += 'F' + f.at + ':' + f.pts.map(r2).join(',') + ':' + [f.r, f.g, f.b].join(',') + ';';
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const px = (c + 0.5) / COLS * width - width / 2, py = height / 2 - (r + 0.5) / ROWS * height;
+      if (winding(f.pts, px, py) !== 0) grid[r][c] = '+';
+    }
+  }
   for (let i = 0; i < d.len; i++) {
     const f = d.f32, u = d.u8, fi = i * 5, ci = i * 3;
     const [ax, ay, bx, by] = [f[fi], f[fi + 1], f[fi + 2], f[fi + 3]];
@@ -41,6 +51,19 @@ export function drawingPicture(d: Drawing, width: number, height: number): strin
     [...lab.text].forEach((ch, k) => { if (r >= 0 && r < ROWS && c + k >= 0 && c + k < COLS) grid[r][c + k] = ch; });
   }
   const bounds = d.len ? `x ${Math.round(x0)}..${Math.round(x1)} y ${Math.round(y0)}..${Math.round(y1)}` : 'empty';
-  const head = `segments ${d.len - dots} · dots ${dots} · labels ${d.labels.length} · bounds ${bounds} · hash ${fnv1a(data)}`;
+  const fills = d.fills.length ? ` · fills ${d.fills.length}` : '';
+  const head = `segments ${d.len - dots} · dots ${dots} · labels ${d.labels.length}${fills} · bounds ${bounds} · hash ${fnv1a(data)}`;
   return '\n' + head + '\n' + grid.map(row => row.join('')).join('\n') + '\n';
+}
+
+// winding(pts, x, y): winding number of the closed polygon pts (x0, y0, x1, y1, …) around (x, y).
+function winding(pts: number[], x: number, y: number): number {
+  let w = 0;
+  for (let k = 0, n = pts.length; k < n; k += 2) {
+    const ax = pts[k], ay = pts[k + 1], bx = pts[(k + 2) % n], by = pts[(k + 3) % n];
+    const side = (bx - ax) * (y - ay) - (x - ax) * (by - ay);
+    if (ay <= y) { if (by > y && side > 0) w++; }
+    else if (by <= y && side < 0) w--;
+  }
+  return w;
 }

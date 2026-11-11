@@ -36,6 +36,7 @@ Specification is split into two files:
 | `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples (run, fit, drawing snapshots in `__snapshots__/`), the commands reference, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.ts` runs a program headlessly; `drawing-picture.ts` turns a drawing into a character picture + hash. |
 | `tests/run-examples.js` | Browser test (Playwright) against the built `dist/`: all examples, beautify idempotency, the shared cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
+| `docs/design-v9-lists.md` | Design proposal for v9.0 words and lists (not implemented yet; open questions in §11). |
 | `docs/review-v8.7.md` | v8.7 review of interpreter, language and examples (all items resolved in v8.8; kept for reference). |
 | `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
@@ -46,7 +47,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.11** (`package.json` → `8.11.0`)
+Current version: **v8.12** (`package.json` → `8.12.0`)
 
 ---
 
@@ -55,8 +56,8 @@ Current version: **v8.11** (`package.json` → `8.11.0`)
 Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — CodeMirror 6 with a Logo `StreamLanguage`, line numbers, bracket matching; `format/beautify.ts`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.ts` imports everything; UI modules wire their DOM handlers on import.
 
 **The core has no DOM** — `interpreter/`, `turtle/`, `format/` cannot use browser APIs (`tsconfig.core.json` type-checks them without the DOM library) and cannot import `render/`, `ui/`, `editor/`, `app.ts` (ESLint `no-restricted-imports`). That is what lets Vitest run the interpreter in Node.
-- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving, background }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
-- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `logs`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
+- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving, background, edge, fillPath }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
+- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `logs`, `render`, `paintLine`, `paintLabel`, `paintFill`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`, `keyWaiting`, `readKey`, `mouse`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
 
 **Module state rule:** change session fields, never replace the session (`session.turtle` and `session.procs` are reset in place, too). For UI state held in module variables, a module never assigns to a variable it imports (ES modules forbid it; ESLint `no-import-assign` catches it) — the owner exports a setter: `setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`. Export only what other modules use.
 
@@ -74,7 +75,7 @@ btn-run → parseProgram(editor.getValue(), io) → tokenize() → extractProced
 
 ### RunContext (`rctx`)
 
-Created by `makeRunContext(speed, session, io)` per run. Fields: `session`, `io`, `stopped` (kill switch, set by `haltRun()`), `execLine` `{n, text}` (current source line for errors), `speed` 0–4 (slider snapshot; `SPEED n` updates it and the slider, which the RUN button restores afterwards), `procs` (= `session.procs`), `globals` (root scope, set by `run()`), `exprDepth`, yield bookkeeping (`instantStepCount`, `frameUsed`, `steps`, `lastYield`), `wake` (ends a WAIT early), `onFinish` (callback after unwind; CLR uses it).
+Created by `makeRunContext(speed, session, io)` per run. Fields: `session`, `io`, `stopped` (kill switch, set by `haltRun()`), `execLine` `{n, text}` (current source line for errors), `speed` 0–4 (slider snapshot; `SPEED n` updates it and the slider, which the RUN button restores afterwards), `procs` (= `session.procs`), `globals` (root scope, set by `run()`), `exprDepth`, yield bookkeeping (`instantStepCount`, `frameUsed`, `steps`, `lastYield`), `wake` (ends a WAIT early), `onFinish` (callback after unwind; CLR uses it), `timerStart` (TIMER).
 
 **Invariants to preserve:**
 - Every interpreter function receives `rctx` and reaches state only via `rctx.session` and the outside world only via `rctx.io`.
@@ -110,10 +111,11 @@ newLine(tokens, idx) → bool · noteTok(tok, rctx)   (Token = {text, line, col,
 setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)
-move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · arc(deg, r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · clipForRun(rctx, x0,y0,x1,y1)
+move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · arc(deg, r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · edgePath(rctx, sx,sy,ex,ey) → {pieces, endX, endY, hit}
 tick(rctx) · spendFrame(rctx, part) · nextFrame(rctx) · macroYield(rctx) · sleep(ms, rctx)
-trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · clearScreen(session, io, {keepBackground}?) · clearProcs(session)
-render() · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab)        (browser only)
+trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · beginFill(session) · notePoint(session) · endFill(rctx) → bool · clearScreen(session, io, {keepSettings}?) · clearProcs(session)
+procInputs(tokens, idx(), name, proc, parens, read) → count · bindDefaults(name, proc, got, scope, rctx)   (Proc = {params, required, defaults, body})
+render() · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab) · paintFill(fill)        (browser only)
 ```
 
 ---
@@ -126,10 +128,10 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 |---|---|
 | `app.ts` | The page's `session` and browser `io` |
 | `render/` | `canvas.ts` (CW/CH/DPR) · `sprite.ts` · `background.ts` · `paint.ts` (`paintDrawing` — pure, any 2D context) · `trail.ts` (`trailCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas`) · `render.ts` |
-| `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label store) · `motion.ts` (`move`, `rotate`, `circle`, `clipToCanvas`, `ouch`) |
-| `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
+| `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label + fill store, `beginFill` / `notePoint` / `endFill`) · `motion.ts` (`move`, `rotate`, `circle`, `arc`, `edgePath` for FENCE / WRAP / WINDOW, `clipToCanvas`, `ouch`) |
+| `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`, `PAREN_CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
 | `editor/editor.ts`, `editor/logo-language.ts`, `format/beautify.ts` | CodeMirror setup behind the `Editor` interface; Logo highlighting tokenizer; pure formatter |
-| `ui/` | `console.ts` (`log`) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` (`tryInDirect`) · `splitter.ts` · `overlays.ts` · `reference-panel.ts` (Commands, from `REFERENCE`: chips, ranked search, cards) · `examples-overlay.ts` (search, topics, cards, preview) · `thumbs.ts` (example pictures) · `help-nav.ts` (links between the panels, F1) · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
+| `ui/` | `console.ts` (`log`) · `input.ts` (key queue + mouse for KEYP / READKEY / MOUSEX …) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` (`tryInDirect`) · `splitter.ts` · `overlays.ts` · `reference-panel.ts` (Commands, from `REFERENCE`: chips, ranked search, cards) · `examples-overlay.ts` (search, topics, cards, preview) · `thumbs.ts` (example pictures) · `help-nav.ts` (links between the panels, F1) · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
 | `examples.ts` | Loads `examples/*.logo`; `uses` (built-in words per example), `examplesUsing` |
 | `reference.ts` | `REFERENCE` — Commands panel data |
 
@@ -162,6 +164,7 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 |---|---|---|
 | `MAX_TRAIL_SEGS` | 50 000 | Cap on stored segments (one per move, per SETPOS line, per DOT) |
 | `MAX_LABELS` | 500 | Cap on LABELs |
+| `MAX_FILLS` / `MAX_FILL_POINTS` | 1 000 / 10 000 | Cap on fills / corners per fill |
 | `MAX_CIRCLE_R` | 2 000 | Cap on \|radius\| |
 | `MAX_STACK_FRAMES` | 10 000 | runStack frames (non-tail recursion depth) |
 | `MAX_EXPR_DEPTH` | 500 | Expression nesting (parens, unary chains, procedures as values) |
@@ -249,7 +252,7 @@ npm run lint                          # typecheck, then ESLint (unused code, typ
 
 **Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH; must fit 640 × 480; drawing snapshot — a 64 × 24 character picture, bounds and a hash — for every example without `RND`/`RANDOM`; update with `npx vitest run -u` only for intended changes), the commands reference (every built-in word listed once, nothing extra, every example runs, See also links resolve, search ranking), example metadata (topics, `shows`, `uses`), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.ts` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
 
-**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore, editor typing / Tab / undo / bracket match, Commands chips / search / cards / Try / Insert / See also / Used in, F1 help, Examples pictures / search / topics / preview / Open in editor). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
+**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore, editor typing / Tab / undo / bracket match, Commands chips / search / cards / Try / Insert / See also / Used in, F1 help, Examples pictures / search / topics / preview / Open in editor, SETBG, keys reaching READKEY, the mouse, fills painted and repainted). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
 
 Manual checks still worth doing for UI changes: animated runs at speed 0 look right, STOP mid-animation, resize while idle and while running, font sizes, console toggle, HiDPI sharpness, Ctrl+Z in the editor.
 
@@ -271,14 +274,15 @@ Manual checks still worth doing for UI changes: animated runs at speed 0 look ri
 
 | Reset scope | `CS` / `CLEARSCREEN` | RUN with "clear screen on run" | `CLR` button |
 |---|---|---|---|
-| Trail segments, dots, labels | ✓ | ✓ | ✓ |
+| Trail segments, dots, labels, fills (and an unfinished BEGINFILL) | ✓ | ✓ | ✓ |
 | Turtle pose / pen / colour / width (`mkTurtle`) | ✓ | ✓ | ✓ |
 | `SETBG` background (`session.background`) | ✗ | ✓ | ✓ |
+| Edge mode `WRAP` / `WINDOW` (`session.edge`, back to FENCE) | ✗ | ✓ | ✓ |
 | Variables (`session.globals`) | ✗ | ✓ | ✓ |
 | Procedures (`session.procs`) | ✗ | re-parsed | ✓ |
 | Console log | ✗ | ✓ | ✓ |
 
-All three use `clearScreen(session, io)`. `resizeCanvas()` only resets turtle **position and heading**, and only when no run is active (`activeRctx === null`).
+All three use `clearScreen(session, io)` (CS with `{ keepSettings: true }`). `resizeCanvas()` only resets turtle **position and heading**, and only when no run is active (`activeRctx === null`).
 
 ---
 
@@ -298,5 +302,9 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Look:** colours and font stacks are CSS variables in `:root` of `app.css` (impl-spec §4.1a); syntax colours are in `editor.ts`. Keep text at ≥ 4.5:1 contrast, buttons neutral (only Run / Stop coloured), sentence case except Logo commands.
 - **Editor = CodeMirror 6** (`src/editor/`): it owns text, caret, undo, IME and paste. The rest of the app uses only the `Editor` interface (`getValue`, `setValue`, `initValue`, `onChange`, `focus`). `document.execCommand('copy')` remains only as the copy-button fallback.
 - **Short-circuit `AND` / `OR`** (v8.9) and IFELSE-as-a-value use the parser's skip mode (`p.skip`): the skipped tokens are parsed and checked but nothing is computed or run.
+- **Edge modes** (v8.11): `move` and `goTo` (SETPOS, SETXY, SETX, SETY, HOME) split their path with `edgePath` — FENCE clips + OUCH, WRAP splits into pieces across the edges, WINDOW leaves it whole. `HOME` draws with the pen down (since v8.11).
+- **Fills** (v8.11): `BEGINFILL` records the turtle's end points (`notePoint` after every move / goTo); `ENDFILL` stores a polygon `{at, …}` painted just before segment `at`, i.e. under the outline. Fill colour = pen colour at BEGINFILL.
+- **Parentheses at statement level** (v8.11): `(PRINT …)` / `(LABEL …)` take several inputs (`PAREN_CMD`), `(PROC a b c)` passes optional inputs (`TO P :A [:B 1]`). Without parentheses a procedure takes only its required inputs.
+- **Keyboard / mouse** (v8.11): `KEYP`, `READKEY` (waits; key codes A = 65, arrows 37–40), `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER` — through `io.keyWaiting` / `readKey` / `mouse`. Keys are queued only while a program runs and not typed into a text field.
 - **`ARC`** walks the true arc (half-step turns, exact end point); **`CIRCLE`** keeps its older polygon so existing drawings do not move.
-- **Not implemented:** `FILL`, edge modes, keyboard/mouse input, list/string values (and so `PENCOLOR`). Planned order: `TODO.md` → Language.
+- **Not implemented:** flood `FILL`, list/string values (and so `PENCOLOR`). Planned order: `TODO.md` → Language.

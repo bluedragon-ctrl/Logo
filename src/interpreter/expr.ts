@@ -1,7 +1,9 @@
 import { CMD } from './commands.ts';
 import { CONTROL_WORDS, extractBlock } from './procedures.ts';
 import { runExpr } from './runtime.ts';
+import { nextFrame } from './pacing.ts';
 import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
+import { STOP_SIGNAL } from './signals.ts';
 import { newLine } from './tokenizer.ts';
 import type { Proc, RunContext, Scope, Token, Turtle } from './types.ts';
 
@@ -21,7 +23,15 @@ export const QUERY_TOKENS = new Map<string, (ts: Turtle, rctx: RunContext) => nu
   ['SCRHEIGHT', (ts, rctx) => rctx.io.canvasSize().h],   // canvas height in Logo units
   ['PENSIZE',   ts => ts.width],
   ['PI',        () => Math.PI],
+  // Interaction (io.ts): keyboard, mouse, time.
+  ['KEYP',      (ts, rctx) => rctx.io.keyWaiting() ? 1 : 0],
+  ['MOUSEX',    (ts, rctx) => rctx.io.mouse().x],
+  ['MOUSEY',    (ts, rctx) => rctx.io.mouse().y],
+  ['BUTTONP',   (ts, rctx) => rctx.io.mouse().down ? 1 : 0],
+  ['TIMER',     (ts, rctx) => (Date.now() - rctx.timerStart) / 1000],   // seconds since the run started or RESETTIMER
 ]);
+// READKEY: a value that waits — the next key press (io.ts, KEY CODES). Parsed in parsePrimary.
+export const READKEY = 'READKEY';
 
 // resolveToken(tok, vars, rctx) → number   — a single value token:
 //   number literal · :var / "var · query token · REPCOUNT / REPCOUNTMAX
@@ -72,7 +82,9 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
 //   primary  ::= '(' expr ')'
 //              | IFELSE expr '[' expr ']' '[' expr ']'   only the chosen block is evaluated
 //              | BINARY2_FN expr expr             TOWARDS x y, MAX a b, …
-//              | PROC_NAME expr*                  user procedure that OUTPUTs
+//              | PROC_NAME expr*                  user procedure that OUTPUTs (its required inputs)
+//              | '(' PROC_NAME expr* ')'          … with some or all of its optional inputs
+//              | READKEY                          waits for a key press
 //              | token                            number, :var, query token, REPCOUNT
 //
 // '~' is the tokenizer's marker for a minus glued to the following operand but
@@ -101,7 +113,7 @@ const MAX_EXPR_DEPTH = 500; // nesting cap: parens, unary chains and procedures-
 // ── Word classes (shared by the procedure extractor and runStack's error messages) ──
 // isReporterWord: a built-in word that produces a value (function, query, REPCOUNT, NOT).
 export function isReporterWord(w: string): boolean {
-  return UNARY.has(w) || BINARY2.has(w) || QUERY_TOKENS.has(w) || w === 'NOT' || w === 'REPCOUNT' || w === 'REPCOUNTMAX';
+  return UNARY.has(w) || BINARY2.has(w) || QUERY_TOKENS.has(w) || w === 'NOT' || w === 'REPCOUNT' || w === 'REPCOUNTMAX' || w === READKEY;
 }
 // isCommandWord: a built-in command or control word that can never be a value.
 // (XCOR / YCOR / HEADING are both: as a statement they log their value.)
@@ -120,9 +132,46 @@ export function isBuiltinWord(w: string): boolean {
 export function checkProcInput(tokens: Token[], idx: number, name: string, proc: Proc, got: number): void {
   const t = tokens[idx]?.text;
   if(t !== undefined && t !== ']' && t !== ')' && (t === 'IFELSE' || !isCommandWord(t))) return;
-  const n = proc.params.length;
-  throw new Error(name + ' needs ' + n + ' input' + (n === 1 ? '' : 's') + ' (' + proc.params.map(p => ':' + p).join(' ') +
+  const n = proc.required;
+  throw new Error(name + ' needs ' + n + ' input' + (n === 1 ? '' : 's') + ' (' + proc.params.slice(0, n).map(p => ':' + p).join(' ') +
                   ')' + (got ? ', got only ' + got : ''));
+}
+
+// procInputs(tokens, idx, name, proc, parens, read) → nextIdx: read the inputs of a
+// call. Without parentheses a procedure takes its required inputs; in a call in
+// parentheses, (NAME a b c), it takes inputs up to the ) — at least the required
+// ones, at most all. read(k) parses input k and returns nothing (the caller stores it).
+// Returns the number of inputs read; for a call in parentheses tokens[idx] is then the ).
+export async function procInputs(tokens: Token[], idx: () => number, name: string, proc: Proc, parens: boolean,
+                                 read: (k: number) => Promise<void>): Promise<number> {
+  if(!parens) {
+    for(let k = 0; k < proc.required; k++) { checkProcInput(tokens, idx(), name, proc, k); await read(k); }
+    return proc.required;
+  }
+  let k = 0;
+  for(; tokens[idx()]?.text !== ')'; k++) {
+    if(tokens[idx()] === undefined || tokens[idx()].text === ']') throw new Error('Missing ) — (' + name + ' … was opened but never closed');
+    if(k === proc.params.length)
+      throw new Error(name + ' takes at most ' + k + ' input' + (k === 1 ? '' : 's') + ' (' + paramList(proc) + ')');
+    await read(k);
+  }
+  if(k < proc.required) checkProcInput(tokens, idx(), name, proc, k);  // throws "needs n inputs"
+  return k;
+}
+// paramList(proc): ':A :B [:C]' — the inputs as written in the TO line (defaults left out).
+export function paramList(proc: Proc): string {
+  return proc.params.map((p, k) => k < proc.required ? ':' + p : '[:' + p + ']').join(' ');
+}
+// bindDefaults(proc, got, scope, rctx): give the optional inputs a call did not pass
+// their default values, in order, in the procedure's own scope (so a default may
+// use the inputs before it: TO BOX :W [:H :W]).
+export async function bindDefaults(name: string, proc: Proc, got: number, scope: Scope, rctx: RunContext): Promise<void> {
+  for(let k = got; k < proc.params.length; k++) {
+    const expr = proc.defaults[k - proc.required];
+    const { value, nextIdx } = await evalExpr(expr, 0, scope, rctx);
+    if(nextIdx < expr.length) throw new Error(name + ': the default of :' + proc.params[k] + ' must be one value, found ' + expr[nextIdx].text + ' after it');
+    scope[proc.params[k]] = value;
+  }
 }
 
 // Comparisons allow for floating-point drift: two numbers are equal when they agree
@@ -259,7 +308,8 @@ async function parsePrimary(p: Parser): Promise<number> {
     return deeper(p, async () => {
       p.paren++;
       try {
-        const v = await parseBinary(p, 1);
+        const name = p.tokens[p.idx]?.text;
+        const v = name !== undefined && hasOwn(p.rctx.procs, name) ? (p.idx++, await procValue(p, name, true)) : await parseBinary(p, 1);
         const close = p.tokens[p.idx]?.text;
         if(close !== ')') throw new Error('Missing ) — a ( was opened but never closed' + (close ? ' (found ' + close + ')' : ''));
         p.idx++;
@@ -285,28 +335,48 @@ async function parsePrimary(p: Parser): Promise<number> {
     const b = await parseBinary(p, 1);
     return p.skip ? 0 : BINARY2_FNS[t](a, b, p.rctx.session.turtle);
   }
-  if(t !== undefined && hasOwn(p.rctx.procs, t)) {
-    // User procedure used as a value: FD DOUBLE 50, OUTPUT :N * FACT :N - 1.
-    // Arguments are full expressions evaluated in the caller's scope.
+  if(t !== undefined && hasOwn(p.rctx.procs, t)) { p.idx++; return procValue(p, t, false); }
+  if(t === READKEY) {
     p.idx++;
-    const proc = p.rctx.procs[t];
-    const scope: Scope = Object.create(p.vars);
-    scope[PROC_SCOPE] = t;
-    for(let k = 0; k < proc.params.length; k++) {
-      checkProcInput(p.tokens, p.idx, t, proc, k);
-      scope[proc.params[k]] = await parseBinary(p, 1);
-    }
     if(p.skip) return 0;
-    // Errors after the call (10 / Z, WAIT Z - 1) belong to this line, not to the
-    // last line the procedure ran: restore the source position on return.
-    const here = { ...p.rctx.execLine };
-    const v = await deeper(p, () => runExpr(t, proc, scope, p.rctx));
-    Object.assign(p.rctx.execLine, here);
-    return v;
+    return readKey(p.rctx);
   }
   p.idx++;
   if(p.skip && t !== undefined && (isVarTok(t) || t === 'REPCOUNT' || t === 'REPCOUNTMAX')) return 0; // not read when skipped
   return resolveToken(t, p.vars, p.rctx);
+}
+
+// procValue(p, name, parens): a user procedure used as a value — FD DOUBLE 50,
+// OUTPUT :N * FACT :N - 1, (BOX 10 20). p.idx is just after the name; in a call in
+// parentheses the ) is left for the caller. Inputs are full expressions evaluated
+// in the caller's scope.
+async function procValue(p: Parser, name: string, parens: boolean): Promise<number> {
+  const proc = p.rctx.procs[name];
+  const scope: Scope = Object.create(p.vars);
+  scope[PROC_SCOPE] = name;
+  const got = await procInputs(p.tokens, () => p.idx, name, proc, parens, async k => { scope[proc.params[k]] = await parseBinary(p, 1); });
+  if(p.skip) return 0;
+  // Errors after the call (10 / Z, WAIT Z - 1) belong to this line, not to the
+  // last line the procedure ran: restore the source position on return.
+  const here = { ...p.rctx.execLine };
+  await bindDefaults(name, proc, got, scope, p.rctx);
+  const v = await deeper(p, () => runExpr(name, proc, scope, p.rctx));
+  Object.assign(p.rctx.execLine, here);
+  return v;
+}
+
+// readKey(rctx): wait for a key press and return its code. The canvas keeps being
+// shown while it waits, and STOP ends the wait.
+async function readKey(rctx: RunContext): Promise<number> {
+  for(;;) {
+    const k = rctx.io.readKey();
+    if(k !== null) return k;
+    if(rctx.stopped) throw STOP_SIGNAL;
+    rctx.io.render();
+    rctx.frameUsed = 0;
+    await nextFrame(rctx);
+    if(rctx.stopped) throw STOP_SIGNAL;
+  }
 }
 
 // blockValue(body, p): the value of an IFELSE block — exactly one expression.

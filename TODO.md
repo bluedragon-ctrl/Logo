@@ -34,16 +34,18 @@ Missing language features (review of Nov 2026), in the agreed order:
 - [x] `IFELSE` as a value: `OUTPUT IFELSE :N < 2 [1] [:N * FACT :N - 1]`
 - [x] Short-circuit `AND` / `OR`
 
-**Step 2 — v8.10: medium effort**
-- [ ] Filled shapes: `BEGINFILL` … `ENDFILL` (record the path as a polygon; new drawing-store item, `paintDrawing`); maybe `FILL` later
-- [ ] Edge modes `WRAP` / `WINDOW` / `FENCE` (today always FENCE + OUCH)
-- [ ] Interaction: `TIMER`, `KEYP` / `READKEY`, maybe `MOUSEX` / `MOUSEY` / clicks — each a new `io` method (browser + headless)
-- [ ] Several values in one `PRINT` / `LABEL`: `(PRINT "Score: :N)`
-- [ ] Optional procedure inputs / default values (low priority)
-- [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
+**Step 2 — v8.11: medium effort**
+- [x] Filled shapes: `BEGINFILL` … `ENDFILL` (path recorded as a polygon, drawing-store `fills`, painted under the outline); a flood `FILL` is not planned
+- [x] Edge modes `WRAP` / `WINDOW` / `FENCE` (FENCE + OUCH stays the default)
+- [x] Interaction: `TIMER` / `RESETTIMER`, `KEYP` / `READKEY` (key codes), `MOUSEX` / `MOUSEY` / `BUTTONP` — io methods `keyWaiting`, `readKey`, `mouse`
+- [x] Several values in one `PRINT` / `LABEL`: `(PRINT "Score: :N)`
+- [x] Optional procedure inputs with default values: `TO BOX :W [:H 50]`, `(BOX 10 20)`
+- [x] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
+- [ ] Maybe later: an interactive example (it cannot be in `examples/` while every example must finish on its own in the tests); a click queue (`CLICKP`) if polling `BUTTONP` proves too coarse
 
 **Step 3 — v9.0: words and lists (MAJOR, breaking)**
-- [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. Design as its own step; possibly no list mutation.
+- [x] Design written: `docs/design-v9-lists.md` (value model, list literals, primitives, binding change, phases A–D, open questions). Implementation later, as its own release series.
+- [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. See the design document; lists cannot be changed in place.
 - [ ] Decide whether two-input functions (`DISTANCE`, `TOWARDS`, `MAX` …) should bind their inputs like `SQRT` does — `DISTANCE 0 0 > 5` currently means `DISTANCE 0 (0 > 5)` (documented in lang-spec §3.3 / §7; a breaking change, so together with lists)
 
 Not planned: multiple turtles, property lists, file I/O (SAVE / LOAD buttons cover it), `DEFINE` / `TEXT`, macros, `CATCH` / `THROW`.

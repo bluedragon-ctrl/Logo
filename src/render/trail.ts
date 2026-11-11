@@ -1,8 +1,8 @@
 import { CH, CW, DPR, canvas } from './canvas.ts';
 import { session } from '../app.ts';
-import type { Label } from '../interpreter/types.ts';
+import type { Fill, Label } from '../interpreter/types.ts';
 import { context2d } from '../util.ts';
-import { paintDrawing, paintLabelOn } from './paint.ts';
+import { paintDrawing, paintFillOn, paintLabelOn } from './paint.ts';
 
 // ── Trail layer ───────────────────────────────────────────────────────────────
 // trailCanvas caches everything the turtle has drawn, so render() composites it
@@ -41,6 +41,8 @@ export function paintLine(x1: number, y1: number, x2: number, y2: number, w: num
 }
 // paintLabel — draw one label entry onto trailCanvas.
 export function paintLabel(lab: Label): void { paintLabelOn(trailCtx, lab, CW/2, CH/2); }
+// paintFill — draw one fill onto trailCanvas (on top: nothing was drawn after its BEGINFILL).
+export function paintFill(f: Fill): void { paintFillOn(trailCtx, f, CW/2, CH/2); }
 
 // rebuildTrailCanvas(): repaint all stored segments and labels onto trailCanvas from
 // scratch (render/paint.ts). Called after canvas resize (trailCanvas must match the

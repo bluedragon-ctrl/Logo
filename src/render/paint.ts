@@ -1,4 +1,4 @@
-import type { Drawing, Label } from '../interpreter/types.ts';
+import type { Drawing, Fill, Label } from '../interpreter/types.ts';
 
 // ── Painting a drawing ────────────────────────────────────────────────────────
 // Pure painters from session.drawing (turtle/drawing.ts) onto any 2D context,
@@ -18,8 +18,21 @@ export function paintLabelOn(c: CanvasRenderingContext2D, lab: Label, hw: number
   c.restore();
 }
 
+// paintFillOn: one filled polygon (BEGINFILL … ENDFILL). Non-zero winding, so a
+// star drawn with REPEAT 5 [ FD 100 RT 144 ] is filled completely.
+export function paintFillOn(c: CanvasRenderingContext2D, f: Fill, hw: number, hh: number): void {
+  const p = f.pts;
+  c.fillStyle = `rgb(${f.r},${f.g},${f.b})`;
+  c.beginPath();
+  c.moveTo(hw + p[0], hh - p[1]);
+  for(let k = 2; k < p.length; k += 2) c.lineTo(hw + p[k], hh - p[k + 1]);
+  c.closePath();
+  c.fill('nonzero');
+}
+
 // paintDrawing: every stored segment (a DOT is a zero-length segment, painted as a
-// filled circle of diameter = width), then the labels on top.
+// filled circle of diameter = width), each fill just before the segments drawn
+// after its BEGINFILL (fill.at), then the labels on top.
 // minWidth: thinnest stroke in context units (thumbnails scale down; keep lines visible).
 //
 // Performance (OPT-5): hw/hh hoisted; strokeStyle / lineWidth written only when they
@@ -27,8 +40,10 @@ export function paintLabelOn(c: CanvasRenderingContext2D, lab: Label, hw: number
 export function paintDrawing(c: CanvasRenderingContext2D, d: Drawing, hw: number, hh: number, minWidth = 0): void {
   c.lineCap = 'round'; c.lineJoin = 'round';
   const { f32, u8, len } = d;
-  let lastR = -1, lastG = 0, lastB = 0, lastW = 0;
+  let lastR = -1, lastG = 0, lastB = 0, lastW = 0, nextFill = 0;
+  const fills = d.fills;
   for(let i = 0; i < len; i++){
+    while(nextFill < fills.length && fills[nextFill].at <= i){ paintFillOn(c, fills[nextFill++], hw, hh); lastR = -1; }
     const fi = i*5, ci = i*3;
     const r = u8[ci], g = u8[ci+1], b = u8[ci+2], w = Math.max(f32[fi+4], minWidth);
     const x1 = f32[fi], y1 = f32[fi+1], x2 = f32[fi+2], y2 = f32[fi+3];
@@ -47,10 +62,11 @@ export function paintDrawing(c: CanvasRenderingContext2D, d: Drawing, hw: number
       c.stroke();
     }
   }
+  while(nextFill < fills.length) paintFillOn(c, fills[nextFill++], hw, hh);
   for(const lab of d.labels) paintLabelOn(c, lab, hw, hh);
 }
 
-// drawingBounds: bounding box of the segments and label anchors, or null when empty.
+// drawingBounds: bounding box of the segments, fills and label anchors, or null when empty.
 export function drawingBounds(d: Drawing): { x0: number; y0: number; x1: number; y1: number } | null {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const grow = (x: number, y: number, pad: number) => {
@@ -61,6 +77,7 @@ export function drawingBounds(d: Drawing): { x0: number; y0: number; x1: number;
     const fi = i*5, pad = d.f32[fi+4] / 2;
     grow(d.f32[fi], d.f32[fi+1], pad); grow(d.f32[fi+2], d.f32[fi+3], pad);
   }
+  for(const f of d.fills) for(let k = 0; k < f.pts.length; k += 2) grow(f.pts[k], f.pts[k + 1], 0);
   for(const lab of d.labels){ grow(lab.x, lab.y, 0); grow(lab.x + 8 * lab.text.length, lab.y + 12, 0); }
   return x0 === Infinity ? null : { x0, y0, x1, y1 };
 }

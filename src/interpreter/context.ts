@@ -18,6 +18,7 @@ import type { LogoIO, RunContext, Session } from './types.ts';
 //             browser stays responsive (and STOP clickable) in every program.
 //   wake:     set while WAIT sleeps; haltRun() calls it to end the sleep early.
 //   onFinish: optional callback run once the program has fully unwound (CLR uses it).
+//   timerStart: Date.now() at the start of the run or the last RESETTIMER (TIMER).
 
 export function makeRunContext(speed: number, session: Session, io: LogoIO): RunContext {
   return {
@@ -35,6 +36,7 @@ export function makeRunContext(speed: number, session: Session, io: LogoIO): Run
     lastYield:        Date.now(),
     wake:             null,
     onFinish:         null,
+    timerStart:       Date.now(),
   };
 }
 export let activeRctx: RunContext | null = null; // reference to the currently-executing run context; set by runProgram()

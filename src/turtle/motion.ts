@@ -1,7 +1,7 @@
 import { DEG_PER_FRAME, INSTANT_FLUSH, STEPS_PER_FRAME, macroYield, spendFrame } from '../interpreter/pacing.ts';
 import { formatNum } from '../interpreter/scope.ts';
 import { STOP_SIGNAL } from '../interpreter/signals.ts';
-import { trailPushIfRoom, trailPushQuiet } from './drawing.ts';
+import { notePoint, trailPushIfRoom, trailPushQuiet } from './drawing.ts';
 import type { RunContext, Session } from '../interpreter/types.ts';
 
 // ── Motion ────────────────────────────────────────────────────────────────────
@@ -18,19 +18,61 @@ export function clipToCanvas(x0: number, y0: number, x1: number, y1: number, w: 
   tt = Math.max(0, tt);
   return [x0 + dx * tt, y0 + dy * tt];
 }
-// clipForRun(rctx, x0,y0,x1,y1): clipToCanvas against the current canvas size.
-export function clipForRun(rctx: RunContext, x0: number, y0: number, x1: number, y1: number): [number, number] | null {
-  const { w, h } = rctx.io.canvasSize();
-  return clipToCanvas(x0, y0, x1, y1, w, h);
-}
-// advanceWalk(session): step the sprite animation counter (16-bit wrap avoids
-// float precision loss over long programs).
-function advanceWalk(session: Session): void { session.walkTick = (session.walkTick + 1) & 0xFFFF; }
-
 // Floating-point drift: sin/cos of 90°, 180° … are not exactly 0, so after
 // REPEAT 4 [FD 100 RT 90] XCOR would be 1.4e-14. Positions and headings are kept
 // on a 1e-9 grid (far below a pixel), so closed shapes end exactly where they began.
 const snap = (v: number): number => Math.round(v * 1e9) / 1e9;
+
+// ── Edge modes ────────────────────────────────────────────────────────────────
+// What happens when a straight path (FD, BK, SETPOS, HOME, …) reaches the canvas edge:
+//   FENCE  (default) the turtle stops at the edge and the run ends: OUCH!
+//   WRAP   it leaves on one side and comes back in on the opposite side
+//   WINDOW it walks on off the canvas (what it draws there is not seen)
+// edgePath(rctx, sx,sy, ex,ey) splits the path into the pieces drawn on the canvas.
+//   pieces: [x0,y0,x1,y1] each — WRAP jumps to the opposite edge between pieces
+//   endX/endY: where the turtle ends; hit: FENCE stopped it at the edge.
+export interface EdgePath { pieces: [number, number, number, number][]; endX: number; endY: number; hit: boolean }
+const MAX_WRAP_PIECES = 1000;  // FD 1E9 in WRAP: draw this many crossings, then jump to the end
+export function edgePath(rctx: RunContext, sx: number, sy: number, ex: number, ey: number): EdgePath {
+  const mode = rctx.session.edge;
+  if(mode === 'window') return { pieces: [[sx, sy, ex, ey]], endX: ex, endY: ey, hit: false };
+  const { w, h } = rctx.io.canvasSize();
+  if(mode === 'fence'){
+    const hit = clipToCanvas(sx, sy, ex, ey, w, h);
+    const [hx, hy] = hit || [ex, ey];
+    return { pieces: [[sx, sy, hx, hy]], endX: hx, endY: hy, hit: !!hit };
+  }
+  // WRAP: walk to the edge, jump across, go on with what is left of the path.
+  const HW = w / 2, HH = h / 2, eps = 1e-9 * Math.max(1, HW, HH);
+  const pieces: EdgePath['pieces'] = [];
+  let x = sx, y = sy, rx = ex - sx, ry = ey - sy;
+  for(let n = 0; n < MAX_WRAP_PIECES; n++){
+    const hit = clipToCanvas(x, y, x + rx, y + ry, w, h);
+    if(!hit){ pieces.push([x, y, snap(x + rx), snap(y + ry)]); return { pieces, endX: snap(x + rx), endY: snap(y + ry), hit: false }; }
+    let [hx, hy] = hit;
+    if(Math.abs(hx - HW) < eps) hx = HW; else if(Math.abs(hx + HW) < eps) hx = -HW;   // exactly on the edge
+    if(Math.abs(hy - HH) < eps) hy = HH; else if(Math.abs(hy + HH) < eps) hy = -HH;
+    pieces.push([x, y, hx, hy]);
+    rx -= hx - x; ry -= hy - y;
+    let nx = hx, ny = hy;
+    if(rx > 0 && hx >= HW) nx = -HW; else if(rx < 0 && hx <= -HW) nx = HW;
+    if(ry > 0 && hy >= HH) ny = -HH; else if(ry < 0 && hy <= -HH) ny = HH;
+    if(nx === hx && ny === hy) break;                       // no edge crossed: give up drawing
+    x = nx; y = ny;
+  }
+  return { pieces, endX: wrapCoord(ex, HW), endY: wrapCoord(ey, HH), hit: false };
+}
+// wrapCoord(v, half): v folded into -half … half (WRAP).
+export function wrapCoord(v: number, half: number): number {
+  if(v >= -half && v <= half) return v;
+  const span = 2 * half;
+  return snap(((v + half) % span + span) % span - half);
+}
+
+// advanceWalk(session): step the sprite animation counter (16-bit wrap avoids
+// float precision loss over long programs).
+function advanceWalk(session: Session): void { session.walkTick = (session.walkTick + 1) & 0xFFFF; }
+
 // normAngle: heading in [0, 360), snapped like positions (RT 0.1 × 3600 → 0).
 export function normAngle(a: number): number { const r = snap(((a % 360) + 360) % 360); return r >= 360 ? 0 : r; }
 
@@ -42,30 +84,29 @@ export function ouch(rctx: RunContext): never {
 }
 
 // move(dist, rctx): translate turtle by dist along its heading (dist < 0 = backward).
-// If the path leaves the canvas, the turtle walks to the edge and the run stops.
+// At the canvas edge the edge mode decides (edgePath): FENCE walks to the edge and
+// ends the run, WRAP comes back in on the other side, WINDOW walks on.
 //
-// Animated mode (speed 0–3): the path is split into ~1.2 sub-steps per pixel; each
-//   costs 1/STEPS_PER_FRAME[speed] of a frame (spendFrame — the budget is shared
-//   with the commands before and after). Sub-steps are painted only; one trail
-//   segment is stored for the whole move (or the part walked before STOP). A move
-//   of length 0 costs nothing.
-// Instant mode (speed 4): one segment, no yield; every INSTANT_FLUSH moves the
-//   browser gets a macrotask to paint progress.
+// Animated mode (speed 0–3): each piece of the path is split into ~1.2 sub-steps per
+//   pixel; each costs 1/STEPS_PER_FRAME[speed] of a frame (spendFrame — the budget is
+//   shared with the commands before and after). Sub-steps are painted only; one trail
+//   segment is stored per piece (or the part walked before STOP). A move of length 0
+//   costs nothing.
+// Instant mode (speed 4): one segment per piece, no yield; every INSTANT_FLUSH moves
+//   the browser gets a macrotask to paint progress.
 export async function move(dist: number, rctx: RunContext): Promise<void> {
   const { session, io } = rctx, turtle = session.turtle;
   const a = turtle.angle * Math.PI / 180;
-  const sx = turtle.x, sy = turtle.y;
-  let endX = snap(sx + Math.sin(a) * dist), endY = snap(sy + Math.cos(a) * dist);
-  const hit = clipForRun(rctx, sx, sy, endX, endY);
-  if(hit) [endX, endY] = hit;
+  const path = edgePath(rctx, turtle.x, turtle.y, snap(turtle.x + Math.sin(a) * dist), snap(turtle.y + Math.cos(a) * dist));
   const col = turtle.color, w = turtle.width;
-  const moved = endX !== sx || endY !== sy;
 
   if(rctx.speed >= 4){
-    if(turtle.pen && moved) trailPushIfRoom(rctx, sx, sy, endX, endY, w, col[0], col[1], col[2]);
-    turtle.x = endX; turtle.y = endY;
+    if(turtle.pen) for(const [x0, y0, x1, y1] of path.pieces)
+      if(x0 !== x1 || y0 !== y1) trailPushIfRoom(rctx, x0, y0, x1, y1, w, col[0], col[1], col[2]);
+    turtle.x = path.endX; turtle.y = path.endY;
     advanceWalk(session);
-    if(hit) ouch(rctx);
+    notePoint(session);
+    if(path.hit) ouch(rctx);
     if(++rctx.instantStepCount >= INSTANT_FLUSH){
       rctx.instantStepCount = 0;
       io.render();
@@ -74,25 +115,37 @@ export async function move(dist: number, rctx: RunContext): Promise<void> {
     return;
   }
 
-  const steps = moved ? Math.max(1, Math.round(Math.hypot(endX - sx, endY - sy) * 1.2)) : 0; // 1.2× → smoother diagonals
-  const pen   = turtle.pen && moved;
   session.isMoving = true;
+  for(const [x0, y0, x1, y1] of path.pieces){
+    turtle.x = x0; turtle.y = y0;                     // WRAP: jump to the opposite edge
+    await walk(x0, y0, x1, y1, rctx);
+    if(rctx.stopped) break;
+  }
+  session.isMoving = false;
+  if(!rctx.stopped){ turtle.x = path.endX; turtle.y = path.endY; notePoint(session); }
+  io.render();
+  if(path.hit && !rctx.stopped) ouch(rctx);
+}
+// walk(sx,sy, ex,ey, rctx): animate one straight piece of a move (see move()).
+async function walk(sx: number, sy: number, ex: number, ey: number, rctx: RunContext): Promise<void> {
+  const { session, io } = rctx, turtle = session.turtle;
+  const col = turtle.color, w = turtle.width;
+  const moved = ex !== sx || ey !== sy;
+  const steps = moved ? Math.max(1, Math.round(Math.hypot(ex - sx, ey - sy) * 1.2)) : 0; // 1.2× → smoother diagonals
+  const pen   = turtle.pen && moved;
   for(let i = 1; i <= steps && !rctx.stopped; i++){
     // The speed is read every sub-step: the slider can change it mid-run.
     // Switched to instant → the rest of the move is drawn in one go.
     if(rctx.speed >= 4) i = steps;
     const ox = turtle.x, oy = turtle.y;
-    if(i === steps){ turtle.x = endX; turtle.y = endY; } // snap last step exactly
-    else { turtle.x = sx + (endX - sx) * i / steps; turtle.y = sy + (endY - sy) * i / steps; }
+    if(i === steps){ turtle.x = ex; turtle.y = ey; } // snap last step exactly
+    else { turtle.x = sx + (ex - sx) * i / steps; turtle.y = sy + (ey - sy) * i / steps; }
     if(pen) io.paintLine(ox, oy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
     advanceWalk(session);
     if(rctx.speed < 4) await spendFrame(rctx, 1 / (STEPS_PER_FRAME[rctx.speed] || 1));
   }
-  session.isMoving = false;
   // Store what was actually walked (all of it, or up to where STOP interrupted).
   if(pen && (turtle.x !== sx || turtle.y !== sy)) trailPushQuiet(rctx, sx, sy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
-  io.render();
-  if(hit && !rctx.stopped) ouch(rctx);
 }
 
 // rotate(deg, rctx): turn by deg degrees (positive = clockwise, Logo convention).
@@ -161,5 +214,8 @@ export async function arc(deg: number, r: number, rctx: RunContext): Promise<voi
     await move(chord, rctx);
     await rotate(i < steps - 1 ? aStep : aStep / 2, rctx);
   }
-  if(!rctx.stopped){ t.x = endX; t.y = endY; } // remove the 1e-9 drift of the snapped steps
+  if(!rctx.stopped){                                // remove the 1e-9 drift of the snapped steps
+    if(rctx.session.edge === 'wrap'){ const { w, h } = rctx.io.canvasSize(); t.x = wrapCoord(endX, w / 2); t.y = wrapCoord(endY, h / 2); }
+    else { t.x = endX; t.y = endY; }
+  }
 }

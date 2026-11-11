@@ -27,7 +27,9 @@ export function extractBlock(tokens: Token[], idx: number): { body: Token[]; nex
 //
 // extractProcedures(tokens) → { topLevel: token[], newProcs: {} }
 //   Pure function: moves TO…END blocks out of the token stream. The TO header
-//   (name and parameters) is the rest of the TO line.
+//   (name and parameters) is the rest of the TO line. Optional inputs follow the
+//   required ones, each as [:NAME default]: TO BOX :W [:H 50] — BOX 10 uses
+//   H = 50, (BOX 10 20) passes both.
 // Control-flow words handled inline by runStack (not in CMD).
 export const CONTROL_WORDS = new Set(['IF','IFELSE','REPEAT','FOREVER','WHILE','FOR','STOP','BREAK','CONTINUE','OUTPUT','OP','TO','END']);
 export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProcs: ProcMap } {
@@ -46,12 +48,24 @@ export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProc
         throw new Error('TO: invalid procedure name: ' + name + ' (line ' + defLine + ')');
       if(isBuiltinWord(name))
         throw new Error('TO: ' + name + ' is a built-in word and cannot be redefined (line ' + defLine + ')');
-      const params: string[] = [];
-      while(i < tokens.length && !newLine(tokens, i) && isVarTok(tokens[i].text)) {
-        const p = varName(tokens[i++].text);
+      const params: string[] = [], defaults: Token[][] = [];
+      const addParam = (raw: string) => {
+        const p = varName(raw);
         if(params.includes(p)) throw new Error('TO ' + name + ': input :' + p + ' is listed twice (line ' + defLine + ')');
         params.push(p);
+      };
+      while(i < tokens.length && !newLine(tokens, i) && isVarTok(tokens[i].text)) addParam(tokens[i++].text);
+      const required = params.length;
+      // Optional inputs: [:NAME default] on the TO line.
+      while(i < tokens.length && !newLine(tokens, i) && tokens[i].text === '[' && isVarTok(tokens[i + 1]?.text)) {
+        const { body: opt, nextIdx } = extractBlock(tokens, i);
+        addParam(opt[0].text);
+        if(opt.length < 2) throw new Error('TO ' + name + ': optional input ' + opt[0].text + ' needs a default value, e.g. [' + opt[0].text + ' 0] (line ' + defLine + ')');
+        defaults.push(opt.slice(1));
+        i = nextIdx;
       }
+      if(i < tokens.length && !newLine(tokens, i) && isVarTok(tokens[i].text))
+        throw new Error('TO ' + name + ': input ' + tokens[i].text + ' comes after an optional input — required inputs go first (line ' + defLine + ')');
       const body: Token[] = [];
       while(i < tokens.length && tokens[i].text !== 'END') {
         if(tokens[i].text === 'TO') throw new Error('Procedure ' + name + ' (line ' + defLine + '): missing END before the next TO');
@@ -59,7 +73,7 @@ export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProc
       }
       if(i >= tokens.length) throw new Error('Procedure ' + name + ' (line ' + defLine + '): missing END');
       i++; // consume END
-      newProcs[name] = { params, body };
+      newProcs[name] = { params, required, defaults, body };
     } else if(tok.text === 'END') {
       // LABEL END: the END closed the procedure (or stands alone) — point at the fix.
       const afterLabel = tokens[i - 1]?.text === 'LABEL' || (tokens[i - 1]?.text === 'END' && tokens[i - 2]?.text === 'LABEL');

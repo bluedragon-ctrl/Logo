@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.10 — November 2026
+## Version 8.12 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -68,32 +68,33 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `render/canvas.ts` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
 | `render/sprite.ts` | `drawTurtleSprite` — the flat vector turtle, drawn each frame. |
 | `render/background.ts` | `drawBackground` (flat fill), `canvasStyle`/`turtleStyle` + setters. |
-| `render/paint.ts` | `paintDrawing(ctx, drawing, hw, hh, minWidth?)`, `paintLabelOn`, `drawingBounds`, `LABEL_FONT` — pure painters of a drawing onto any 2D context (trail layer and example pictures). |
-| `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing` with `paintDrawing`). |
+| `render/paint.ts` | `paintDrawing(ctx, drawing, hw, hh, minWidth?)`, `paintFillOn`, `paintLabelOn`, `drawingBounds`, `LABEL_FONT` — pure painters of a drawing onto any 2D context (trail layer and example pictures). |
+| `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `paintFill`, `rebuildTrailCanvas` (paints `session.drawing` with `paintDrawing`). |
 | `render/render.ts` | `render()` (background → trail → turtle; reads `session.turtle`, `walkTick`, `isMoving`, `background`). |
 | **turtle/** | |
 | `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
-| `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `MAX_TRAIL_SEGS`, `MAX_LABELS`. |
-| `turtle/motion.ts` | `clipToCanvas`, `clipForRun`, `ouch`, `move`, `rotate`, `circle`. |
+| `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `beginFill` / `notePoint` / `endFill` (BEGINFILL … ENDFILL), `MAX_TRAIL_SEGS`, `MAX_LABELS`, `MAX_FILLS`, `MAX_FILL_POINTS`. |
+| `turtle/motion.ts` | `clipToCanvas`, `edgePath` (FENCE / WRAP / WINDOW), `wrapCoord`, `ouch`, `move`, `rotate`, `circle`, `arc`. |
 | **interpreter/** | |
-| `interpreter/session.ts` | `createSession`, `clearScreen(session, io)`, `clearProcs`. |
-| `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Drawing`, `Proc`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
+| `interpreter/session.ts` | `createSession`, `clearScreen(session, io, { keepSettings? })`, `clearProcs`. |
+| `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Fill`, `Drawing`, `Proc`, `EdgeMode`, `FillPath`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
 | `interpreter/io.ts` | The LogoIO contract (header comment) and `headlessIO()` (`HeadlessIO`). |
 | `interpreter/context.ts` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
 | `interpreter/execute.ts` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
 | `interpreter/scope.ts` | `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
 | `interpreter/tokenizer.ts` | `tokenize`, `newLine`. |
 | `interpreter/procedures.ts` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
-| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, word classes (`isReporterWord`, `isCommandWord`, `isBuiltinWord`), `checkProcInput`, `approxEq`, `evalExpr` and the precedence parser, `noteTok`. |
+| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, word classes (`isReporterWord`, `isCommandWord`, `isBuiltinWord`), `checkProcInput`, `procInputs` / `bindDefaults` / `paramList` (procedure inputs, optional ones), `READKEY`, `approxEq`, `evalExpr` and the precedence parser, `noteTok`. |
 | `interpreter/signals.ts` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
 | `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `spendFrame`, `tick`, `STEPS_PER_FRAME`, `DEG_PER_FRAME`, `INSTANT_FLUSH`. |
-| `interpreter/commands.ts` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
+| `interpreter/commands.ts` | `CMD` and all leaf handlers, `PAREN_CMD` (`(PRINT …)`, `(LABEL …)`), `COLOR_NAMES`. |
 | `interpreter/runtime.ts` | INTERPRETER header comment (frames, scopes, flow control, tail calls), `runExpr`, `runStack`, `run`. |
 | **editor/, format/** | |
 | `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`): the CodeMirror view, its extensions and highlight style, line indicator. |
 | `editor/logo-language.ts` | `logoLanguage`: CodeMirror `StreamLanguage` that classifies Logo tokens for highlighting (word lists from `CMD`, `CONTROL_WORDS`, `UNARY`, `BINARY2`, `QUERY_TOKENS`). |
 | `format/beautify.ts` | `beautify(src)` — pure. |
 | **ui/** | |
+| `ui/input.ts` | Keyboard and mouse for programs: the key queue (`keyWaiting`, `readKey`, `clearKeys`; keys are queued only while a program runs and not typed into a text field), the pointer over the canvas (`mouse`). |
 | `ui/console.ts` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
 | `ui/program.ts` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
 | `ui/direct.ts` | Direct-mode state, `runDirectCommand`, `tryInDirect` (open direct mode with a line ready to run), direct-mode handlers. |
@@ -111,7 +112,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 ### 1.3 Session and LogoIO
 
-`createSession()` (`interpreter/session.ts`) → `{ turtle, drawing, globals, procs, walkTick, isMoving, background }`. The page has one (`src/app.ts`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)`; RUN and CLR also set `session.globals = {}` and `clearProcs(session)`.
+`createSession()` (`interpreter/session.ts`) → `{ turtle, drawing, globals, procs, walkTick, isMoving, background, edge, fillPath }`. The page has one (`src/app.ts`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)` (CS with `{ keepSettings: true }`: it keeps `background` and `edge`); RUN and CLR also set `session.globals = {}` and `clearProcs(session)`. A RUN without clearing drops an unfinished `fillPath`.
 
 `rctx.io` is the interpreter's only way out (`interpreter/io.ts`):
 
@@ -120,12 +121,16 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `log(msg, cls)` | `ui/console.ts` `log` | collects `{msg, cls}` in `.lines`; `.text()` joins them |
 | `logs(cls)` → bool | `ui/console.ts` `logs`: false when that class's console filter is off | always true |
 | `render()` | `render()` | no-op |
-| `paintLine(x1,y1,x2,y2,w,r,g,b)` / `paintLabel(lab)` | paint on `trailCanvas` | no-op |
+| `paintLine(x1,y1,x2,y2,w,r,g,b)` / `paintLabel(lab)` / `paintFill(fill)` | paint on `trailCanvas` | no-op |
 | `redraw()` | `rebuildTrailCanvas()` | no-op |
 | `clearText()` | empty `#console` | clears `.lines` |
 | `canvasSize()` → `{w, h}` | `{CW, CH}` | fixed (default 800 × 600) |
 | `setSpeed(n)` | moves the speed slider (the RUN button puts it back when the run ends; direct mode keeps it) | no-op |
 | `nextFrame()` / `macroYield()` | `requestAnimationFrame` / `setTimeout(0)` | `setTimeout(0)` |
+| `keyWaiting()` → bool / `readKey()` → code \| null | the key queue of `ui/input.ts` | `.keys` (option `keys`; a test may push more while running) |
+| `mouse()` → `{x, y, down}` | the pointer over the canvas (`ui/input.ts`), Logo coordinates | `.pointer` (option `mouse`) |
+
+Key codes (`READKEY`): A–Z 65–90 whatever the case, 0–9 48–57, space 32, Enter 13, Escape 27, Backspace 8, arrows 37–40 (left, up, right, down); other keys and Ctrl / Alt / Cmd combinations are not queued. The browser queue holds 32 presses and is cleared by `runProgram` at the start of every run.
 
 Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` stores the segment in `session.drawing` and then calls `io.paintLine`.
 
@@ -135,6 +140,8 @@ Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` st
 |---|---|---|
 | `MAX_TRAIL_SEGS` | 50 000 | Cap on stored segments. |
 | `MAX_LABELS` | 500 | LABEL store cap. |
+| `MAX_FILLS` / `MAX_FILL_POINTS` | 1 000 / 10 000 | Fill store cap / corners per fill. |
+| `MAX_WRAP_PIECES` | 1 000 | WRAP: most edge crossings drawn for one move. |
 | `MAX_CIRCLE_R` | 2 000 | Caps \|r\| to prevent runaway animated draws. |
 | `MAX_STACK_FRAMES` | 10 000 | `runStack` frame stack cap (non-tail recursion). |
 | `MAX_EXPR_DEPTH` | 500 | Expression nesting cap (protects the JS call stack). |
@@ -164,6 +171,7 @@ Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 | `instantStepCount`, `frameUsed`, `steps`, `lastYield` | Yield bookkeeping (§2.9). `frameUsed` is the part (0 … 1) of the current animation frame already spent. |
 | `wake` | Set while `WAIT` sleeps; `haltRun()` calls it to end the sleep at once. |
 | `onFinish` | Optional callback run by `runProgram` after full unwind (CLR uses it). |
+| `timerStart` | `Date.now()` at the start of the run or the last `RESETTIMER`; `TIMER` = seconds since then. |
 
 **Invariants:** every interpreter function receives `rctx` and never reads `stopped`/`speed` from globals or the DOM. `activeRctx` points to the live context while a program runs and is reset to `null` in `runProgram`'s `finally`. Only one program runs at a time (RUN button disabled; direct mode refuses while `activeRctx` is set).
 
@@ -184,7 +192,7 @@ into tokens `{ text, line, col, lineText }`: `line` / `col` are 1-based and poin
 
 ### 2.3 Procedure Extractor
 
-`extractProcedures(tokens) → { topLevel, newProcs }` — pure. Moves `TO name :p… body END` out of the stream into `newProcs[name] = { params, body }`; the header (name, parameters) is the rest of the `TO` line. Errors name the line: missing name, invalid name (must match `/^[A-Z_]/`), redefinition of a built-in (CMD, `CONTROL_WORDS`, functions, operators, queries, `REPCOUNT[MAX]`, `NOT`), `TO` inside a body (missing `END`), missing `END`, stray `END`.
+`extractProcedures(tokens) → { topLevel, newProcs }` — pure. Moves `TO name :p… body END` out of the stream into `newProcs[name] = { params, required, defaults, body }`; the header (name, parameters) is the rest of the `TO` line. Optional inputs follow the required ones as `[:NAME default…]` blocks on the `TO` line: `params` lists all names, the first `required` are required, `defaults[k]` holds the default's tokens for `params[required + k]`. A required input after an optional one, and an optional one without a default, are errors. Errors name the line: missing name, invalid name (must match `/^[A-Z_]/`), redefinition of a built-in (CMD, `CONTROL_WORDS`, functions, operators, queries, `REPCOUNT[MAX]`, `NOT`), `TO` inside a body (missing `END`), missing `END`, stray `END`.
 
 ### 2.4 Expression Evaluator
 
@@ -204,11 +212,13 @@ parseUnary(p):  noteTok (an operand is required, so a line break can't end here)
 parsePrimary(p): '(' parseBinary(p,1) ')'   (paren > 0: the expression may span lines)
                  IFELSE cond [a] [b] → blockValue(chosen block): exactly one expression
                  BINARY2 fn  parseBinary(p,1) parseBinary(p,1)
-                 user proc   args = parseBinary(p,1) × params → runExpr
+                 '(' PROC args… ')'   procValue(parens): any number of inputs from required to all
+                 user proc   procValue: args = parseBinary(p,1) × required → bindDefaults → runExpr
+                 READKEY     → waits (render + nextFrame) for io.readKey(); STOP ends the wait (STOP_SIGNAL)
                  token       → resolveToken
 ```
 
-Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD` 5. Unary forms bind tighter than any binary operator. **Skip mode** (`p.skip > 0`, entered with `skipping(p, fn)`) makes `AND` / `OR` short-circuit and passes over IFELSE's unchosen block: tokens are consumed and the syntax checked exactly as usual (so the parse ends at the same place), but nothing is computed — variables and `REPCOUNT` are not read, functions and operators not applied, user procedures not run (`checkProcInput` still runs) — and every skipped part yields 0. Comparisons use `approxEq` (equal within 10⁻¹² relative, absolute near zero); `MOD` has the sign of the divisor. Before each input of a user procedure, `checkProcInput` throws "NAME needs n inputs (:A :B)" when the next token is the end, `]`, `)` or a command word. A non-finite result throws "Number too large". `deeper(p, fn)` wraps every recursive construct (unary chains, parens, procedures-as-values) and throws a Logo error at `MAX_EXPR_DEPTH` instead of hitting the JS stack limit (Chromium survives > 4 000 levels; 500 leaves margin for other engines).
+Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD` 5. Unary forms bind tighter than any binary operator. **Skip mode** (`p.skip > 0`, entered with `skipping(p, fn)`) makes `AND` / `OR` short-circuit and passes over IFELSE's unchosen block: tokens are consumed and the syntax checked exactly as usual (so the parse ends at the same place), but nothing is computed — variables and `REPCOUNT` are not read, functions and operators not applied, user procedures not run (`checkProcInput` still runs), `READKEY` does not wait — and every skipped part yields 0. Comparisons use `approxEq` (equal within 10⁻¹² relative, absolute near zero); `MOD` has the sign of the divisor. Before each input of a user procedure, `checkProcInput` throws "NAME needs n inputs (:A :B)" when the next token is the end, `]`, `)` or a command word. **Procedure inputs** are read by `procInputs` for both statement and value calls: without parentheses the required inputs; in a call in parentheses `(NAME a b …)` inputs up to the `)`, between `required` and all ("NAME takes at most n inputs"). `bindDefaults` then evaluates the defaults of the optional inputs not passed, in order, in the callee's new scope (so a default sees the inputs before it); a default must be exactly one expression. A non-finite result throws "Number too large". `deeper(p, fn)` wraps every recursive construct (unary chains, parens, procedures-as-values) and throws a Logo error at `MAX_EXPR_DEPTH` instead of hitting the JS stack limit (Chromium survives > 4 000 levels; 500 leaves margin for other engines).
 
 ### 2.5 Trampoline Executor (`runStack`)
 
@@ -234,7 +244,8 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 | `BREAK` / `CONTINUE` | Scan down to the innermost loop frame (`isLoopFrame`); hitting a `procBoundary` first → error. BREAK truncates to `k` (drops the loop), CONTINUE to `k + 1` (keeps it). |
 | `IF` / `IFELSE` | Evaluate, `extractBlock` (a block may start on the next line), push the chosen body with the same `vars`. |
 | `REPEAT` / `FOREVER` / `WHILE` / `FOR` | Parse, push the typed control frame. |
-| User procedure | Evaluate the arguments in the caller's scope, apply the **tail-call rule**, push `{ tokens: body, vars: scope, procBoundary, procName, stmtCall: true }`. |
+| `(` | `(PRINT …)` / `(LABEL …)` → `PAREN_CMD[name]` (reads inputs up to the `)`, joins them with spaces); `(PROC …)` → the procedure call below with `parens` (inputs up to the `)`); anything else → error. |
+| User procedure | Read the inputs with `procInputs` in the caller's scope, apply the **tail-call rule**, create the scope, `bindDefaults` for optional inputs not passed, push `{ tokens: body, vars: scope, procBoundary, procName, stmtCall: true }`. |
 | Leaf command | `frame.idx = await CMD[cmd](tokens, idx, vars, rctx)`. |
 | Anything else | Specific error (extra value, operator, value-producing word used as a command, unknown command). |
 
@@ -311,11 +322,11 @@ canvas_y = CH / 2 - logo_y          dy = cos(heading) × dist
 
 ### 3.3 Background
 
-A flat fill: `session.background` when a program set one with `SETBG` (`drawBackground(bg)`), otherwise the Options canvas style — BEIGE `#f4eedf` (default) or WHITE `#ffffff`. Nothing is cached; saved PNGs include it. `clearScreen` resets `session.background` to null except when CS calls it (`{ keepBackground: true }`). The Examples thumbnails fill with it too.
+A flat colour: `session.background` when a program set one with `SETBG` (`drawBackground(bg)`), otherwise the Options canvas style — BEIGE `#f4eedf` (default) or WHITE `#ffffff`. Nothing is cached; saved PNGs include it. `clearScreen` resets `session.background` to null except when CS calls it (`{ keepSettings: true }`). The Examples thumbnails fill with it too.
 
 ### 3.4 Trail Storage
 
-`session.drawing` (`turtle/drawing.ts`) holds two pre-allocated typed arrays: `f32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `u8` (r, g, b), plus `len`, `capWarned`, `labels`, `labelCapWarned`. ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
+`session.drawing` (`turtle/drawing.ts`) holds two pre-allocated typed arrays: `f32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `u8` (r, g, b), plus `len`, `capWarned`, `labels`, `labelCapWarned`, `fills`, `fillCapWarned`. ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
 
 | Function | Purpose |
 |---|---|
@@ -324,9 +335,13 @@ A flat fill: `session.background` when a program set one with `SETBG` (`drawBack
 | `segment(drawing, i)` | Read one segment as `[x1, y1, x2, y2, w, r, g, b]` (tests). |
 | `paintLine(...)` (`render/trail.ts`) | Paint a segment/dot onto `trailCanvas` without storing it. |
 | `rebuildTrailCanvas()` (`render/trail.ts`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels with `paintDrawing` (`render/paint.ts`). |
-| `clearScreen(session, io, { keepBackground? })` (`interpreter/session.ts`) | Reset drawing, turtle and (unless `keepBackground`, which CS passes) `session.background`; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
+| `clearScreen(session, io, { keepSettings? })` (`interpreter/session.ts`) | Reset drawing, turtle, `fillPath` and (unless `keepSettings`, which CS passes) `session.background` and `session.edge`; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
 
 `0 ≤ len ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`capWarned`).
+
+### 3.4a Fills
+
+`session.drawing.fills[]` of `{ at, pts, r, g, b }` (BEGINFILL … ENDFILL), capped at `MAX_FILLS` (1 000) with at most `MAX_FILL_POINTS` (10 000) corners each. `beginFill(session)` starts `session.fillPath = { at: drawing.len, pts: [x, y], rgb: pen colour }`; `notePoint(session)` adds the turtle position after every `move` (also each step of `circle` / `arc`) and every `goTo` (SETPOS, SETXY, SETX, SETY, HOME), skipping repeats; `endFill(rctx)` drops a closing point equal to the start, ignores paths of fewer than 3 corners, and pushes the fill. `at` is the number of segments drawn before BEGINFILL: `paintDrawing` paints each fill just before segment `at` (fills are pushed in order of `at`, so one pass suffices), so it lies under the outline and everything after, over everything before; labels stay on top. Polygons are filled with the non-zero rule. Live painting: if nothing was drawn since BEGINFILL (`at === len`) `io.paintFill` paints it on top — exactly what a repaint shows; otherwise `io.redraw()` rebuilds the trail layer, so live and rebuilt pictures are identical.
 
 ### 3.5 Label Store
 
@@ -350,11 +365,12 @@ Both styles are centred on the pen position and show the pen state as a dot ther
 | 3 | 64 | 192 |
 | 4 (instant) | whole move, no frame | whole turn |
 
-- **`move(dist, rctx)`** computes the end point and clips it with `clipForRun` → `clipToCanvas(…, w, h)` against `io.canvasSize()` (exact segment/rectangle intersection). The end point is snapped to a 10⁻⁹ grid (`snap`), so closed shapes return exactly to their start. Animated: `round(len × 1.2)` sub-steps (none for a zero-length move) interpolated from the start point, each painted with `paintLine` and paid for with `spendFrame(rctx, 1 / STEPS_PER_FRAME[speed])`; after the loop one segment for the distance actually walked is stored (`trailPushQuiet`). Instant: one `trailPushIfRoom`, `macroYield` every `INSTANT_FLUSH` moves. If the path was clipped: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
-- **`SETPOS` / `SETXY` / `SETX` / `SETY`** share `goTo` (`commands.ts`): the same clipping and `ouch(rctx)`, then `tick()`.
+- **Edge modes.** `edgePath(rctx, sx, sy, ex, ey)` → `{ pieces, endX, endY, hit }` splits a straight path by `session.edge` against `io.canvasSize()`: FENCE clips it with `clipToCanvas` (exact segment/rectangle intersection; `hit` → OUCH); WINDOW leaves it whole; WRAP walks to the edge, jumps to the opposite edge on every axis it left through (a corner wraps both), and goes on with the rest of the vector — at most `MAX_WRAP_PIECES` (1 000) pieces, after which the end point is folded onto the canvas with `wrapCoord` and the rest is not drawn. Hit points within 10⁻⁹ of an edge are put exactly on it. `WRAP` / `FENCE` fold an off-canvas turtle (left by WINDOW) back onto the canvas with `wrapCoord`.
+- **`move(dist, rctx)`** computes the end point (snapped to a 10⁻⁹ grid with `snap`, so closed shapes return exactly to their start) and its `edgePath`. Animated: each piece is walked by `walk()` — `round(len × 1.2)` sub-steps (none for a zero-length piece) interpolated from the piece's start, each painted with `paintLine` and paid for with `spendFrame(rctx, 1 / STEPS_PER_FRAME[speed])`; after each piece one segment for the distance actually walked is stored (`trailPushQuiet`); between pieces the turtle jumps to the next piece's start. Instant: one `trailPushIfRoom` per piece, `macroYield` every `INSTANT_FLUSH` moves. Then `notePoint` (fills); if FENCE clipped the path: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
+- **`SETPOS` / `SETXY` / `SETX` / `SETY` / `HOME`** share `goTo` (`commands.ts`): the same `edgePath`, one stored segment per piece (not animated), `notePoint`, `ouch(rctx)` on a FENCE hit, then `tick()`. `HOME` then sets heading 0 (since v8.11 it draws with the pen down, as in UCBLogo).
 - **`rotate(deg, rctx)`** turns in pieces that fill the current frame's remaining budget (`DEG_PER_FRAME[speed]` degrees per frame, `spendFrame`); at the end, unless stopped, the heading is `normAngle(start + deg)` — normalised to [0, 360) and snapped to 10⁻⁹. Instant: `normAngle(angle + deg)` at once.
 - **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
-- **`arc(deg, r, rctx)`** — the same step density (`ceil(max(36, round|r|) × |deg| / 360)` steps), but placed on the true arc: `rotate(step/2)`, then chords `2r·sin(step/2)` separated by full-step turns, a half-step turn at the end. Unless stopped the turtle is then put on the exactly computed end point (centre = start + k·n(h₀), end = centre − k·n(h₀ + deg), n(h) = (cos h, −sin h), k = r·sign(deg)), removing the 10⁻⁹ drift of the snapped steps. `r = 0` only turns. (CIRCLE keeps its older polygon so existing drawings do not move.)
+- **`arc(deg, r, rctx)`** — the same step density (`ceil(max(36, round|r|) × |deg| / 360)` steps), but placed on the true arc: `rotate(step/2)`, then chords `2r·sin(step/2)` separated by full-step turns, a half-step turn at the end. Unless stopped the turtle is then put on the exactly computed end point (centre = start + k·n(h₀), end = centre − k·n(h₀ + deg), n(h) = (cos h, −sin h), k = r·sign(deg)), removing the 10⁻⁹ drift of the snapped steps. In WRAP mode the exact end point is folded onto the canvas with `wrapCoord`. `r = 0` only turns. (CIRCLE keeps its older polygon so existing drawings do not move.)
 
 ---
 
@@ -434,13 +450,13 @@ Options:
 
 ### 4.7 Beautify
 
-`beautify(src)` is a **pure function**; it never calls interpreter code. Invariant: `beautify(beautify(src)) === beautify(src)`.
+`beautify(src)` is a **pure function**; it never calls interpreter code. Invariants: `beautify(beautify(src)) === beautify(src)`, and beautifying an example does not change what it draws (both checked for every example in `tests/unit/examples.test.ts`).
 
 | Pass | Purpose |
 |---|---|
 | 1 | Split lines into code / comment / blank. |
 | 2 | Mark negative signs exactly like `tokenize()` (`-` → `~`, kept glued to its operand), lex (parentheses included), uppercase everything except `"words`. |
-| 3 | Emit line records: `TO`/`END` indent, `[` inline-or-expand (`shouldInline`: no nested `[` and ≤ `INLINE_THRESHOLD` tokens). |
+| 3 | Emit line records: `TO`/`END` indent (optional inputs `[:H 50]` on the `TO` line stay there, written as one piece), `[` inline-or-expand (`shouldInline`: no nested `[` and ≤ `INLINE_THRESHOLD` tokens). |
 | 4 | Render with `joinToks` (`~x` → `-x`, bare `~` glued to the next token, no space after `(` or before `)`), re-attach comments, keep one blank line after `END`/`]` at depth 0. |
 
 ### 4.8 Canvas Resize
@@ -467,7 +483,7 @@ setVar(vars, name, value, rctx) / procScopeOf(vars, rctx) / repeatInfo(vars)
 
 // Session, run context and execution
 createSession()                                  → session
-headlessIO({width, height}?)                     → io (+ .lines, .text())
+headlessIO({width, height, keys, mouse}?)        → io (+ .lines, .text(), .keys, .pointer)
 makeRunContext(speed, session, io)               → rctx
 haltRun()                                        → void
 parseProgram(src, io)                            → {topLevel, newProcs} | null
@@ -478,15 +494,17 @@ runProgram(tokens)                               → async void  (page: activeRc
 // Motion and pacing
 move(dist, rctx) / rotate(deg, rctx) / circle(r, rctx) / arc(deg, r, rctx) → async void
 clipToCanvas(x0, y0, x1, y1, w, h)               → null | [x, y]
-clipForRun(rctx, x0, y0, x1, y1)                 → null | [x, y]
+edgePath(rctx, sx, sy, ex, ey)                   → {pieces, endX, endY, hit} · wrapCoord(v, half) → number
 tick(rctx) / nextFrame(rctx) / macroYield(rctx) / sleep(ms, rctx) → Promise
 
 // Drawing store (core)
 trailPushIfRoom(rctx, x1,y1,x2,y2,w,r,g,b) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool
-clearScreen(session, io, {keepBackground}?) · clearProcs(session) · segment(drawing, i) → [x1,y1,x2,y2,w,r,g,b]
+beginFill(session) · notePoint(session) · endFill(rctx) → bool
+clearScreen(session, io, {keepSettings}?) · clearProcs(session) · segment(drawing, i) → [x1,y1,x2,y2,w,r,g,b]
+procInputs(tokens, idx(), name, proc, parens, read) → count · bindDefaults(name, proc, got, scope, rctx)
 
 // Rendering (browser)
-render() · rebuildTrailCanvas() · paintLine(x1,y1,x2,y2,w,r,g,b) · paintLabel(lab)
+render() · rebuildTrailCanvas() · paintLine(x1,y1,x2,y2,w,r,g,b) · paintLabel(lab) · paintFill(fill)
 toCanvas(x, y) → [cx, cy] · drawTurtleSprite(ctx, cx, cy, turtle, tick, moving)
 ```
 
