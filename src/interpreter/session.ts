@@ -4,11 +4,11 @@ import type { LogoIO, Session } from './types.ts';
 
 // ── Session ───────────────────────────────────────────────────────────────────
 // Everything a Logo program can change, in one object. The page has one session
-// (src/app.js); tests create a fresh one per case.
-//   turtle    pose, pen, colour, width (turtle/state.js)
-//   drawing   trail segments + labels (turtle/drawing.js)
+// (src/app.ts); tests create a fresh one per case.
+//   turtle    pose, pen, colour, width (turtle/state.ts)
+//   drawing   trail segments + labels + fills (turtle/drawing.ts)
 //   globals   root variable scope — replaced by RUN and CLR
-//   procs     user procedures NAME → { params, body } — cleared in place, never replaced
+//   procs     user procedures NAME → { params, required, defaults, body } — cleared in place, never replaced
 //   walkTick  cyclic 16-bit counter that drives the sprite animation
 //   isMoving  true while move() animates (leg swing in the sprite)
 //   background  SETBG colour, or null for the Options canvas style

@@ -22,7 +22,7 @@ import { optSpeed } from './ui/console.ts';
 // Blue Logo — application entry point.
 //
 // Module layout (see CLAUDE.md):
-//   app.js        the page's session + browser LogoIO
+//   app.ts        the page's session + browser LogoIO
 //   render/       canvas, sprite, background, trail + labels, render()
 //   turtle/       turtle state, drawing store, move / rotate / circle
 //   interpreter/  tokenizer → procedures → runtime (runStack) ⇄ expr, CMD table,

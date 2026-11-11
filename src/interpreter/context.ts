@@ -2,8 +2,8 @@ import type { LogoIO, RunContext, Session } from './types.ts';
 
 // ── Run context ───────────────────────────────────────────────────────────────
 // makeRunContext(speed, session, io): factory for per-run mutable interpreter state.
-//   session:  what the program changes — turtle, drawing, globals, procs (session.js).
-//   io:       the only way out to the screen / console (io.js). Never the DOM directly.
+//   session:  what the program changes — turtle, drawing, globals, procs (session.ts).
+//   io:       the only way out to the screen / console (io.ts). Never the DOM directly.
 //   stopped:  kill-switch checked every step in runStack/move/rotate.
 //             Set true by STOP/CLR buttons via haltRun() / activeRctx.
 //   execLine: { n, col, text } — source position of the most recently executed

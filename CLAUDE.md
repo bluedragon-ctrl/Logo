@@ -38,7 +38,7 @@ Specification is split into two files:
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
 | `docs/design-v9-lists.md` | Design proposal for v9.0 words and lists (not implemented yet; open questions in §11). |
 | `docs/review-v8.7.md` | v8.7 review of interpreter, language and examples (all items resolved in v8.8; kept for reference). |
-| `docs/review-v8.13.md` | v8.13 code quality review of `src/` (open items). |
+| `docs/review-v8.13.md` | v8.13 code quality review of `src/` (small polish done in v8.14; the rest open). |
 | `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
@@ -48,7 +48,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.13** (`package.json` → `8.13.0`)
+Current version: **v8.14** (`package.json` → `8.14.0`)
 
 ---
 

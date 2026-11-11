@@ -2,7 +2,7 @@ import { CMD } from './commands.ts';
 import { CONTROL_WORDS, extractBlock } from './procedures.ts';
 import { runExpr } from './runtime.ts';
 import { nextFrame } from './pacing.ts';
-import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
+import { PROC_SCOPE, formatNum, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
 import { STOP_SIGNAL } from './signals.ts';
 import { newLine } from './tokenizer.ts';
 import type { Proc, RunContext, Scope, Token, Turtle } from './types.ts';
@@ -194,17 +194,17 @@ const UNARY_FNS: Record<string, (a: number) => number> = {
   COS:    a => Math.cos(a  * Math.PI / 180),
   TAN:    a => Math.tan(a  * Math.PI / 180),
   ARCTAN: a => Math.atan(a) * 180 / Math.PI,
-  ARCSIN: a => { if(a < -1 || a > 1) throw new Error('ARCSIN: argument ' + a + ' out of range [-1, 1]'); return Math.asin(a) * 180 / Math.PI; },
-  ARCCOS: a => { if(a < -1 || a > 1) throw new Error('ARCCOS: argument ' + a + ' out of range [-1, 1]'); return Math.acos(a) * 180 / Math.PI; },
-  SQRT:   a => { if(a < 0)           throw new Error('SQRT: argument ' + a + ' must be >= 0');            return Math.sqrt(a); },
-  LN:     a => { if(a <= 0)          throw new Error('LN: argument ' + a + ' must be > 0');               return Math.log(a); },
-  LOG:    a => { if(a <= 0)          throw new Error('LOG: argument ' + a + ' must be > 0');              return Math.log10(a); },
+  ARCSIN: a => { if(a < -1 || a > 1) throw new Error('ARCSIN: argument ' + formatNum(a) + ' out of range [-1, 1]'); return Math.asin(a) * 180 / Math.PI; },
+  ARCCOS: a => { if(a < -1 || a > 1) throw new Error('ARCCOS: argument ' + formatNum(a) + ' out of range [-1, 1]'); return Math.acos(a) * 180 / Math.PI; },
+  SQRT:   a => { if(a < 0)           throw new Error('SQRT: argument ' + formatNum(a) + ' must be >= 0');            return Math.sqrt(a); },
+  LN:     a => { if(a <= 0)          throw new Error('LN: argument ' + formatNum(a) + ' must be > 0');               return Math.log(a); },
+  LOG:    a => { if(a <= 0)          throw new Error('LOG: argument ' + formatNum(a) + ' must be > 0');              return Math.log10(a); },
   ABS:    a => Math.abs(a),
   ROUND:  a => Math.sign(a) * Math.round(Math.abs(a)), // halves away from zero: ROUND -2.5 = -3
   INT:    a => Math.trunc(a),
-  EXP:    a => { if(a > 709) throw new Error('EXP: argument ' + a + ' would overflow (~e^710 > Number.MAX_VALUE)'); return Math.exp(a); },
+  EXP:    a => { if(a > 709) throw new Error('EXP: argument ' + formatNum(a) + ' would overflow (~e^710 > Number.MAX_VALUE)'); return Math.exp(a); },
   // RANDOM n → whole number 0 … floor(n)-1. Fractional n is floored (RANDOM 2.7 → 0 or 1).
-  RANDOM: a => { const n = Math.floor(a); if(n < 1) throw new Error('RANDOM: argument must be >= 1, got ' + a); return Math.floor(Math.random() * n); },
+  RANDOM: a => { const n = Math.floor(a); if(n < 1) throw new Error('RANDOM: argument must be >= 1, got ' + formatNum(a)); return Math.floor(Math.random() * n); },
   RND:    a => UNARY_FNS.RANDOM(a), // alias for RANDOM
   FLOOR:   a => Math.floor(a),
   CEILING: a => Math.ceil(a),
@@ -214,7 +214,7 @@ const BINARY2_FNS: Record<string, (a: number, b: number, ts: Turtle) => number> 
   TOWARDS:  (x, y, ts) => ((Math.atan2(x - ts.x, y - ts.y) * 180 / Math.PI) % 360 + 360) % 360,
   DISTANCE: (x, y, ts) => Math.hypot(x - ts.x, y - ts.y),
   MOD:      (a, b) => modulo(a, b),
-  POWER:    (a, b) => { const r = a ** b; if(!isFinite(r)) throw new Error('POWER ' + a + ' ' + b + ' is not a real number'); return r; },
+  POWER:    (a, b) => { const r = a ** b; if(!isFinite(r)) throw new Error('POWER ' + formatNum(a) + ' ' + formatNum(b) + ' is not a real number'); return r; },
   MAX:      (a, b) => Math.max(a, b),
   MIN:      (a, b) => Math.min(a, b),
 };

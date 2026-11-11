@@ -132,5 +132,8 @@ export const CASES = [
   ['BUTTONP with no button pressed', 'PRINT BUTTONP', 'PRINT → 0'],
   ['a skipped READKEY does not wait', 'PRINT 0 AND READKEY', 'PRINT → 0'],
   ['READKEY is a built-in word',     'TO READKEY\nEND', 'READKEY is a built-in word'],
+  // v8.14: numbers in error messages are shown like PRINT shows them (no float drift)
+  ['domain error shows a rounded number', 'PRINT ARCSIN 1.0000000000000002', 'ARCSIN: argument 1 out of range'],
+  ['POWER error shows rounded numbers',   'PRINT POWER -0.1 - 0.2 0.5', 'POWER -0.3 0.5 is not a real number'],
 ];
 

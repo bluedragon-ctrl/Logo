@@ -1,5 +1,7 @@
 # Blue Logo v8.13 — code quality review
 
+> **Status (v8.14):** the small polish is done: 1.1, 1.3 (the messages; ARCSIN / ARCCOS input clamping is still open), 2.2, 2.4 (the console clear in `program.ts`; `CMD.HEADING` uses `normAngle`), 3.3, 3.4, 4.1 (except the `rctx.globals` type), 4.2 and 4.3. Still open: 1.2, 2.1, 2.3, 3.1, 3.2, and the rest of 2.4.
+
 Scope: all of `src/`, which is about 4 400 lines of TypeScript. The review looks at readability, duplication, dead code, consistency and maintainability. It does not cover language design (that was `docs/review-v8.7.md`).
 Baseline: `npm run lint` passes and `npm run test:unit` passes (508 tests). Every 🔴 item was checked by running it in the page or headlessly with `runLogo()`.
 

@@ -7,7 +7,7 @@ import { paintDrawing, paintFillOn, paintLabelOn } from './paint.ts';
 // ── Trail layer ───────────────────────────────────────────────────────────────
 // trailCanvas caches everything the turtle has drawn, so render() composites it
 // in one blit. The data itself (segments + labels) lives in session.drawing
-// (turtle/drawing.js); this module only paints it.
+// (turtle/drawing.ts); this module only paints it.
 export const trailCanvas=document.createElement('canvas');
 const trailCtx=context2d(trailCanvas);
 // toCanvas: Logo world → canvas pixel.

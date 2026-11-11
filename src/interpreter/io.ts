@@ -25,7 +25,7 @@ import type { LogClass, LogoIO } from './types.ts';
 // (A–Z, whatever the case), digits 48–57, space 32, Enter 13, Escape 27,
 // Backspace 8, arrows left 37, up 38, right 39, down 40. Other keys are ignored.
 //
-// The page's implementation is in src/app.js. headlessIO() below is the one used
+// The page's implementation is in src/app.ts. headlessIO() below is the one used
 // by unit tests (and any future non-browser use, e.g. "check my answer").
 
 const later = (): Promise<void> => new Promise(res => setTimeout(res, 0));

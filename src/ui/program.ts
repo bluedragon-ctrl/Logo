@@ -4,7 +4,7 @@ import { activeRctx, haltRun, makeRunContext, setActiveRctx } from '../interpret
 import { execute, parseProgram, registerProcs } from '../interpreter/execute.ts';
 import { clearProcs, clearScreen } from '../interpreter/session.ts';
 import { render } from '../render/render.ts';
-import { con, log, optSpeed } from './console.ts';
+import { log, optSpeed } from './console.ts';
 import { clearKeys } from './input.ts';
 import type { Token } from '../interpreter/types.ts';
 import { byId } from '../util.ts';
@@ -16,6 +16,7 @@ import { byId } from '../util.ts';
 //
 
 const btnRun = byId<HTMLButtonElement>('btn-run');
+const runLabel = btnRun.textContent; // idle label, as written in index.html
 function setRunning(on: boolean): void {
   if(on) {
     btnRun.classList.add('running');
@@ -23,14 +24,14 @@ function setRunning(on: boolean): void {
     btnRun.disabled = true;
   } else {
     btnRun.classList.remove('running');
-    btnRun.textContent = '▶ Run';
+    btnRun.textContent = runLabel;
     btnRun.disabled = false;
   }
 }
 
 // ── Program execution (shared by RUN and direct mode) ────────────────────────
 // runProgram: run top-level tokens in the page session with a fresh run context
-// (interpreter/execute.js does the work). Owns activeRctx and the RUN-button
+// (interpreter/execute.ts does the work). Owns activeRctx and the RUN-button
 // state; always cleans up, then runs rctx.onFinish (used by CLR).
 export async function runProgram(tokens: Token[]): Promise<void> {
   const rctx = makeRunContext(parseInt(optSpeed.value), session, io);
@@ -50,7 +51,7 @@ export async function runProgram(tokens: Token[]): Promise<void> {
 // ── Button handlers ───────────────────────────────────────────────────────────
 byId<HTMLButtonElement>('btn-run').onclick = async function(){
   if(activeRctx) return; // belt-and-suspenders: btn is disabled by setRunning, but guard here too
-  con.innerHTML = ''; session.globals = {};
+  io.clearText(); session.globals = {};
   if(byId<HTMLInputElement>('opt-clear-on-run').checked) clearScreen(session, io);
   else session.fillPath = null; // a BEGINFILL left open by the last run does not carry over
   clearProcs(session);
@@ -85,7 +86,7 @@ byId('btn-stop').onclick = function(){
 function resetAll(){
   clearScreen(session, io);
   session.globals = {}; clearProcs(session);
-  con.innerHTML = ''; log('Screen cleared.', 'info'); render();
+  io.clearText(); log('Screen cleared.', 'info'); render();
 }
 byId('btn-clear').onclick = function(){
   if(activeRctx){ activeRctx.onFinish = resetAll; haltRun(); }
