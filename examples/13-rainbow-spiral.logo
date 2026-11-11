@@ -1,5 +1,5 @@
 ;; title: Rainbow Spiral
-;; desc: Spiral with changing colors using variables
+;; desc: Spiral with changing colours using variables
 ; Rainbow Spiral
 MAKE :STEP 3
 MAKE :R 200

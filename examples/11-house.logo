@@ -2,14 +2,14 @@
 ;; desc: Walls (square) and roof (triangle) drawn with two procedures
 ; House
 TO WALLS
-  REPEAT 4 [ FD 80 RT 90 ]
+  REPEAT 4 [ FD 110 RT 90 ]
 END
 
 TO ROOF
-  REPEAT 3 [ FD 80 LT 120 ]
+  REPEAT 3 [ FD 110 LT 120 ]
 END
 
 WALLS
-FD 80
+FD 110
 RT 90
 ROOF

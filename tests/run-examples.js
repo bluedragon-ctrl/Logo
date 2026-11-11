@@ -112,6 +112,47 @@ const UI_CHECKS = [
     const ok = px.join() === '244,238,223' && !font.includes('VT323');
     return [ok, JSON.stringify({ px, font })];
   }, { currentOnly: true }],
+  ['commands panel: one aligned table, search, Try', async (page) => {
+    await page.click('#btn-ref');
+    await page.waitForTimeout(50);
+    const r = await page.evaluate(() => {
+      const body = document.getElementById('ref-body');
+      const visibleRows = () => [...body.querySelectorAll('.ref-row')].filter(r => !r.hidden && !r.closest('tbody').hidden);
+      const tables = body.querySelectorAll('table').length, all = visibleRows().length;
+      const focused = document.activeElement?.id;
+      const search = document.getElementById('ref-search');
+      search.value = 'circle'; search.dispatchEvent(new Event('input'));
+      const hits = visibleRows().map(r => r.querySelector('.ref-syntax').textContent);
+      search.value = 'zzz'; search.dispatchEvent(new Event('input'));
+      const none = !document.getElementById('ref-none').hidden;
+      search.value = ''; search.dispatchEvent(new Event('input'));
+      body.querySelector('[data-try="FD 100"]').click();
+      const direct = document.getElementById('direct-input').value;
+      return { tables, all, focused, hits, none, direct, back: visibleRows().length === all };
+    });
+    await page.evaluate(() => { document.getElementById('btn-direct-toggle').click(); document.getElementById('direct-input').value = ''; document.getElementById('btn-ref-close').click(); });
+    const ok = r.tables === 1 && r.all > 60 && r.focused === 'ref-search' && r.hits.length === 1 && r.hits[0] === 'CIRCLE r'
+            && r.none && r.direct === 'FD 100' && r.back;
+    return [ok, JSON.stringify(r)];
+  }, { currentOnly: true }],
+  ['examples panel: a picture per example, click loads the code', async (page) => {
+    await page.click('#btn-examples');
+    await page.waitForFunction(() => document.getElementById('ex-grid').dataset.thumbs === 'done', null, { timeout: 20000 });
+    const r = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll('#ex-grid .ex-card')];
+      // a picture is drawn when its canvas has non-transparent pixels
+      const blank = cards.filter(c => {
+        const cv = c.querySelector('canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+        for (let i = 3; i < d.length; i += 4) if (d[i]) return false;
+        return true;
+      }).map(c => c.querySelector('.ex-title').textContent);
+      cards[2].click();
+      return { cards: cards.length, blank, loaded: editor.getValue() === EXAMPLES[2].code,
+               closed: !document.getElementById('ex-overlay').classList.contains('open') };
+    });
+    const ok = r.cards === (await page.evaluate(() => EXAMPLES.length)) && r.blank.length === 0 && r.loaded && r.closed;
+    return [ok, JSON.stringify(r)];
+  }, { currentOnly: true }],
   ['page is titled Blue Logo', async (page) => {
     const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);
     return [title === 'Blue Logo' && h1.includes('BLUE LOGO'), title + ' / ' + h1];

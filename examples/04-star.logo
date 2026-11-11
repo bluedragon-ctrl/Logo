@@ -1,4 +1,4 @@
 ;; title: Star
 ;; desc: Five pointed star — 144 degree turns
 ; Star
-REPEAT 5 [ FD 120 RT 144 ]
+REPEAT 5 [ FD 200 RT 144 ]

@@ -1,4 +1,4 @@
 ;; title: Flower
-;; desc: Petals made from circles using a variable angle
+;; desc: Twelve circles, turning 30 degrees after each one
 ; Flower
-REPEAT 12 [ CIRCLE 35 RT 30 ]
+REPEAT 12 [ CIRCLE 80 RT 30 ]

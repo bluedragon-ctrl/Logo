@@ -5,6 +5,6 @@
 SETWIDTH 2
 FOR :S 1 4 [
   SPEED :S
-  REPEAT 4 [ FD 80 RT 90 ]
+  REPEAT 4 [ FD 120 RT 90 ]
   RT 20
 ]

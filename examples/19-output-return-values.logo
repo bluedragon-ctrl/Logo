@@ -11,7 +11,9 @@ TO SQR :N
 END
 ; Draw spokes scaled by computed length
 REPEAT 12 [
-  FD HYPO 60 80
-  BK HYPO 60 80
+  FD HYPO 90 120
+  BK HYPO 90 120
   RT 30
 ]
+PRINT HYPO 3 4   ; 5
+PRINT SQR 12     ; 144

@@ -1,5 +1,5 @@
 ;; title: Growing Circles
 ;; desc: Concentric circles of increasing size
 ; Growing Circles
-MAKE :R 10
-REPEAT 8 [ CIRCLE :R MAKE :R :R + 15 ]
+MAKE :R 20
+REPEAT 8 [ CIRCLE :R MAKE :R :R + 16 ]

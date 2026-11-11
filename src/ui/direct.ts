@@ -64,6 +64,16 @@ btnDirect.onclick = function() {
   if (directMode) byId<HTMLInputElement>('direct-input').focus();
 };
 
+// tryInDirect(text): open direct mode with text in the input, ready to run with
+// Enter (used by the Commands panel's "try" examples). Nothing runs by itself.
+export function tryInDirect(text: string): void {
+  if (!directMode) btnDirect.click();
+  const inp = byId<HTMLInputElement>('direct-input');
+  inp.value = text;
+  inp.focus();
+  inp.setSelectionRange(text.length, text.length);
+}
+
 byId<HTMLInputElement>('direct-input').addEventListener('keydown', async function(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();

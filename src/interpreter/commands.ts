@@ -187,7 +187,7 @@ CMD['CIRCLE'] = async (t,i,v,rctx) => {
 };
 // Named colour table — 16 kid-friendly colours accepted by SETCOLOR.
 // GREY is an alias for GRAY (same slot, not counted separately).
-const COLOR_NAMES: Record<string, [number, number, number]> = {
+export const COLOR_NAMES: Record<string, [number, number, number]> = {
   RED:[220,50,50], ORANGE:[255,140,0], YELLOW:[255,220,0],
   GREEN:[50,180,50], LIME:[100,255,50], CYAN:[0,220,220],
   BLUE:[50,100,220], NAVY:[0,0,150], PURPLE:[150,50,200],
