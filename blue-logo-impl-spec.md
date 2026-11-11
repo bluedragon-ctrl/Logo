@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.11 — November 2026
+## Version 8.12 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -163,7 +163,7 @@ Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 |---|---|
 | `stopped` | Kill switch. Set by `haltRun()` (STOP / CLR). Checked by `runStack`, `move`, `rotate`, `circle`. |
 | `execLine` | `{ n, col, text }`: source position of the statement or operand executed last (`noteTok`, called by `runStack` for every statement and by `parseUnary` for every operand; restored after a procedure used as a value returns, so a later error names the caller's line). Appended to error messages. |
-| `speed` | 0–4. Snapshot of the slider; `SPEED n` changes it mid-run (and moves the slider). |
+| `speed` | 0–4. Taken from the slider at the start; moving the slider during the run changes it at once (`ui/program.ts`), and `SPEED n` changes it mid-run (and moves the slider). `move` / `rotate` re-read it every step. |
 | `session`, `io` | What the program changes / where its output goes (§1.3). |
 | `procs` | `session.procs` (shortcut). |
 | `globals` | Root scope of this run (set by `run()`); `MAKE` falls back to it. |

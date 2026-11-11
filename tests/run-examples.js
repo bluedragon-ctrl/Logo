@@ -74,6 +74,18 @@ const UI_CHECKS = [
     await page.evaluate(() => { optSpeed.value = 4; });
     return [afterRun === '2' && afterDirect === '1', JSON.stringify({ afterRun, afterDirect })];
   }],
+  ['Speed slider changes the speed of a running program and keeps the choice', async (page) => {
+    await page.evaluate(() => { optSpeed.value = 0; editor.setValue('REPEAT 40 [ FD 200 BK 200 ]'); document.getElementById('btn-run').click(); });
+    await page.waitForTimeout(150);
+    await page.evaluate(() => { optSpeed.value = 4; optSpeed.dispatchEvent(new Event('input')); });
+    const t0 = Date.now();
+    await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).catch(() => {});
+    const ms = Date.now() - t0;
+    const still = await page.evaluate(() => activeRctx !== null);
+    if (still) { await page.evaluate(() => document.getElementById('btn-stop').click()); await page.waitForFunction(() => activeRctx === null); }
+    const after = await page.evaluate(() => optSpeed.value);
+    return [!still && after === '4', JSON.stringify({ ms, after })];
+  }],
   ['SETBG colours the canvas, CS keeps it, the next RUN resets it', async (page) => {
     const corner = () => page.evaluate(() => [...document.getElementById('c').getContext('2d').getImageData(2, 2, 1, 1).data.slice(0, 3)].join());
     const runIt = async (src) => {

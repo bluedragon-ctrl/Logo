@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.12  2026-11-11
+**SPEED SLIDER WORKS DURING A RUN**
+- * BUG: moving the speed slider while a program ran had no effect (the run used the speed it started with) and the slider jumped back when the run ended. Now the slider changes the running program's speed at once — also in the middle of a long FD or turn (switching to instant finishes it at once) — and stays where the user put it. `SPEED n` in a program still does not stick.
+
 ## v8.11  2026-11-11
 **LANGUAGE ADDITIONS, STEP 2 (FILLS, EDGE MODES, KEYBOARD AND MOUSE, (PRINT …), OPTIONAL INPUTS)**
 - + ADDITION: `BEGINFILL` … `ENDFILL` — fills the path the turtle walks in between (pen up or down; every move, SETPOS / SETXY / SETX / SETY and HOME adds a corner) with the pen colour BEGINFILL saw. The fill lies under the outline and everything drawn after BEGINFILL, over what came before; non-zero rule, so crossing stars fill completely. New drawing-store list `fills` (`{at, pts, r, g, b}`, max 1 000 × 10 000 corners), painted by `paintDrawing`, the example pictures and the snapshot pictures (`+`); new `io.paintFill`. Live painting and a repaint after resize are identical.

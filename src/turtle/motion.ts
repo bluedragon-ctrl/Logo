@@ -131,16 +131,18 @@ async function walk(sx: number, sy: number, ex: number, ey: number, rctx: RunCon
   const { session, io } = rctx, turtle = session.turtle;
   const col = turtle.color, w = turtle.width;
   const moved = ex !== sx || ey !== sy;
-  const SPF   = STEPS_PER_FRAME[rctx.speed] || 1;
   const steps = moved ? Math.max(1, Math.round(Math.hypot(ex - sx, ey - sy) * 1.2)) : 0; // 1.2× → smoother diagonals
   const pen   = turtle.pen && moved;
   for(let i = 1; i <= steps && !rctx.stopped; i++){
+    // The speed is read every sub-step: the slider can change it mid-run.
+    // Switched to instant → the rest of the move is drawn in one go.
+    if(rctx.speed >= 4) i = steps;
     const ox = turtle.x, oy = turtle.y;
     if(i === steps){ turtle.x = ex; turtle.y = ey; } // snap last step exactly
     else { turtle.x = sx + (ex - sx) * i / steps; turtle.y = sy + (ey - sy) * i / steps; }
     if(pen) io.paintLine(ox, oy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
     advanceWalk(session);
-    await spendFrame(rctx, 1 / SPF);
+    if(rctx.speed < 4) await spendFrame(rctx, 1 / (STEPS_PER_FRAME[rctx.speed] || 1));
   }
   // Store what was actually walked (all of it, or up to where STOP interrupted).
   if(pen && (turtle.x !== sx || turtle.y !== sy)) trailPushQuiet(rctx, sx, sy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
@@ -153,10 +155,11 @@ async function walk(sx: number, sy: number, ex: number, ey: number, rctx: RunCon
 export async function rotate(deg: number, rctx: RunContext): Promise<void> {
   const turtle = rctx.session.turtle;
   if(rctx.speed >= 4){ turtle.angle = normAngle(turtle.angle + deg); return; }
-  const DPF = DEG_PER_FRAME[rctx.speed] || 3;
   const total = Math.abs(deg), sign = Math.sign(deg), start = turtle.angle;
   let done = 0;
   while(total - done > 1e-9 && !rctx.stopped){
+    if(rctx.speed >= 4) break; // slider moved to instant mid-turn: finish at once
+    const DPF = DEG_PER_FRAME[rctx.speed] || 3; // re-read: the slider can change it mid-run
     const part = Math.min(total - done, DPF * (1 - rctx.frameUsed));
     done += part;
     turtle.angle = start + sign * done;
