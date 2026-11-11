@@ -1,5 +1,7 @@
 ;; title: Bouncing Counter
-;; desc: IF and PRINT — colour changes when counter passes 5
+;; desc: IFELSE and PRINT — colour changes when counter passes 5
+;; topic: Variables and decisions
+;; shows: IFELSE, PRINT
 SETWIDTH 3
 MAKE "N 0
 REPEAT 10 [

@@ -1,5 +1,7 @@
 ;; title: Rainbow Spiral
 ;; desc: Spiral with changing colours using variables
+;; topic: Colour
+;; shows: SETCOLOR
 MAKE "STEP 3
 MAKE "R 200
 MAKE "G 50

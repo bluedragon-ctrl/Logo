@@ -1,5 +1,7 @@
 ;; title: STOP in Procedure
 ;; desc: Procedure exits early with STOP when condition is met
+;; topic: Procedures
+;; shows: STOP
 TO DRAW :N
   IF :N > 200 [ STOP ]
   FD :N

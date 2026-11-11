@@ -1,5 +1,7 @@
 ;; title: Clock Face
 ;; desc: REPEAT and MOD place the twelve hours; WAIT makes the turtle tick round
+;; topic: Maths and curves
+;; shows: MOD, WAIT
 HT
 SETWIDTH 3
 REPEAT 12 [

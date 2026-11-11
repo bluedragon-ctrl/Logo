@@ -1,5 +1,7 @@
 ;; title: OUTPUT — Return Values
 ;; desc: Procedures that return values using OUTPUT
+;; topic: Procedures
+;; shows: OUTPUT
 ; Hypotenuse of a right triangle
 TO HYPO :A :B
   OUTPUT SQRT (:A * :A + :B * :B)

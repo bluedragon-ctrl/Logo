@@ -1,5 +1,7 @@
 ;; title: Chase — TOWARDS and DISTANCE
 ;; desc: The turtle turns a little towards a target at every step, until it gets there
+;; topic: Maths and curves
+;; shows: TOWARDS, DISTANCE
 MAKE "TX 180
 MAKE "TY 120
 SETWIDTH 12 SETCOLOR RED

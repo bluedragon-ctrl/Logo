@@ -1,5 +1,7 @@
 ;; title: Spiral
 ;; desc: Growing spiral using a variable for step size
+;; topic: Loops
+;; shows: MAKE
 MAKE "STEP 2
 REPEAT 120 [
   FD :STEP

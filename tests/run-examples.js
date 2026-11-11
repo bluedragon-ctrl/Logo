@@ -133,46 +133,128 @@ const UI_CHECKS = [
     const ok = px.join() === '244,238,223' && !font.includes('VT323');
     return [ok, JSON.stringify({ px, font })];
   }, { currentOnly: true }],
-  ['commands panel: one aligned table, search, Try', async (page) => {
+  ['commands panel: one aligned table, chips, ranked search, cards with Try / Insert / links', async (page) => {
     await page.click('#btn-ref');
     await page.waitForTimeout(50);
     const r = await page.evaluate(() => {
       const body = document.getElementById('ref-body');
-      const visibleRows = () => [...body.querySelectorAll('.ref-row')].filter(r => !r.hidden && !r.closest('tbody').hidden);
+      const visibleRows = () => [...body.querySelectorAll('.ref-cmd:not([hidden]) .ref-row')];
+      const syntaxOf = row => row.querySelector('.ref-syntax').textContent;
       const tables = body.querySelectorAll('table').length, all = visibleRows().length;
       const focused = document.activeElement?.id;
       const search = document.getElementById('ref-search');
-      search.value = 'circle'; search.dispatchEvent(new Event('input'));
-      const hits = visibleRows().map(r => r.querySelector('.ref-syntax').textContent);
-      search.value = 'zzz'; search.dispatchEvent(new Event('input'));
+      const type = q => { search.value = q; search.dispatchEvent(new Event('input')); };
+      type('circle');
+      const hits = visibleRows().map(syntaxOf).slice(0, 2);
+      type('fd');
+      const fdFirst = syntaxOf(visibleRows()[0]);
+      type('zzz');
       const none = !document.getElementById('ref-none').hidden;
-      search.value = ''; search.dispatchEvent(new Event('input'));
-      body.querySelector('[data-try="FD 100"]').click();
+      type('');
+      const back = visibleRows().length === all;
+      // chips: one group only, then All again
+      document.querySelector('#ref-chips [data-chip="loops"]').click();
+      const loops = visibleRows().map(syntaxOf);
+      const coloursHidden = document.getElementById('ref-colours').hidden;
+      document.querySelector('#ref-chips [data-chip="all"]').click();
+      // a card: opens on click, Try puts the line into direct mode
+      const fwd = visibleRows().find(r => syntaxOf(r).startsWith('FORWARD'));
+      fwd.click();
+      const card = fwd.closest('.ref-cmd').querySelector('.ref-card');
+      const opened = fwd.getAttribute('aria-expanded') === 'true' && !card.closest('.ref-detail').hidden;
+      const usedIn = card.querySelectorAll('.ref-ex-chip').length;
+      const moreEx = !!card.querySelector('[data-uses]');
+      card.querySelector('[data-try="FD 100"]').click();
       const direct = document.getElementById('direct-input').value;
-      return { tables, all, focused, hits, none, direct, back: visibleRows().length === all };
+      // See also: jumps to BACK's card
+      card.querySelector('[data-see="BACK"]').click();
+      const seeOpen = document.activeElement?.classList.contains('ref-row') && syntaxOf(document.activeElement);
+      return { tables, all, focused, hits, fdFirst, none, back, loops: loops.length, loopsOk: loops[0].startsWith('REPEAT') && loops.length < 12,
+               coloursHidden, opened, usedIn, moreEx, direct, seeOpen };
+    });
+    // Insert: a TO example goes into the editor at the caret (at the start after setValue)
+    const inserted = await page.evaluate(() => {
+      editor.setValue('FD 10');
+      const it = [...document.querySelectorAll('#ref-body .ref-row')].find(r => r.querySelector('.ref-syntax').textContent.startsWith('TO '));
+      it.click();
+      it.closest('.ref-cmd').querySelector('[data-insert]').click();
+      return editor.getValue();
     });
     await page.evaluate(() => { document.getElementById('btn-direct-toggle').click(); document.getElementById('direct-input').value = ''; document.getElementById('btn-ref-close').click(); });
-    const ok = r.tables === 1 && r.all > 60 && r.focused === 'ref-search' && r.hits.join() === 'CIRCLE r,ARC angle r'
-            && r.none && r.direct === 'FD 100' && r.back;
-    return [ok, JSON.stringify(r)];
+    const ok = r.tables === 1 && r.all > 60 && r.focused === 'ref-search' && r.hits.join() === 'CIRCLE r,ARC angle r' && r.fdFirst === 'FORWARD / FD n'
+            && r.none && r.back && r.loopsOk && r.coloursHidden && r.opened && r.usedIn === 4 && r.moreEx && r.direct === 'FD 100'
+            && r.seeOpen === 'BACK / BK n' && inserted.startsWith('TO SQUARE :SIZE') && inserted.endsWith('SQUARE 100\nFD 10');
+    return [ok, JSON.stringify({ ...r, inserted: inserted.slice(0, 30) })];
   }, { currentOnly: true }],
-  ['examples panel: a picture per example, click loads the code', async (page) => {
+  ['F1 in the editor opens the card of the word at the caret', async (page) => {
+    await page.evaluate(() => editor.setValue('repeat 4 [ fd 10 ]'));
+    await page.click('#editor .cm-content');
+    await page.keyboard.press('Control+Home');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('F1');
+    await page.waitForTimeout(50);
+    const r = await page.evaluate(() => {
+      const open = document.getElementById('ref-overlay').classList.contains('open');
+      const row = document.activeElement;
+      return { open, row: row?.classList.contains('ref-row') ? row.querySelector('.ref-syntax').textContent : null,
+               expanded: row?.getAttribute('aria-expanded') };
+    });
+    await page.evaluate(() => document.getElementById('btn-ref-close').click());
+    return [r.open && r.row === 'REPEAT n [ … ]' && r.expanded === 'true', JSON.stringify(r)];
+  }, { currentOnly: true }],
+  ['examples panel: pictures, search, topics, preview, open in editor, links to commands', async (page) => {
     await page.click('#btn-examples');
     await page.waitForFunction(() => document.getElementById('ex-grid').dataset.thumbs === 'done', null, { timeout: 20000 });
     const r = await page.evaluate(() => {
       const cards = [...document.querySelectorAll('#ex-grid .ex-card')];
+      const visible = () => cards.filter(c => !c.hidden).length;
       // a picture is drawn when its canvas has non-transparent pixels
       const blank = cards.filter(c => {
         const cv = c.querySelector('canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
         for (let i = 3; i < d.length; i += 4) if (d[i]) return false;
         return true;
       }).map(c => c.querySelector('.ex-title').textContent);
+      const focused = document.activeElement?.id;
+      const search = document.getElementById('ex-search');
+      search.value = 'while'; search.dispatchEvent(new Event('input'));
+      const whileHits = visible();
+      search.value = ''; search.dispatchEvent(new Event('input'));
+      document.querySelector('#ex-chips [data-chip="Recursion"]').click();
+      const recursion = visible();
+      document.querySelector('#ex-chips [data-chip="all"]').click();
       cards[2].click();
-      return { cards: cards.length, blank, loaded: editor.getValue() === EXAMPLES[2].code,
+      const previewOpen = !document.getElementById('ex-preview').hidden && document.getElementById('ex-grid').hidden;
+      const code = document.getElementById('exp-code').textContent === EXAMPLES[2].code;
+      const cmds = [...document.querySelectorAll('#exp-cmds [data-cmd]')].map(b => b.dataset.cmd);
+      document.getElementById('ex-open').click();
+      return { cards: cards.length, blank, focused, whileHits, recursion, previewOpen, code, cmds,
+               loaded: editor.getValue() === EXAMPLES[2].code,
                closed: !document.getElementById('ex-overlay').classList.contains('open') };
     });
-    const ok = r.cards === (await page.evaluate(() => EXAMPLES.length)) && r.blank.length === 0 && r.loaded && r.closed;
-    return [ok, JSON.stringify(r)];
+    // From a command card: "All n examples" filters the Examples panel; a command link goes back.
+    const r2 = await page.evaluate(() => {
+      document.getElementById('btn-ref').click();
+      const row = [...document.querySelectorAll('#ref-body .ref-row')].find(x => x.querySelector('.ref-syntax').textContent.startsWith('REPEAT'));
+      if (row.getAttribute('aria-expanded') !== 'true') row.click();
+      row.closest('.ref-cmd').querySelector('[data-uses]').click();
+      const exOpen = document.getElementById('ex-overlay').classList.contains('open') && !document.getElementById('ref-overlay').classList.contains('open');
+      const filtered = [...document.querySelectorAll('#ex-grid .ex-card')].filter(c => !c.hidden).map(c => EXAMPLES[c.dataset.n]);
+      const allUse = filtered.every(e => e.uses.includes('REPEAT'));
+      const label = document.getElementById('ex-uses-word').textContent;
+      document.getElementById('ex-uses-clear').click();
+      const cleared = [...document.querySelectorAll('#ex-grid .ex-card')].every(c => !c.hidden);
+      document.querySelector('#ex-grid .ex-card').click();
+      document.querySelector('#exp-cmds [data-cmd="FD"]').click();
+      const refOpen = document.getElementById('ref-overlay').classList.contains('open');
+      const focusedRow = document.activeElement?.querySelector?.('.ref-syntax')?.textContent;
+      document.getElementById('btn-ref-close').click();
+      return { exOpen, n: filtered.length, allUse, label, cleared, refOpen, focusedRow };
+    });
+    const ok = r.cards === (await page.evaluate(() => EXAMPLES.length)) && r.blank.length === 0 && r.focused === 'ex-search'
+            && r.whileHits >= 1 && r.recursion >= 2 && r.recursion < r.cards && r.previewOpen && r.code && r.cmds.includes('CIRCLE')
+            && r.loaded && r.closed
+            && r2.exOpen && r2.n > 5 && r2.allUse && r2.label === 'REPEAT' && r2.cleared && r2.refOpen && r2.focusedRow === 'FORWARD / FD n';
+    return [ok, JSON.stringify({ ...r, ...r2 })];
   }, { currentOnly: true }],
   ['page is titled Blue Logo', async (page) => {
     const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);

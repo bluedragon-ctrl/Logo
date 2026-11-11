@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { EXAMPLES } from '../../src/examples.ts';
+import { EXAMPLES, EXAMPLE_TOPICS, examplesUsing, usedWords } from '../../src/examples.ts';
 import { beautify } from '../../src/format/beautify.ts';
 import { ENDS_WITH_OUCH } from '../cases.js';
 import { drawingPicture } from './drawing-picture.ts';
@@ -18,6 +18,20 @@ describe('examples', () => {
       expect(e.title).toBeTruthy();
       expect(e.code.trim()).toBeTruthy();
     }
+  });
+  test('every example has a known topic, and every topic has examples', () => {
+    expect(EXAMPLES.filter(e => !EXAMPLE_TOPICS.includes(e.topic)).map(e => e.title)).toEqual([]);
+    expect(EXAMPLE_TOPICS.filter(t => !EXAMPLES.some(e => e.topic === t))).toEqual([]);
+  });
+  test('"shows" names only commands the example uses', () => {
+    const bad = EXAMPLES.flatMap(e => e.shows.filter(w => !e.uses.includes(w)).map(w => e.title + ': ' + w));
+    expect(bad).toEqual([]);
+  });
+  test('uses: built-in words found with the tokenizer, aliases and all', () => {
+    expect(usedWords('; FD in a comment\nTO SQ :S\nrepeat 4 [ fd :s rt 90 ]\nEND\nSQ 10 LABEL "FD PRINT 2 + 3')).toEqual(['TO', 'REPEAT', 'FD', 'RT', 'END', 'LABEL', 'PRINT']);
+    const forEx = examplesUsing(['FOR']);
+    expect(forEx.length).toBeGreaterThan(1);
+    expect(EXAMPLES[forEx[0]].shows).toContain('FOR');   // examples about FOR come first
   });
   test.each(EXAMPLES.map(e => [e.title, e]))('runs: %s', async (title, e) => {
     // A large canvas, like a desktop browser window.

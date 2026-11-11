@@ -1,5 +1,7 @@
 ;; title: FOR — Colour Spectrum
 ;; desc: FOR painting vertical colour bars — green to yellow to red across the canvas
+;; topic: Colour
+;; shows: FOR, SETCOLOR
 ; Each bar is painted with SETPOS (instant, no step animation)
 HT
 SETWIDTH 8

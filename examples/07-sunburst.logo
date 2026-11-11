@@ -1,5 +1,7 @@
 ;; title: Sunburst
 ;; desc: Spokes radiating from the centre
+;; topic: Loops
+;; shows: REPEAT
 MAKE "LEN 40
 REPEAT 24 [
   FD :LEN

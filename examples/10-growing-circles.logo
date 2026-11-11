@@ -1,4 +1,6 @@
 ;; title: Growing Circles
 ;; desc: Concentric circles of increasing size
+;; topic: Loops
+;; shows: CIRCLE
 MAKE "R 20
 REPEAT 8 [ CIRCLE :R MAKE "R :R + 16 ]

@@ -1,5 +1,7 @@
 ;; title: Sine Wave
 ;; desc: Draws a sine curve using SIN and SETPOS
+;; topic: Maths and curves
+;; shows: SIN, SETPOS
 MAKE "X -180
 PU                      ; jump to the first point without drawing
 REPEAT 361 [
