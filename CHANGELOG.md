@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.11  2026-11-11
+**SPEED SLIDER WORKS DURING A RUN**
+- * BUG: moving the speed slider while a program ran had no effect (the run used the speed it started with) and the slider jumped back when the run ended. Now the slider changes the running program's speed at once — also in the middle of a long FD or turn (switching to instant finishes it at once) — and stays where the user put it. `SPEED n` in a program still does not stick.
+
 ## v8.10  2026-11-11
 **COMMANDS AND EXAMPLES PANELS: SEPARATE COMMANDS, SEARCH, LINKS**
 - ~ CHANGE: Commands panel — every command is its own row that opens into a card: a longer explanation, other ways to write it, two or three examples (Try in direct mode, Insert into the program at the caret), See also links and "Used in": pictures of the examples that use it, plus "All n examples →". `REFERENCE` entries gained `more`, `forms`, `examples` (replacing `try`), `see`, `tags`; variants such as SETCOLOR r g b / name, DOT / DOT x y, FOR with a step are folded into one command.

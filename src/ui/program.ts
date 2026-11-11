@@ -60,10 +60,18 @@ byId<HTMLButtonElement>('btn-run').onclick = async function(){
   // back to the user's choice, so an example ending in SPEED 4 doesn't leave every
   // later run instant. (In direct mode, SPEED n keeps its effect: that is how the
   // user sets the speed by typing.)
-  const userSpeed = optSpeed.value;
+  // Moving the slider during the run counts as the user's new choice.
+  let userSpeed = optSpeed.value;
+  const keepChoice = () => { userSpeed = optSpeed.value; };
+  optSpeed.addEventListener('input', keepChoice);
   try { await runProgram(parsed.topLevel); }
-  finally { optSpeed.value = userSpeed; }
+  finally { optSpeed.removeEventListener('input', keepChoice); optSpeed.value = userSpeed; }
 };
+// The speed slider works during a run: it changes the live run's speed at once
+// (rctx.speed is otherwise a snapshot taken when the run starts).
+optSpeed.addEventListener('input', () => {
+  if(activeRctx) activeRctx.speed = parseInt(optSpeed.value);
+});
 byId('btn-stop').onclick = function(){
   if(!activeRctx) return;
   haltRun();
