@@ -29,7 +29,7 @@ export function extractBlock(tokens: Token[], idx: number): { body: Token[]; nex
 //   Pure function: moves TO…END blocks out of the token stream. The TO header
 //   (name and parameters) is the rest of the TO line.
 // Control-flow words handled inline by runStack (not in CMD).
-export const CONTROL_WORDS = new Set(['IF','IFELSE','REPEAT','WHILE','FOR','STOP','BREAK','CONTINUE','OUTPUT','OP','TO','END']);
+export const CONTROL_WORDS = new Set(['IF','IFELSE','REPEAT','FOREVER','WHILE','FOR','STOP','BREAK','CONTINUE','OUTPUT','OP','TO','END']);
 export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProcs: ProcMap } {
   const out: Token[] = [], newProcs: ProcMap = {}; let i = 0;
   let depth = 0; // [ ] nesting at top level: TO is not allowed inside a block

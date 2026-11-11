@@ -43,6 +43,7 @@ function paintThumbnail(cv: HTMLCanvasElement, code: string): Promise<void> {
     const dpr = window.devicePixelRatio || 1;
     cv.width = Math.round(THUMB_W * dpr); cv.height = Math.round(THUMB_H * dpr);
     const c = context2d(cv);
+    if(session.background){ c.fillStyle = 'rgb(' + session.background.join(',') + ')'; c.fillRect(0, 0, cv.width, cv.height); } // SETBG
     const b = drawingBounds(session.drawing);
     if(!b) return;
     const m = 8, bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);

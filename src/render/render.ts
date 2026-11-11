@@ -34,7 +34,7 @@ export function render(){
   const turtle = session.turtle;
   ctx.setTransform(DPR,0,0,DPR,0,0); // logical units; reset each frame (cheap, and robust to resizes)
   ctx.imageSmoothingEnabled = false; // the trail layer is blitted 1:1 — keep it crisp (context state resets on resize)
-  drawBackground();
+  drawBackground(session.background);
   ctx.drawImage(trailCanvas,0,0,CW,CH); // composite cached trail in one blit
   if(!turtle.visible) return;
   switch(turtleStyle){

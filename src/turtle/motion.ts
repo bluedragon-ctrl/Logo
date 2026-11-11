@@ -117,14 +117,46 @@ export async function rotate(deg: number, rctx: RunContext): Promise<void> {
 // Negative r draws the mirror image (walks backward). Steps = max(36, |r|).
 // |r| is capped at MAX_CIRCLE_R to avoid accidental multi-minute animations.
 const MAX_CIRCLE_R = 2000;
+const capRadius = (r: number, what: string, rctx: RunContext): number => {
+  if(Math.abs(r) <= MAX_CIRCLE_R) return r;
+  rctx.io.log(what+' '+formatNum(r)+' radius capped to '+MAX_CIRCLE_R,'info');
+  return Math.sign(r) * MAX_CIRCLE_R;
+};
 export async function circle(r: number, rctx: RunContext): Promise<void> {
   if(!isFinite(r)) throw new Error('CIRCLE: radius must be a finite number, got ' + r);
   if(r === 0) return;
-  if(Math.abs(r) > MAX_CIRCLE_R){ rctx.io.log('CIRCLE '+formatNum(r)+' radius capped to '+MAX_CIRCLE_R,'info'); r = Math.sign(r) * MAX_CIRCLE_R; }
+  r = capRadius(r, 'CIRCLE', rctx);
   const steps = Math.max(36, Math.round(Math.abs(r)));
   const aStep = 360/steps, fwd = 2*Math.PI*r/steps;
   for(let i=0; i<steps && !rctx.stopped; i++){
     await move(fwd, rctx);
     await rotate(aStep, rctx);
   }
+}
+
+// arc(deg, r, rctx): deg degrees of a circle of radius r, turning right (negative
+// deg turns left, negative r walks backward like CIRCLE). Unlike CIRCLE's polygon,
+// the chords are placed between half-step turns, so the turtle ends exactly on the
+// true arc: ARC 90 100 from HOME ends at (100, 100), heading 90. Same step density
+// as CIRCLE. r = 0 is just the turn.
+export async function arc(deg: number, r: number, rctx: RunContext): Promise<void> {
+  if(!isFinite(r) || !isFinite(deg)) throw new Error('ARC: angle and radius must be finite numbers');
+  if(deg === 0) return;
+  if(r === 0){ await rotate(deg, rctx); return; }
+  r = capRadius(r, 'ARC', rctx);
+  const t = rctx.session.turtle;
+  // Exact end point: centre = start + k·n(h0), end = centre − k·n(h0 + deg), where
+  // n(h) = (cos h, −sin h) is the right-hand normal of heading h and k = r·sign(deg).
+  const k = r * Math.sign(deg), rad = Math.PI / 180, h0 = t.angle * rad, h1 = (t.angle + deg) * rad;
+  const endX = snap(t.x + k * (Math.cos(h0) - Math.cos(h1))), endY = snap(t.y - k * (Math.sin(h0) - Math.sin(h1)));
+  const full  = Math.max(36, Math.round(Math.abs(r)));            // steps of a whole circle
+  const steps = Math.max(1, Math.ceil(full * Math.abs(deg) / 360 - 1e-9));
+  const aStep = deg / steps;
+  const chord = 2 * r * Math.sin(Math.abs(aStep) * Math.PI / 360); // 2·r·sin(step/2)
+  await rotate(aStep / 2, rctx);
+  for(let i=0; i<steps && !rctx.stopped; i++){
+    await move(chord, rctx);
+    await rotate(i < steps - 1 ? aStep : aStep / 2, rctx);
+  }
+  if(!rctx.stopped){ t.x = endX; t.y = endY; } // remove the 1e-9 drift of the snapped steps
 }

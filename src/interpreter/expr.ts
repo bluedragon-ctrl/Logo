@@ -1,5 +1,5 @@
 import { CMD } from './commands.ts';
-import { CONTROL_WORDS } from './procedures.ts';
+import { CONTROL_WORDS, extractBlock } from './procedures.ts';
 import { runExpr } from './runtime.ts';
 import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
 import { newLine } from './tokenizer.ts';
@@ -19,6 +19,8 @@ export const QUERY_TOKENS = new Map<string, (ts: Turtle, rctx: RunContext) => nu
   ['PU?',       ts => ts.pen ? 0 : 1],
   ['SCRWIDTH',  (ts, rctx) => rctx.io.canvasSize().w],   // canvas width  in Logo units (1 unit = 1 CSS px, origin at centre)
   ['SCRHEIGHT', (ts, rctx) => rctx.io.canvasSize().h],   // canvas height in Logo units
+  ['PENSIZE',   ts => ts.width],
+  ['PI',        () => Math.PI],
 ]);
 
 // resolveToken(tok, vars, rctx) → number   — a single value token:
@@ -30,6 +32,7 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
   if(tok === 'REPCOUNT' || tok === 'REPCOUNTMAX') {
     const r = repeatInfo(vars);
     if(!r) throw new Error(tok + ' used outside a REPEAT loop');
+    if(tok === 'REPCOUNTMAX' && !isFinite(r.max)) throw new Error('REPCOUNTMAX: FOREVER has no count');
     return tok === 'REPCOUNT' ? r.count : r.max;
   }
   if(tok.startsWith('"') && tok.length > 1) {
@@ -67,6 +70,7 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
 //              | UNARY_FN unary                   SIN :x * 2  →  (SIN :x) * 2
 //              | primary
 //   primary  ::= '(' expr ')'
+//              | IFELSE expr '[' expr ']' '[' expr ']'   only the chosen block is evaluated
 //              | BINARY2_FN expr expr             TOWARDS x y, MAX a b, …
 //              | PROC_NAME expr*                  user procedure that OUTPUTs
 //              | token                            number, :var, query token, REPCOUNT
@@ -75,6 +79,12 @@ function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): n
 // separated from the previous one ('SETPOS 0 -100', 'FD -:X'). It is a unary
 // minus that can never be read as binary subtraction, so it also ends the
 // previous expression — that is what lets 'SETPOS 0 -100' take two arguments.
+//
+// AND / OR short-circuit: when the left side decides the result, the right side is
+// parsed in skip mode (p.skip > 0) — every token is consumed and the syntax checked
+// as usual, but nothing is computed: no procedure runs, no variable is read, no
+// function or operator is applied (so :X != 0 AND 10 / :X > 1 is safe). Skipped
+// parts yield 0. The same skip mode passes over IFELSE's unchosen block.
 //
 // Async because user-procedure primaries run Logo code (runExpr) that animates.
 export const UNARY   = new Set(['SIN','COS','TAN','ARCTAN','ARCSIN','ARCCOS','SQRT','LN','LOG','ABS','ROUND','INT','EXP','RANDOM','RND','FLOOR','CEILING']);
@@ -109,7 +119,7 @@ export function isBuiltinWord(w: string): boolean {
 // expression parser would give ("RT is a command, not a value").
 export function checkProcInput(tokens: Token[], idx: number, name: string, proc: Proc, got: number): void {
   const t = tokens[idx]?.text;
-  if(t !== undefined && t !== ']' && t !== ')' && !isCommandWord(t)) return;
+  if(t !== undefined && t !== ']' && t !== ')' && (t === 'IFELSE' || !isCommandWord(t))) return;
   const n = proc.params.length;
   throw new Error(name + ' needs ' + n + ' input' + (n === 1 ? '' : 's') + ' (' + proc.params.map(p => ':' + p).join(' ') +
                   ')' + (got ? ', got only ' + got : ''));
@@ -181,10 +191,11 @@ function applyBinop(op: string, a: number, b: number): number {
 }
 
 // Parser state shared by the parse* functions of one evalExpr call.
-interface Parser { tokens: Token[]; idx: number; vars: Scope; rctx: RunContext; paren: number }
+// skip > 0: parse without computing (short-circuit AND / OR, see above).
+interface Parser { tokens: Token[]; idx: number; vars: Scope; rctx: RunContext; paren: number; skip: number }
 
 export async function evalExpr(tokens: Token[], idx: number, vars: Scope, rctx: RunContext): Promise<{ value: number; nextIdx: number }> {
-  const p: Parser = { tokens, idx, vars, rctx, paren: 0 };
+  const p: Parser = { tokens, idx, vars, rctx, paren: 0, skip: 0 };
   const value = await parseBinary(p, 1);
   if(!Number.isFinite(value)) throw new Error('Number too large (overflow)');
   return { value, nextIdx: p.idx };
@@ -216,9 +227,18 @@ async function parseBinary(p: Parser, minPrec: number): Promise<number> {
     const prec = op === undefined ? undefined : BINOP_PREC.get(op);
     if(prec === undefined || prec < minPrec) return left;
     p.idx++;
+    // Short-circuit: 0 AND … is 0, (non-zero) OR … is 1 — the right side is skipped.
+    const decided = p.skip === 0 && ((op === 'AND' && left === 0) || (op === 'OR' && left !== 0));
+    if(decided) { await skipping(p, () => parseBinary(p, prec + 1)); left = op === 'OR' ? 1 : 0; continue; }
     const right = await parseBinary(p, prec + 1); // prec+1 → left-associative
-    left = applyBinop(op as string, left, right);
+    left = p.skip ? 0 : applyBinop(op as string, left, right);
   }
+}
+
+// skipping(p, fn): run the parse fn in skip mode (nothing is computed).
+async function skipping(p: Parser, fn: () => Promise<number>): Promise<number> {
+  p.skip++;
+  try { return await fn(); } finally { p.skip--; }
 }
 
 async function parseUnary(p: Parser): Promise<number> {
@@ -228,7 +248,7 @@ async function parseUnary(p: Parser): Promise<number> {
   const t = tok?.text;
   if(t === '-' || t === '~') { p.idx++; return deeper(p, async () => -(await parseUnary(p))); }
   if(t === 'NOT')            { p.idx++; return deeper(p, async () => (await parseBinary(p, CMP_PREC)) === 0 ? 1 : 0); }
-  if(t !== undefined && UNARY.has(t)) { p.idx++; return deeper(p, async () => UNARY_FNS[t](await parseUnary(p))); }
+  if(t !== undefined && UNARY.has(t)) { p.idx++; return deeper(p, async () => { const a = await parseUnary(p); return p.skip ? 0 : UNARY_FNS[t](a); }); }
   return parsePrimary(p);
 }
 
@@ -247,11 +267,23 @@ async function parsePrimary(p: Parser): Promise<number> {
       } finally { p.paren--; }
     });
   }
+  if(t === 'IFELSE') {
+    // IFELSE as a value: IFELSE cond [ value ] [ value ] — only the chosen block runs.
+    p.idx++;
+    return deeper(p, async () => {
+      const cond = await parseBinary(p, 1);
+      const b0 = extractBlock(p.tokens, p.idx);
+      const b1 = extractBlock(p.tokens, b0.nextIdx);
+      p.idx = b1.nextIdx;
+      if(p.skip) return 0;
+      return blockValue(cond !== 0 ? b0.body : b1.body, p);
+    });
+  }
   if(t !== undefined && BINARY2.has(t)) {
     p.idx++;
     const a = await parseBinary(p, 1);
     const b = await parseBinary(p, 1);
-    return BINARY2_FNS[t](a, b, p.rctx.session.turtle);
+    return p.skip ? 0 : BINARY2_FNS[t](a, b, p.rctx.session.turtle);
   }
   if(t !== undefined && hasOwn(p.rctx.procs, t)) {
     // User procedure used as a value: FD DOUBLE 50, OUTPUT :N * FACT :N - 1.
@@ -264,6 +296,7 @@ async function parsePrimary(p: Parser): Promise<number> {
       checkProcInput(p.tokens, p.idx, t, proc, k);
       scope[proc.params[k]] = await parseBinary(p, 1);
     }
+    if(p.skip) return 0;
     // Errors after the call (10 / Z, WAIT Z - 1) belong to this line, not to the
     // last line the procedure ran: restore the source position on return.
     const here = { ...p.rctx.execLine };
@@ -272,5 +305,16 @@ async function parsePrimary(p: Parser): Promise<number> {
     return v;
   }
   p.idx++;
+  if(p.skip && t !== undefined && (isVarTok(t) || t === 'REPCOUNT' || t === 'REPCOUNTMAX')) return 0; // not read when skipped
   return resolveToken(t, p.vars, p.rctx);
+}
+
+// blockValue(body, p): the value of an IFELSE block — exactly one expression.
+async function blockValue(body: Token[], p: Parser): Promise<number> {
+  if(body.length === 0) throw new Error('IFELSE used as a value: a [ ] block is empty — it must hold a value');
+  const sub: Parser = { tokens: body, idx: 0, vars: p.vars, rctx: p.rctx, paren: 1, skip: 0 }; // paren: the block may span lines
+  const v = await parseBinary(sub, 1);
+  if(sub.idx < body.length)
+    throw new Error('IFELSE used as a value: a [ ] block must hold one value, found ' + body[sub.idx].text + ' after it');
+  return v;
 }

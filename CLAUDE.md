@@ -46,7 +46,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.8** (`package.json` → `8.8.0`)
+Current version: **v8.9** (`package.json` → `8.9.0`)
 
 ---
 
@@ -55,7 +55,7 @@ Current version: **v8.8** (`package.json` → `8.8.0`)
 Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — CodeMirror 6 with a Logo `StreamLanguage`, line numbers, bracket matching; `format/beautify.ts`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.ts` imports everything; UI modules wire their DOM handlers on import.
 
 **The core has no DOM** — `interpreter/`, `turtle/`, `format/` cannot use browser APIs (`tsconfig.core.json` type-checks them without the DOM library) and cannot import `render/`, `ui/`, `editor/`, `app.ts` (ESLint `no-restricted-imports`). That is what lets Vitest run the interpreter in Node.
-- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
+- **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving, background }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
 - **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `logs`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
 
 **Module state rule:** change session fields, never replace the session (`session.turtle` and `session.procs` are reset in place, too). For UI state held in module variables, a module never assigns to a variable it imports (ES modules forbid it; ESLint `no-import-assign` catches it) — the owner exports a setter: `setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`. Export only what other modules use.
@@ -110,9 +110,9 @@ newLine(tokens, idx) → bool · noteTok(tok, rctx)   (Token = {text, line, col,
 setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)
-move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · clipForRun(rctx, x0,y0,x1,y1)
+move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · arc(deg, r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · clipForRun(rctx, x0,y0,x1,y1)
 tick(rctx) · spendFrame(rctx, part) · nextFrame(rctx) · macroYield(rctx) · sleep(ms, rctx)
-trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · clearScreen(session, io) · clearProcs(session)
+trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · clearScreen(session, io, {keepBackground}?) · clearProcs(session)
 render() · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab)        (browser only)
 ```
 
@@ -273,6 +273,7 @@ Manual checks still worth doing for UI changes: animated runs at speed 0 look ri
 |---|---|---|---|
 | Trail segments, dots, labels | ✓ | ✓ | ✓ |
 | Turtle pose / pen / colour / width (`mkTurtle`) | ✓ | ✓ | ✓ |
+| `SETBG` background (`session.background`) | ✗ | ✓ | ✓ |
 | Variables (`session.globals`) | ✗ | ✓ | ✓ |
 | Procedures (`session.procs`) | ✗ | re-parsed | ✓ |
 | Console log | ✗ | ✓ | ✓ |
@@ -296,4 +297,6 @@ See `blue-logo-lang-spec.md` for full detail.
 - **No third-party requests:** the UI uses system fonts; VT323 (title + LABEL only) is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
 - **Look:** colours and font stacks are CSS variables in `:root` of `app.css` (impl-spec §4.1a); syntax colours are in `editor.ts`. Keep text at ≥ 4.5:1 contrast, buttons neutral (only Run / Stop coloured), sentence case except Logo commands.
 - **Editor = CodeMirror 6** (`src/editor/`): it owns text, caret, undo, IME and paste. The rest of the app uses only the `Editor` interface (`getValue`, `setValue`, `initValue`, `onChange`, `focus`). `document.execCommand('copy')` remains only as the copy-button fallback.
-- **Not implemented:** `FILL`, `FOREVER`, `SETXY`, list/string values, short-circuit `AND`/`OR`.
+- **Short-circuit `AND` / `OR`** (v8.9) and IFELSE-as-a-value use the parser's skip mode (`p.skip`): the skipped tokens are parsed and checked but nothing is computed or run.
+- **`ARC`** walks the true arc (half-step turns, exact end point); **`CIRCLE`** keeps its older polygon so existing drawings do not move.
+- **Not implemented:** `FILL`, edge modes, keyboard/mouse input, list/string values (and so `PENCOLOR`). Planned order: `TODO.md` → Language.

@@ -21,11 +21,32 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 
 ### Language
 - [x] v8.7 review (`docs/review-v8.7.md`): all items fixed or documented in v8.8
-- [ ] Decide whether two-input functions (`DISTANCE`, `TOWARDS`, `MAX` …) should bind their inputs like `SQRT` does — `DISTANCE 0 0 > 5` currently means `DISTANCE 0 (0 > 5)` (documented in lang-spec §3.3 / §7; a breaking change)
-- [ ] Short-circuit `AND` / `OR` (needs a "skip" parse mode so the right side is consumed without evaluating)
-- [ ] `FOREVER`, `SETXY` / `SETX` / `SETY`, `FILL`
-- [ ] Optional `WRAP` / `WINDOW` edge modes (currently always stops with OUCH)
+
+Missing language features (review of Nov 2026), in the agreed order:
+
+**Step 1 — v8.9: cheap, no breaking changes**
+- [x] `SETXY x y`, `SETX x`, `SETY y`
+- [x] `FOREVER [ … ]` (REPCOUNT works inside; leave with BREAK / STOP)
+- [x] `ARC angle radius` (turtle-path arc like CIRCLE)
+- [x] `PI`
+- [x] Aliases `SETPC` / `SETPENCOLOR`, `SETPENSIZE`; `PENSIZE` query (`PENCOLOR` needs list values → step 3)
+- [x] `SETBG colour` / `SETBACKGROUND`
+- [x] `IFELSE` as a value: `OUTPUT IFELSE :N < 2 [1] [:N * FACT :N - 1]`
+- [x] Short-circuit `AND` / `OR`
+
+**Step 2 — v8.10: medium effort**
+- [ ] Filled shapes: `BEGINFILL` … `ENDFILL` (record the path as a polygon; new drawing-store item, `paintDrawing`); maybe `FILL` later
+- [ ] Edge modes `WRAP` / `WINDOW` / `FENCE` (today always FENCE + OUCH)
+- [ ] Interaction: `TIMER`, `KEYP` / `READKEY`, maybe `MOUSEX` / `MOUSEY` / clicks — each a new `io` method (browser + headless)
+- [ ] Several values in one `PRINT` / `LABEL`: `(PRINT "Score: :N)`
+- [ ] Optional procedure inputs / default values (low priority)
 - [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
+
+**Step 3 — v9.0: words and lists (MAJOR, breaking)**
+- [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. Design as its own step; possibly no list mutation.
+- [ ] Decide whether two-input functions (`DISTANCE`, `TOWARDS`, `MAX` …) should bind their inputs like `SQRT` does — `DISTANCE 0 0 > 5` currently means `DISTANCE 0 (0 > 5)` (documented in lang-spec §3.3 / §7; a breaking change, so together with lists)
+
+Not planned: multiple turtles, property lists, file I/O (SAVE / LOAD buttons cover it), `DEFINE` / `TEXT`, macros, `CATCH` / `THROW`.
 
 ### Internals — remaining technical work (agreed: finish this before the visual pass)
 1. [x] Positioned tokens (v8.5): give every token `{line, col}` instead of the `__L<n>:` line-sentinel tokens. Enables exact error locations and, later, step mode / running-line highlight. Update tokenizer, extractor, `skipSen` / `noteLine`, beautify's lexer if needed, tests.

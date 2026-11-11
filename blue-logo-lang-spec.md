@@ -1,10 +1,12 @@
 # Blue Logo — Language Specification
-## Version 8.8 — November 2026
+## Version 8.9 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
 This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `blue-logo-impl-spec.md`.
 
+> **New in v8.9** (no changes to existing programs, except that `AND` / `OR` no longer evaluate a right side the left side already decides, and new built-in words can no longer be procedure names): `SETXY` / `SETX` / `SETY`, `ARC`, `SETBG`, `FOREVER`, `PI`, `PENSIZE`, the aliases `SETPC` / `SETPENCOLOR` / `SETPENSIZE`, `IFELSE` as a value (§2.4), short-circuit `AND` / `OR` (§3.2).
+>
 > **Changes in v8.8 that can affect older programs:** comparisons allow for floating-point drift (`0.1 + 0.2 = 0.3` is true, §3.2); `MOD` has the sign of the divisor (`-7 MOD 3` = 2) and `ROUND` rounds halves away from zero (§3.1); a `"word` used as a number is an error instead of reading the variable (§1.2); `TO` inside `[ ]` and a parameter listed twice are errors (§2.5).
 >
 > **Changes in v8.0 that can affect older programs:** expressions now use standard operator precedence and are left-associative (§3), and `MAKE` inside a procedure now updates an existing outer/global variable instead of always creating a local one (§6). Use `LOCALMAKE` / `LOCAL` for procedure-private variables.
@@ -40,7 +42,7 @@ A `;` always starts a comment, even inside a quoted word: `LABEL "a;b` draws `a`
 
 ### 1.2 Values
 
-All values are floating-point numbers. Logical predicates return `1` (true) or `0` (false). There are no list or string values; the only text is a **quoted word** (`"Hello`), accepted by `LABEL`, `PRINT`, and as a colour name for `SETCOLOR`, and as the name of a variable for `MAKE` / `LOCALMAKE` / `LOCAL` / `FOR`. Quoted words keep their case. A quoted word where a number is expected is an error: `FD "size` → `"size is a word, not a number — for a variable write :size`.
+All values are floating-point numbers. Logical predicates return `1` (true) or `0` (false). There are no list or string values; the only text is a **quoted word** (`"Hello`), accepted by `LABEL`, `PRINT`, and as a colour name for `SETCOLOR` / `SETBG`, and as the name of a variable for `MAKE` / `LOCALMAKE` / `LOCAL` / `FOR`. Quoted words keep their case. A quoted word where a number is expected is an error: `FD "size` → `"size is a word, not a number — for a variable write :size`.
 
 Numbers may use E notation: `1E5`, `2.5E+2`, `1E-3`.
 
@@ -80,9 +82,10 @@ See §6 for scoping rules.
 | `LEFT n` / `LT n` | Turn counter-clockwise n degrees. |
 | `SETHEADING n` / `SETH n` | Set absolute heading. 0 = north (up), 90 = east, 180 = south, 270 = west. Animates via the shorter arc (≤ 180°). |
 | `HOME` | Teleport to the origin (0, 0), heading 0°. Instant — no trail drawn. |
-| `SETPOS x y` | Move straight to (x, y) without changing heading. Draws a line if the pen is down. |
+| `SETPOS x y` / `SETXY x y` | Move straight to (x, y) without changing heading. Draws a line if the pen is down. |
+| `SETX x` / `SETY y` | Move straight to a new x (or y); the other coordinate stays. Draws like `SETPOS`. |
 
-**Canvas edge:** if `FD`, `BK` or `SETPOS` would take the turtle off the canvas, it moves to the edge, the console shows `OUCH! Turtle went off the canvas.` and the program ends.
+**Canvas edge:** if `FD`, `BK`, `SETPOS`, `SETX`, `SETY` or `ARC` would take the turtle off the canvas, it moves to the edge, the console shows `OUCH! Turtle went off the canvas.` and the program ends.
 
 **Turtle and canvas queries (usable in expressions):**
 
@@ -103,11 +106,15 @@ See §6 for scoping rules.
 | `PENDOWN?` / `PD?` | 1 if pen is down, 0 if up. |
 | `PENUP?` / `PU?` | 1 if pen is up, 0 if down. |
 | `CIRCLE r` | Draw a circle of radius r, turning right, starting at the turtle position. Negative r draws the mirror image. \|r\| is capped at 2000. |
+| `ARC angle r` | Walk `angle` degrees of that circle: the turtle moves along the arc and ends turned by `angle`. Negative angle turns left; negative r walks backward (mirror image, like `CIRCLE`). The turtle ends exactly on the arc: `ARC 90 100` from `HOME` ends at (100, 100), heading 90. `ARC 0 r` does nothing, `ARC a 0` only turns. Note: UCBLogo's `ARC` draws around a turtle that stays put; Blue Logo's walks, like its `CIRCLE`. |
 | `DOT` | Filled dot at the turtle position. Diameter = pen width, colour = pen colour. Draws even with the pen up. |
 | `DOT x y` | Filled dot at (x, y); the turtle does not move. Inputs (numbers, variables, functions or procedures that OUTPUT) must start on the same line as `DOT`. |
 | `SETCOLOR r g b` / `SC r g b` | Set pen colour. Channels 0–255; out-of-range values are clamped with a warning. |
 | `SETCOLOR name` | Named colour, bare or quoted: `SETCOLOR RED`, `SETCOLOR "red` — see §4. |
-| `SETWIDTH n` / `SW n` | Set pen width in pixels. Clamped to 0.5–100 with a warning. |
+| `SETPC …` / `SETPENCOLOR …` | Other names for `SETCOLOR` (as in UCBLogo), same inputs. |
+| `SETWIDTH n` / `SW n` / `SETPENSIZE n` | Set pen width in pixels. Clamped to 0.5–100 with a warning. |
+| `PENSIZE` | The pen width (a value). |
+| `SETBG name` / `SETBG r g b` / `SETBACKGROUND …` | Canvas background colour, same inputs as `SETCOLOR`. `CS` keeps it; RUN (with "Clear screen on run") and CLR go back to the canvas colour chosen in Options. |
 | `LABEL "text` | Draw text (case kept) at the turtle position in the pen colour. One word per LABEL. |
 | `LABEL value` | Draw a number: `LABEL :X`, `LABEL XCOR`, `LABEL (:A + 1)`, or a procedure that OUTPUTs (`LABEL DOUBLE 3`). |
 | `CLEARSCREEN` / `CS` | Clear the trail, dots and labels; reset the turtle (position, heading, pen, colour, width). Variables, procedures and console are kept. |
@@ -121,6 +128,7 @@ See §6 for scoping rules.
 | `REPEAT n [body]` | Run body n times. n is rounded to the nearest whole number (`REPEAT 2.5` runs 3 times; UCBLogo truncates) — rounding keeps counts like `REPEAT 0.7 * 10` right despite floating-point drift. Negative n logs a warning and skips. |
 | `REPCOUNT` | Current iteration (1…n) of the innermost `REPEAT` in the current procedure. Error outside a `REPEAT`. |
 | `REPCOUNTMAX` | Total iteration count n of that `REPEAT`. |
+| `FOREVER [body]` | Run body again and again. Leave it with `BREAK` (or `STOP` inside a procedure); the STOP button always works. `REPCOUNT` counts the rounds (1, 2, …); `REPCOUNTMAX` is an error inside `FOREVER`. |
 | `WHILE [cond] [body]` | Run body while cond is non-zero; cond is checked before each iteration. |
 | `FOR :v start end [body]` | Count `:v` from start to end in steps of ±1 (direction automatic). |
 | `FOR :v start end step [body]` | As above with an explicit step. Step 0 is an error. Fractional steps are safe (`FOR :i 0 1 0.1` runs 11 times). |
@@ -133,6 +141,7 @@ See §6 for scoping rules.
 |---|---|
 | `IF cond [body]` | Run body if cond is non-zero. |
 | `IFELSE cond [then] [else]` | Run then if cond is non-zero, otherwise else. |
+| `IFELSE cond [a] [b]` as a value | Where a value is expected, `IFELSE` gives the value of one block: `OUTPUT IFELSE :N < 2 [1] [:N * FACT :N - 1]`. Each block must hold exactly one value; only the chosen block is worked out (`IFELSE :X = 0 [0] [1 / :X]` is safe). |
 | `STOP` | Leave the current procedure. At top level: end the program. |
 | `OUTPUT val` / `OP val` | Return val from the current procedure (see §2.5). |
 | `WAIT n` | Pause n seconds (n ≥ 0, capped at 30). The STOP button ends a WAIT immediately. |
@@ -214,7 +223,7 @@ An expression inside `( )` may span several lines.
 
 ### 3.2 Comparison and logic
 
-Comparisons `>` `<` `=` `>=` `<=` `!=` (also written `<>`) return 1 or 0. They allow for floating-point drift: two numbers that agree to about 12 significant digits — what `PRINT` shows — are equal (near zero: closer than 10⁻¹²). So `0.1 + 0.2 = 0.3` is true, and `0.1 + 0.2 > 0.3` is false. `AND`, `OR` (infix) and `NOT` (prefix) treat 0 as false and anything else as true, and return 1 or 0. Both sides of `AND` / `OR` are always evaluated.
+Comparisons `>` `<` `=` `>=` `<=` `!=` (also written `<>`) return 1 or 0. They allow for floating-point drift: two numbers that agree to about 12 significant digits — what `PRINT` shows — are equal (near zero: closer than 10⁻¹²). So `0.1 + 0.2 = 0.3` is true, and `0.1 + 0.2 > 0.3` is false. `AND`, `OR` (infix) and `NOT` (prefix) treat 0 as false and anything else as true, and return 1 or 0. `AND` / `OR` **short-circuit**: when the left side already decides the result (0 for `AND`, non-zero for `OR`), the right side is not worked out — no procedure on it runs and no variable is read — so `:X != 0 AND 10 / :X > 1` is safe when `:X` is 0. The skipped side is still checked for syntax (`0 AND RT` is an error).
 
 ### 3.3 Math functions
 
@@ -230,6 +239,8 @@ Single-input functions bind to the one operand that follows (number, variable, q
 | `EXP n` | eⁿ (n ≤ 709). |
 | `ABS n` `INT n` `ROUND n` `FLOOR n` `CEILING n` | Absolute value, truncate toward zero, round (halves away from zero: `ROUND -2.5` = −3), round down, round up. |
 | `RANDOM n` / `RND n` | Random whole number 0 … ⌊n⌋−1. n must be ≥ 1. |
+
+`PI` is the constant 3.14159…: `2 * PI * :R`. Like every single-input function's operand it is one value, so `ROUND PI * 1000` is `(ROUND PI) * 1000` = 3000; write `ROUND (PI * 1000)`.
 
 Two-input prefix functions (each input is a full expression — so a comparison or `+` after the second input belongs to it: `DISTANCE 0 0 > 5` means `DISTANCE 0 (0 > 5)`; write `(DISTANCE 0 0) > 5`):
 
@@ -299,13 +310,13 @@ Tail calls (§2.5) keep these rules: a procedure called as the last thing its ca
 | Area | Behaviour |
 |---|---|
 | **Numbers only** | No lists or strings; quoted words exist only for `LABEL`, `PRINT` and colour names. |
-| **No short-circuit logic** | `AND` / `OR` evaluate both sides: `:X != 0 AND 10 / :X > 1` still divides by zero when `:X` is 0. Use nested `IF`. |
 | **`REPCOUNT` is innermost only** | Use `FOR` with a named variable if you need an outer loop's count. |
 | **`HOME` does not draw** | Unlike UCBLogo, `HOME` never draws a line, even with the pen down. |
 | **Canvas edge ends the program** | There is no `WRAP` / `WINDOW` mode. |
 | **Procedures take whole expressions** | A user procedure's inputs, and those of two-input functions (`MAX`, `TOWARDS`, `DISTANCE`, …), are full expressions — unlike single-input functions such as `SQRT`. `(DISTANCE 0 0) > 5` needs the `( )`. See §2.5, §3.3. |
 | **Approximate comparisons** | `=` / `<` / … treat numbers within ~12 significant digits as equal (§3.2); there is no exact-equality operator. |
-| **Not implemented** | `FILL`, `FOREVER`, `SETXY`/`SETX`/`SETY`, file commands (use the SAVE / LOAD buttons). |
+| **No `PENCOLOR`** | There are no list values, so the pen colour cannot be read back as `[r g b]` (planned with lists). |
+| **Not implemented** | `FILL`, edge modes (`WRAP` / `WINDOW`), keyboard / mouse input, file commands (use the SAVE / LOAD buttons). |
 
 ---
 
@@ -326,7 +337,8 @@ A runtime error halts the program and shows the line of the statement or value b
 | Command used as a value | `RT is a command, not a value — a value was expected here` |
 | Too few inputs for a procedure | `SQ needs 1 input (:S)` / `R needs 2 inputs (:A :B), got only 1` |
 | Word used as a number | `"red is a word, not a number — for a variable write :red` |
-| Unknown colour | `SETCOLOR: unknown colour name RDE (colours: RED ORANGE …)` |
+| Unknown colour | `SETCOLOR: unknown colour name RDE (colours: RED ORANGE …)` (also `SETBG: …`) |
+| `IFELSE` value block | `IFELSE used as a value: a [ ] block must hold one value, found …` / `… a [ ] block is empty …` |
 | Undefined variable | `Unknown variable: :X` |
 | `LOCAL` variable read before set | `Variable :X has no value yet (declared with LOCAL)` |
 | `:XCOR` etc. with colon | `XCOR: use without colon (e.g. FD XCOR). …` |
@@ -342,17 +354,17 @@ A runtime error halts the program and shows the line of the statement or value b
 | No `OUTPUT` from a value call | `F did not OUTPUT a value, but was used where a value is needed` |
 | `OUTPUT` outside a procedure | `OUTPUT used outside a procedure` |
 | `BREAK` / `CONTINUE` outside a loop | `BREAK used outside a loop` |
-| `REPCOUNT` outside `REPEAT` | `REPCOUNT used outside a REPEAT loop` |
+| `REPCOUNT` outside `REPEAT` | `REPCOUNT used outside a REPEAT loop` (`REPCOUNTMAX` in `FOREVER`: `REPCOUNTMAX: FOREVER has no count`) |
 | Deep recursion | `Stack overflow: … (> 10000 frames)` / `Expression nested too deeply (> 500 levels) …` |
-| `FOR` step 0, `WAIT` < 0, non-finite `CIRCLE` | Specific error |
+| `FOR` step 0, `WAIT` < 0, non-finite `CIRCLE` / `ARC` | Specific error |
 
-Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLOR` / `SETWIDTH` / `SPEED` clamped, `WAIT` > 30 s capped, `CIRCLE` radius capped, trail limit (50 000 segments) or label limit (500) reached.
+Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLOR` / `SETBG` / `SETWIDTH` / `SPEED` clamped, `WAIT` > 30 s capped, `CIRCLE` / `ARC` radius capped, trail limit (50 000 segments) or label limit (500) reached.
 
 ---
 
 ## 9. Examples
 
-35 built-in examples are available from the EXAMPLES panel.
+36 built-in examples are available from the EXAMPLES panel.
 
 | Title | Features demonstrated |
 |---|---|
@@ -385,3 +397,4 @@ Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLO
 | Chase — TOWARDS and DISTANCE | `TOWARDS`, `DISTANCE`, `HEADING`, `WHILE`, `MOD` for angles, `( )` around two-input functions |
 | BREAK, CONTINUE and a Test | A procedure that OUTPUTs 1 / 0, `NOT`, `CONTINUE`, `BREAK` |
 | Tree — Recursion | Branching (non-tail) recursion with parameters only |
+| Arc Flowers | `ARC`, `SETBG`, `SETXY`, `IFELSE` as a value, `FOREVER` with `BREAK` |

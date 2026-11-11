@@ -4,8 +4,8 @@ import { formatNum, hasOwn, isVarTok, procScopeOf, setVar, varName } from './sco
 import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, trailPushIfRoom } from '../turtle/drawing.ts';
-import { circle, clipForRun, move, ouch, rotate } from '../turtle/motion.ts';
-import type { CommandHandler, RunContext, Token } from './types.ts';
+import { arc, circle, clipForRun, move, ouch, rotate } from '../turtle/motion.ts';
+import type { CommandHandler, RunContext, Scope, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
 // CMD maps uppercase command name → async handler.
@@ -74,7 +74,7 @@ function isValueStart(tok: string | undefined, rctx: RunContext): boolean {
   if(!tok) return false;
   return isVarTok(tok) || hasOwn(rctx.procs, tok) || /^[\d.]/.test(tok) || tok === '~' || tok === '-' || tok === '(' ||
          QUERY_TOKENS.has(tok) || tok === 'REPCOUNT' || tok === 'REPCOUNTMAX' ||
-         UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT';
+         UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT' || tok === 'IFELSE';
 }
 
 // LABEL "text | value | bareword — draw text at the turtle position.
@@ -126,21 +126,37 @@ CMD['SETH'] = CMD['SETHEADING'] = async (t,i,v,rctx) => {
 CMD['HOME'] = async (_t,i,_v,rctx) => {
   rctx.session.turtle.x=0; rctx.session.turtle.y=0; rctx.session.turtle.angle=0; rctx.io.render(); rctx.io.log('HOME','info'); return i;
 };
-// SETPOS x y: straight line (pen down) to (x, y) without changing heading.
-// Leaving the canvas behaves like FD: the line stops at the edge and the run ends (OUCH!).
-CMD['SETPOS'] = async (t,i,v,rctx) => {
-  const {value:nx, nextIdx:i1} = await evalExpr(t,i,v,rctx);
-  const {value:ny, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+// goTo(nx, ny, what, rctx): straight line (pen down) to (nx, ny) without changing
+// heading — SETPOS / SETXY / SETX / SETY. Leaving the canvas behaves like FD: the
+// line stops at the edge and the run ends (OUCH!).
+async function goTo(nx: number, ny: number, what: string, rctx: RunContext): Promise<void> {
   const tt = rctx.session.turtle;
   const hit = clipForRun(rctx, tt.x, tt.y, nx, ny);
   const [ex, ey] = hit || [nx, ny];
   if(tt.pen && (ex !== tt.x || ey !== tt.y))
     trailPushIfRoom(rctx, tt.x,tt.y,ex,ey,tt.width, tt.color[0],tt.color[1],tt.color[2]);
   tt.x=ex; tt.y=ey;
-  if(rctx.io.logs('op')) rctx.io.log('SETPOS '+formatNum(nx)+' '+formatNum(ny), 'op');
+  if(rctx.io.logs('op')) rctx.io.log(what, 'op');
   if(hit) ouch(rctx);
   await tick(rctx);
+}
+// SETPOS x y / SETXY x y: go to (x, y).
+CMD['SETPOS'] = CMD['SETXY'] = async (t,i,v,rctx) => {
+  const {value:nx, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:ny, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  await goTo(nx, ny, 'SETPOS '+formatNum(nx)+' '+formatNum(ny), rctx);
   return i2;
+};
+// SETX x / SETY y: change one coordinate, keep the other.
+CMD['SETX'] = async (t,i,v,rctx) => {
+  const {value:nx, nextIdx} = await evalExpr(t,i,v,rctx);
+  await goTo(nx, rctx.session.turtle.y, 'SETX '+formatNum(nx), rctx);
+  return nextIdx;
+};
+CMD['SETY'] = async (t,i,v,rctx) => {
+  const {value:ny, nextIdx} = await evalExpr(t,i,v,rctx);
+  await goTo(rctx.session.turtle.x, ny, 'SETY '+formatNum(ny), rctx);
+  return nextIdx;
 };
 // DOT [x y] — filled dot at (x,y), or at the turtle position when the next token on
 // the same line is not a value. Diameter = pen width, color = pen color. Always draws
@@ -180,11 +196,20 @@ PEN_COMMANDS.forEach(([abbr, full, prop, val, msg]) => {
 CMD['CS'] = CMD['CLEARSCREEN'] = async (_t,i,_v,rctx) => {
   // CS clears trail segments, labels, and dots; resets turtle to home.
   // Does NOT clear variables, procedures, or the console — use CLR for a full reset.
-  clearScreen(rctx.session, rctx.io); rctx.io.render(); rctx.io.log('CLEAR','info'); return i;
+  clearScreen(rctx.session, rctx.io, { keepBackground: true }); rctx.io.render(); rctx.io.log('CLEAR','info'); return i;
 };
 CMD['CT'] = CMD['CLEARTEXT'] = async (_t,i,_v,rctx) => { rctx.io.clearText(); return i; };
 CMD['CIRCLE'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('CIRCLE '+formatNum(n),'op'); await circle(n,rctx); return nextIdx;
+};
+// ARC angle radius: walk part of a CIRCLE — angle degrees of it, turning right
+// (negative angle: turning left). ARC 360 r draws the same as CIRCLE r.
+CMD['ARC'] = async (t,i,v,rctx) => {
+  const {value:a, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:r, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  if(rctx.io.logs('op')) rctx.io.log('ARC '+formatNum(a)+' '+formatNum(r),'op');
+  await arc(a, r, rctx);
+  return i2;
 };
 // Named colour table — 16 kid-friendly colours accepted by SETCOLOR.
 // GREY is an alias for GRAY (same slot, not counted separately).
@@ -197,34 +222,45 @@ export const COLOR_NAMES: Record<string, [number, number, number]> = {
   BROWN:[150,80,30], GOLD:[255,200,0],
 };
 
-CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
-  // Named colour form: SETCOLOR RED  or  SETCOLOR "red
+// readColour(t, i, v, rctx, cmd): a colour input — a name (bare or "quoted, see
+// COLOR_NAMES) or three expressions r g b, each clamped to 0–255 with a warning.
+async function readColour(t: Token[], i: number, v: Scope, rctx: RunContext, cmd: string): Promise<{ rgb: [number, number, number]; nextIdx: number }> {
   const word = t[i]?.text;
   const nameTok = word && (word.startsWith('"') ? word.slice(1).toUpperCase() : word);
-  if(nameTok && hasOwn(COLOR_NAMES, nameTok)){
-    rctx.session.turtle.color = [...COLOR_NAMES[nameTok]] as [number, number, number];
-    rctx.io.log('COLOR ' + rctx.session.turtle.color.join(' '), 'info');
-    return i+1;
-  }
-  if(word && word.startsWith('"')) throw new Error('SETCOLOR: unknown colour name ' + word.slice(1));
+  if(nameTok && hasOwn(COLOR_NAMES, nameTok))
+    return { rgb: [...COLOR_NAMES[nameTok]] as [number, number, number], nextIdx: i + 1 };
+  if(word && word.startsWith('"')) throw new Error(cmd + ': unknown colour name ' + word.slice(1));
   if(word && /^[A-Z_]/.test(word) && !isValueStart(word, rctx))
-    throw new Error('SETCOLOR: unknown colour name ' + word + ' (colours: ' + Object.keys(COLOR_NAMES).join(' ') + ')');
-  // Numeric form: SETCOLOR r g b
+    throw new Error(cmd + ': unknown colour name ' + word + ' (colours: ' + Object.keys(COLOR_NAMES).join(' ') + ')');
   const {value:r, nextIdx:i1} = await evalExpr(t,i,v,rctx);
   const {value:g, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
   const {value:b, nextIdx:i3} = await evalExpr(t,i2,v,rctx);
   // Clamp each channel to 0–255 and warn if any value was changed — mirrors
   // SETWIDTH's behaviour so out-of-range input is never silently discarded.
   const clamp = (x: number): number => Math.max(0, Math.min(255, Math.round(x)));
-  rctx.session.turtle.color = [clamp(r), clamp(g), clamp(b)];
-  // Compare against raw input (not Math.round) so tiny negatives like -0.4 also trigger
-  // the warning. clamp() already rounds+clamps; the warn fires whenever stored !== raw.
-  if(rctx.session.turtle.color[0]!==r || rctx.session.turtle.color[1]!==g || rctx.session.turtle.color[2]!==b)
-    rctx.io.log('SETCOLOR ' + [r,g,b].map(formatNum).join(' ') + ' clamped to ' + rctx.session.turtle.color.join(' '), 'info');
-  rctx.io.log('COLOR ' + rctx.session.turtle.color.join(' '), 'info');
-  return i3;
+  const rgb: [number, number, number] = [clamp(r), clamp(g), clamp(b)];
+  // Compare against the raw input (not Math.round) so tiny negatives like -0.4 also warn.
+  if(rgb[0]!==r || rgb[1]!==g || rgb[2]!==b)
+    rctx.io.log(cmd + ' ' + [r,g,b].map(formatNum).join(' ') + ' clamped to ' + rgb.join(' '), 'info');
+  return { rgb, nextIdx: i3 };
+}
+// SETCOLOR name | r g b — pen colour.
+CMD['SC'] = CMD['SETCOLOR'] = CMD['SETPC'] = CMD['SETPENCOLOR'] = async (t,i,v,rctx) => {
+  const { rgb, nextIdx } = await readColour(t, i, v, rctx, 'SETCOLOR');
+  rctx.session.turtle.color = rgb;
+  rctx.io.log('COLOR ' + rgb.join(' '), 'info');
+  return nextIdx;
 };
-CMD['SW'] = CMD['SETWIDTH'] = async (t,i,v,rctx) => {
+// SETBG name | r g b — canvas background colour. Kept by CS; RUN (with "clear
+// screen on run") and CLR go back to the canvas style chosen in Options.
+CMD['SETBG'] = CMD['SETBACKGROUND'] = async (t,i,v,rctx) => {
+  const { rgb, nextIdx } = await readColour(t, i, v, rctx, 'SETBG');
+  rctx.session.background = rgb;
+  rctx.io.render();
+  rctx.io.log('BACKGROUND ' + rgb.join(' '), 'info');
+  return nextIdx;
+};
+CMD['SW'] = CMD['SETWIDTH'] = CMD['SETPENSIZE'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   const w = Math.max(0.5, Math.min(100, n)); // clamp: 0 or negative = invisible; >100 = unreasonable
   if(w !== n) rctx.io.log('SETWIDTH ' + formatNum(n) + ' clamped to ' + w, 'info');

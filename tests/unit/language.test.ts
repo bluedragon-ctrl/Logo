@@ -3,7 +3,7 @@ import { CASES } from '../cases.js';
 import { makeRunContext } from '../../src/interpreter/context.ts';
 import { execute, parseProgram } from '../../src/interpreter/execute.ts';
 import { headlessIO } from '../../src/interpreter/io.ts';
-import { createSession } from '../../src/interpreter/session.ts';
+import { clearScreen, createSession } from '../../src/interpreter/session.ts';
 import { runLogo } from './run-logo.ts';
 
 describe('language cases (tests/cases.js)', () => {
@@ -61,6 +61,32 @@ describe('interpreter state', () => {
     expect(animated.session.drawing.len).toBe(instant.session.drawing.len);
     expect(animated.session.turtle.x).toBeCloseTo(instant.session.turtle.x, 6);
     expect(animated.session.turtle.y).toBeCloseTo(instant.session.turtle.y, 6);
+  });
+  test('SETBG sets the background; CS keeps it, clearScreen (RUN / CLR) resets it', async () => {
+    const { session } = await runLogo('SETBG NAVY\nCS');
+    expect(session.background).toEqual([0, 0, 150]);
+    clearScreen(session, headlessIO());
+    expect(session.background).toBeNull();
+  });
+  test('ARC draws one segment per step; animated = instant', async () => {
+    const instant = await runLogo('ARC 90 100');
+    expect(instant.session.drawing.len).toBe(25);   // a quarter of CIRCLE 100's 100 steps
+    const animated = await runLogo('ARC 90 100', { speed: 3 });
+    expect(animated.session.turtle).toEqual(instant.session.turtle);
+  });
+  test('a short-circuited AND / OR does not run the procedure on its right', async () => {
+    const { out } = await runLogo('TO P\n PRINT 99\n OUTPUT 1\nEND\nPRINT 0 AND P\nPRINT 1 OR P\nPRINT 1 AND P');
+    expect(out.match(/PRINT → 99/g)?.length).toBe(1); // only the last line calls P
+  });
+  test('FOREVER keeps running until stopped (and STOP works)', async () => {
+    const io = headlessIO();
+    const rctx = makeRunContext(4, createSession(), io);
+    const parsed = parseProgram('FOREVER [ RT 1 ]', io);
+    if (!parsed) throw new Error('parse failed');
+    const run = execute(parsed.topLevel, rctx);
+    setTimeout(() => { rctx.stopped = true; }, 50);
+    await run;
+    expect(io.text()).not.toMatch(/✗|Done/);
   });
   test('STOP (rctx.stopped) ends the run without an error', async () => {
     const io = headlessIO();
