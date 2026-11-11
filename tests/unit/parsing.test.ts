@@ -1,19 +1,21 @@
 import { describe, expect, test } from 'vitest';
 import { extractProcedures } from '../../src/interpreter/procedures.ts';
 import { formatNum } from '../../src/interpreter/scope.ts';
-import { LINE_SEN, tokenize } from '../../src/interpreter/tokenizer.ts';
+import { tokenize } from '../../src/interpreter/tokenizer.ts';
+import type { Token } from '../../src/interpreter/types.ts';
 import { clipToCanvas } from '../../src/turtle/motion.ts';
 import { beautify } from '../../src/format/beautify.ts';
 
-const code = (toks: string[]): string[] => toks.filter(t => !t.startsWith(LINE_SEN));
+const code = (toks: Token[]): string[] => toks.map(t => t.text);
 
 describe('tokenize', () => {
   test('uppercases everything except "quoted words', () => {
     expect(code(tokenize('fd 10 label "Hello'))).toEqual(['FD', '10', 'LABEL', '"Hello']);
   });
-  test('one line sentinel per non-empty line, with the source text', () => {
-    const t = tokenize('FD 10\n\n  RT 90 ; turn');
-    expect(t.filter(x => x.startsWith(LINE_SEN))).toEqual([LINE_SEN + '1:FD 10', LINE_SEN + '3:RT 90 ; turn']);
+  test('every token knows its line, column and source line', () => {
+    const t = tokenize('FD 10\n\n  RT -90 ; turn');
+    expect(t.map(x => [x.text, x.line, x.col])).toEqual([['FD', 1, 1], ['10', 1, 4], ['RT', 3, 3], ['~', 3, 6], ['90', 3, 7]]);
+    expect(t[2].lineText).toBe('RT -90 ; turn');
   });
   test('comments are stripped', () => {
     expect(code(tokenize('; nothing\nFD 1 ; go'))).toEqual(['FD', '1']);

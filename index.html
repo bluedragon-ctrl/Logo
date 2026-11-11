@@ -13,13 +13,7 @@
   <div id="split">
     <div id="code-label"><span>▸ CODE</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">LOG</button><button id="btn-save-file" title="Save program to file">SAVE</button><button id="btn-load-file" title="Load program from file">LOAD</button><button id="opt-btn" title="Options">⚙</button></span></div>
     <div id="code-wrap">
-      <div id="editor"
-           contenteditable="true"
-           spellcheck="false"
-           autocorrect="off"
-           autocapitalize="none"
-           autocomplete="off"
-           data-placeholder="Type LOGO commands here..."></div>
+      <div id="editor"></div> <!-- CodeMirror mounts here (src/editor/editor.ts) -->
     </div>
     <div id="splitter"></div>
     <div id="console-label"><span>▸ CONSOLE</span></div>

@@ -3,7 +3,7 @@ import { editor } from '../editor/editor.ts';
 import { activeRctx } from '../interpreter/context.ts';
 import { parseProgram, registerProcs } from '../interpreter/execute.ts';
 import { extractProcedures } from '../interpreter/procedures.ts';
-import { LINE_SEN, tokenize } from '../interpreter/tokenizer.ts';
+import { tokenize } from '../interpreter/tokenizer.ts';
 import { consoleVisible, log } from './console.ts';
 import { runProgram } from './program.ts';
 import { byId } from '../util.ts';
@@ -33,7 +33,7 @@ export async function runDirectCommand(rawText: string): Promise<boolean> {
   const parsed = parseProgram(cmdText, io);
   if (!parsed) return true;
   registerProcs(session, parsed.newProcs, io);
-  if (!parsed.topLevel.some(t => !t.startsWith(LINE_SEN))) return true; // only definitions typed
+  if (!parsed.topLevel.length) return true; // only definitions typed
 
   log('⌘ ' + cmdText, 'cmd');
   await runProgram(parsed.topLevel);

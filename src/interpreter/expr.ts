@@ -2,7 +2,7 @@ import { CMD } from './commands.ts';
 import { CONTROL_WORDS } from './procedures.ts';
 import { runExpr } from './runtime.ts';
 import { PROC_SCOPE, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
-import { LINE_SEN } from './tokenizer.ts';
+import { newLine } from './tokenizer.ts';
 import type { RunContext, Scope, Token, Turtle } from './types.ts';
 
 // ── Token resolution ──────────────────────────────────────────────────────────
@@ -23,8 +23,8 @@ export const QUERY_TOKENS = new Map<string, (ts: Turtle, rctx: RunContext) => nu
 
 // resolveToken(tok, vars, rctx) → number   — a single value token:
 //   number literal · :var / "var · query token · REPCOUNT / REPCOUNTMAX
-function resolveToken(tok: Token | undefined, vars: Scope, rctx: RunContext): number {
-  if(tok === undefined || tok === null || tok === '') throw new Error('Missing value — the expression ended early');
+function resolveToken(tok: string | undefined, vars: Scope, rctx: RunContext): number {
+  if(tok === undefined || tok === '') throw new Error('Missing value — the expression ended early');
   const q = QUERY_TOKENS.get(tok);
   if(q) return q(rctx.session.turtle, rctx);
   if(tok === 'REPCOUNT' || tok === 'REPCOUNTMAX') {
@@ -143,18 +143,11 @@ export async function evalExpr(tokens: Token[], idx: number, vars: Scope, rctx: 
   return { value, nextIdx: p.idx };
 }
 
-// skipSen(tokens, idx, rctx?): index of the next non-sentinel token. When rctx is
-// given, skipped sentinels still update rctx.execLine (accurate error lines).
-export function skipSen(tokens: Token[], idx: number, rctx?: RunContext): number {
-  while(idx < tokens.length && tokens[idx].startsWith(LINE_SEN)) {
-    if(rctx) noteLine(tokens[idx], rctx);
-    idx++;
-  }
-  return idx;
-}
-export function noteLine(raw: Token, rctx: RunContext): void {
-  const col = raw.indexOf(':');
-  if(col >= 0) { rctx.execLine.n = parseInt(raw.slice(LINE_SEN.length, col)); rctx.execLine.text = raw.slice(col + 1); }
+// noteTok(tok, rctx): remember tok's source position for error messages. Called
+// for every statement (runStack) and every operand (parseUnary).
+export function noteTok(tok: Token, rctx: RunContext): void {
+  const l = rctx.execLine;
+  l.n = tok.line; l.col = tok.col; l.text = tok.lineText;
 }
 
 // deeper(p, fn): run fn one nesting level deeper; throws a clean Logo error
@@ -170,41 +163,44 @@ async function deeper(p: Parser, fn: () => Promise<number>): Promise<number> {
 async function parseBinary(p: Parser, minPrec: number): Promise<number> {
   let left = await parseUnary(p);
   for(;;) {
-    if(p.paren > 0) p.idx = skipSen(p.tokens, p.idx, p.rctx); // inside ( ) an expression may span lines
-    const op = p.tokens[p.idx];
-    const prec = BINOP_PREC.get(op);
+    // Outside ( ) a line break ends the expression; inside, it may span lines.
+    if(p.paren === 0 && newLine(p.tokens, p.idx)) return left;
+    const op = p.tokens[p.idx]?.text;
+    const prec = op === undefined ? undefined : BINOP_PREC.get(op);
     if(prec === undefined || prec < minPrec) return left;
     p.idx++;
     const right = await parseBinary(p, prec + 1); // prec+1 → left-associative
-    left = applyBinop(op, left, right);
+    left = applyBinop(op as string, left, right);
   }
 }
 
 async function parseUnary(p: Parser): Promise<number> {
-  p.idx = skipSen(p.tokens, p.idx, p.rctx); // an operand is required — a line break can't end the expression here
-  const t = p.tokens[p.idx];
+  // An operand is required here, so a line break can't end the expression.
+  const tok = p.tokens[p.idx];
+  if(tok) noteTok(tok, p.rctx);
+  const t = tok?.text;
   if(t === '-' || t === '~') { p.idx++; return deeper(p, async () => -(await parseUnary(p))); }
   if(t === 'NOT')            { p.idx++; return deeper(p, async () => (await parseBinary(p, CMP_PREC)) === 0 ? 1 : 0); }
-  if(UNARY.has(t))           { p.idx++; return deeper(p, async () => UNARY_FNS[t](await parseUnary(p))); }
+  if(t !== undefined && UNARY.has(t)) { p.idx++; return deeper(p, async () => UNARY_FNS[t](await parseUnary(p))); }
   return parsePrimary(p);
 }
 
 async function parsePrimary(p: Parser): Promise<number> {
-  const t = p.tokens[p.idx];
+  const t = p.tokens[p.idx]?.text;
   if(t === '(') {
     p.idx++;
     return deeper(p, async () => {
       p.paren++;
       try {
         const v = await parseBinary(p, 1);
-        p.idx = skipSen(p.tokens, p.idx, p.rctx);
-        if(p.tokens[p.idx] !== ')') throw new Error('Missing ) — a ( was opened but never closed' + (p.tokens[p.idx] ? ' (found ' + p.tokens[p.idx] + ')' : ''));
+        const close = p.tokens[p.idx]?.text;
+        if(close !== ')') throw new Error('Missing ) — a ( was opened but never closed' + (close ? ' (found ' + close + ')' : ''));
         p.idx++;
         return v;
       } finally { p.paren--; }
     });
   }
-  if(BINARY2.has(t)) {
+  if(t !== undefined && BINARY2.has(t)) {
     p.idx++;
     const a = await parseBinary(p, 1);
     const b = await parseBinary(p, 1);

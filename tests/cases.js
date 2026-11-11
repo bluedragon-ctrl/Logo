@@ -42,5 +42,12 @@ export const CASES = [
   ['B10 RANDOM below 1 rejected',    'PRINT RANDOM 0.5', 'RANDOM: argument must be >= 1'],
   ['PRINT "word keeps case',         'PRINT "Hello', 'PRINT → Hello'],
   ['busy loop without motion',       'MAKE :I 0\nWHILE [ :I < 100000 ] [ MAKE :I :I + 1 ]\nPRINT :I', 'PRINT → 100000'],
+  // Positioned tokens (v8.5): line breaks and error lines
+  ['line break ends an expression',  'PRINT 5\n+ 1', 'Unexpected +'],
+  ['expression in ( ) spans lines',  'PRINT (5\n+ 1)', 'PRINT → 6'],
+  ['DOT alone takes no inputs',      'DOT\nPRINT 7', 'PRINT → 7'],
+  ['TO parameters end with the line','TO P\n:A\nEND\nP', 'Unexpected value :A'],
+  ['error inside a proc names line', 'TO P\n FD :NOPE\nEND\nP', 'line 2:  FD :NOPE'],
+  ['error after a call names line',  'TO P\n FD 1\nEND\nP RT :NOPE', 'line 4:  P RT :NOPE'],
 ];
 

@@ -2,12 +2,16 @@ import type { Token } from './types.ts';
 
 // ── Tokeniser ─────────────────────────────────────────────────────────────────
 // tokenize(src) → token[]
-//   Splits source into tokens and injects a LINE_SEN sentinel before each
-//   non-empty line. Sentinels survive extractBlock() and procedure body slicing,
-//   so error messages can name the source line everywhere.
+//   Splits source into positioned tokens { text, line, col, lineText }: line and
+//   col are 1-based and point at the token's first character in the source;
+//   lineText is the trimmed source line (shared by all tokens of that line), so
+//   error messages can name the line everywhere — also after extractBlock() and
+//   procedure-body slicing.
 //
-// Sentinel format: LINE_SEN + lineNum + ':' + original source text
-//   e.g. "__L3:  REPEAT 4 [FD 100]"   (detected with startsWith(LINE_SEN))
+// Line breaks matter in two places only, and both compare token lines (newLine):
+// outside ( ) a binary operator on the next line does not continue an expression,
+// and a TO header (name, parameters) ends with its line. DOT takes inputs only
+// from its own line.
 //
 // Case: all tokens are uppercased here (OPT-4) EXCEPT "quoted words, which keep
 // their source case so LABEL "Hello draws Hello. Names taken from :x / "x are
@@ -17,18 +21,23 @@ import type { Token } from './types.ts';
 // directly followed by a digit, '.', ':', '(' or a letter becomes the token '~'
 // (see the expression evaluator). 'A - B' and 'A-B' stay binary subtraction.
 
-export const LINE_SEN = '__L'; // sentinel prefix; lowercase '__L' + digits never collides with a token
 export function tokenize(src: string): Token[] {
   const TOK = />=|<=|!=|[\[\]()+\-*\/=><~]|[^\s\[\]()+\-*\/=><~]+/g;
   const tokens: Token[] = [];
   src.split('\n').forEach((rawLine, i) => {
     const stripped = rawLine.replace(/;.*$/, '');  // strip inline comment
+    // Same length as the source line ('-' → '~'), so match indices are source columns.
     const processed = stripped.replace(/(^|[\s\[(])-(?=[\d.:(A-Za-z])/g, '$1~');
-    const toks = processed.match(TOK);
-    if(toks && toks.length) {
-      tokens.push(LINE_SEN + (i + 1) + ':' + rawLine.trim()); // sentinel — kept as-is
-      for(const tok of toks) tokens.push(tok.startsWith('"') ? tok : tok.toUpperCase());
+    const lineText = rawLine.trim();
+    for(const m of processed.matchAll(TOK)) {
+      const tok = m[0];
+      tokens.push({ text: tok.startsWith('"') ? tok : tok.toUpperCase(), line: i + 1, col: m.index + 1, lineText });
     }
   });
   return tokens;
+}
+
+// newLine(tokens, idx): does tokens[idx] start a later source line than the token before it?
+export function newLine(tokens: Token[], idx: number): boolean {
+  return idx > 0 && idx < tokens.length && tokens[idx].line !== tokens[idx - 1].line;
 }

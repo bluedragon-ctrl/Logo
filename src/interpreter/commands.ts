@@ -1,11 +1,11 @@
-import { BINARY2, QUERY_TOKENS, UNARY, evalExpr, skipSen } from './expr.ts';
+import { BINARY2, QUERY_TOKENS, UNARY, evalExpr } from './expr.ts';
 import { sleep, tick } from './pacing.ts';
 import { formatNum, hasOwn, isVarTok, procScopeOf, setVar, varName } from './scope.ts';
-import { LINE_SEN } from './tokenizer.ts';
+import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, trailPushIfRoom } from '../turtle/drawing.ts';
 import { circle, clipForRun, move, ouch, rotate } from '../turtle/motion.ts';
-import type { CommandHandler, RunContext, Token } from './types.ts';
+import type { CommandHandler, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
 // CMD maps uppercase command name → async handler.
@@ -22,8 +22,7 @@ export const CMD: Record<string, CommandHandler> = {};
 
 // ▸ Variables
 CMD['MAKE'] = async (t,i,v,rctx) => {
-  i = skipSen(t, i, rctx);
-  const rawName = t[i++];
+  const rawName = t[i++]?.text;
   if(!isVarTok(rawName))
     throw new Error('MAKE: expected a variable name like :x or "x, got: ' + (rawName || 'nothing'));
   const name = varName(rawName);
@@ -34,16 +33,14 @@ CMD['MAKE'] = async (t,i,v,rctx) => {
 };
 // LOCAL :a :b …  — declare variables local to the current procedure (no value yet).
 CMD['LOCAL'] = async (t,i,v,rctx) => {
-  i = skipSen(t, i, rctx);
-  if(!isVarTok(t[i])) throw new Error('LOCAL: expected a variable name like :x, got: ' + (t[i] || 'nothing'));
+  if(!isVarTok(t[i]?.text)) throw new Error('LOCAL: expected a variable name like :x, got: ' + (t[i]?.text || 'nothing'));
   const scope = procScopeOf(v, rctx);
-  while(isVarTok(t[i])) { const name = varName(t[i++]); if(!hasOwn(scope, name)) scope[name] = undefined; }
+  for(let w = t[i]?.text; isVarTok(w); w = t[++i]?.text) { const name = varName(w); if(!hasOwn(scope, name)) scope[name] = undefined; }
   return i;
 };
 // LOCALMAKE :x value  — LOCAL + MAKE in one step.
 CMD['LOCALMAKE'] = async (t,i,v,rctx) => {
-  i = skipSen(t, i, rctx);
-  const rawName = t[i++];
+  const rawName = t[i++]?.text;
   if(!isVarTok(rawName)) throw new Error('LOCALMAKE: expected a variable name like :x, got: ' + (rawName || 'nothing'));
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
@@ -53,9 +50,8 @@ CMD['LOCALMAKE'] = async (t,i,v,rctx) => {
 };
 
 // wordArg: if the next token is a "quoted word, return it (source case kept).
-function wordArg(t: Token[], i: number, rctx: RunContext): { text: string; nextIdx: number } | null {
-  i = skipSen(t, i, rctx);
-  const tok = t[i];
+function wordArg(t: Token[], i: number): { text: string; nextIdx: number } | null {
+  const tok = t[i]?.text;
   if(tok && tok.startsWith('"')) {
     const text = tok.slice(1);
     if(!text) throw new Error('Empty word: put text right after the " (e.g. "HELLO)');
@@ -65,7 +61,7 @@ function wordArg(t: Token[], i: number, rctx: RunContext): { text: string; nextI
 }
 // PRINT value | "word — always visible regardless of filter settings; auto-expands console.
 CMD['PRINT'] = CMD['PR'] = async (t,i,v,rctx) => {
-  const w = wordArg(t, i, rctx);
+  const w = wordArg(t, i);
   if(w) { rctx.io.log('PRINT → ' + w.text, 'print'); return w.nextIdx; }
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   rctx.io.log('PRINT → ' + formatNum(value), 'print');
@@ -73,8 +69,8 @@ CMD['PRINT'] = CMD['PR'] = async (t,i,v,rctx) => {
 };
 
 // isValueStart(tok): can tok begin an expression? (DOT / LABEL argument detection)
-function isValueStart(tok: Token | undefined): boolean {
-  if(!tok || tok.startsWith(LINE_SEN)) return false;
+function isValueStart(tok: string | undefined): boolean {
+  if(!tok) return false;
   return isVarTok(tok) || /^[\d.]/.test(tok) || tok === '~' || tok === '-' || tok === '(' ||
          QUERY_TOKENS.has(tok) || tok === 'REPCOUNT' || tok === 'REPCOUNTMAX' ||
          UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT';
@@ -85,13 +81,13 @@ function isValueStart(tok: Token | undefined): boolean {
 // Text is stored in session.drawing.labels so it survives canvas resize.
 CMD['LABEL'] = async (t,i,v,rctx) => {
   let text;
-  const w = wordArg(t, i, rctx);
+  const w = wordArg(t, i);
   if(w) { text = w.text; i = w.nextIdx; }
   else {
-    i = skipSen(t, i, rctx);
-    if(!t[i] || t[i] === ']') throw new Error('LABEL: text argument missing');
-    if(isValueStart(t[i])) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
-    else { text = t[i++]; } // bare word (uppercase), e.g. LABEL HELLO
+    const tok = t[i]?.text;
+    if(!tok || tok === ']') throw new Error('LABEL: text argument missing');
+    if(isValueStart(tok)) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
+    else { text = tok; i++; } // bare word (uppercase), e.g. LABEL HELLO
   }
   const tt = rctx.session.turtle;
   if(!addLabel(rctx, {x:tt.x, y:tt.y, text, r:tt.color[0], g:tt.color[1], b:tt.color[2]})) return i;
@@ -151,7 +147,7 @@ CMD['SETPOS'] = async (t,i,v,rctx) => {
 // segment (x1===x2, y1===y2), which paintLine/rebuildTrailCanvas draw as a filled circle.
 CMD['DOT'] = async (t,i,v,rctx) => {
   let px, py;
-  if(isValueStart(t[i])) {  // raw peek, no sentinel skip: DOT alone on a line takes no inputs
+  if(!newLine(t, i) && isValueStart(t[i]?.text)) {  // only inputs on DOT's own line: DOT alone on a line takes none
     const r1 = await evalExpr(t, i, v, rctx); px = r1.value; i = r1.nextIdx;
     const r2 = await evalExpr(t, i, v, rctx); py = r2.value; i = r2.nextIdx;
   } else {
@@ -202,14 +198,14 @@ const COLOR_NAMES: Record<string, [number, number, number]> = {
 
 CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
   // Named colour form: SETCOLOR RED  or  SETCOLOR "red
-  const pi = skipSen(t, i, rctx);
-  const nameTok = t[pi] && (t[pi].startsWith('"') ? t[pi].slice(1).toUpperCase() : t[pi]);
+  const word = t[i]?.text;
+  const nameTok = word && (word.startsWith('"') ? word.slice(1).toUpperCase() : word);
   if(nameTok && hasOwn(COLOR_NAMES, nameTok)){
     rctx.session.turtle.color = [...COLOR_NAMES[nameTok]] as [number, number, number];
     rctx.io.log('COLOR ' + rctx.session.turtle.color.join(' '), 'info');
-    return pi+1;
+    return i+1;
   }
-  if(t[pi] && t[pi].startsWith('"')) throw new Error('SETCOLOR: unknown colour name ' + t[pi].slice(1));
+  if(word && word.startsWith('"')) throw new Error('SETCOLOR: unknown colour name ' + word.slice(1));
   // Numeric form: SETCOLOR r g b
   const {value:r, nextIdx:i1} = await evalExpr(t,i,v,rctx);
   const {value:g, nextIdx:i2} = await evalExpr(t,i1,v,rctx);

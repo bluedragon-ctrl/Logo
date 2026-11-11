@@ -4,6 +4,19 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.5  2026-11-11
+**POSITIONED TOKENS + CODEMIRROR EDITOR**
+
+Logo programs behave as before (every deterministic example draws the same picture), except that error messages name the right line in one more case.
+- ~ CHANGE: Every token carries its source position `{ text, line, col, lineText }` instead of the `__L<n>:` line-sentinel tokens in the token stream. The places where a line break matters (an operator on a new line ends an expression outside `( )`, a `TO` header ends with its line, `DOT` takes inputs only from its own line) now compare token lines (`newLine`); `skipSen` / `noteLine` are gone. Ready for exact error locations and a running-line highlight.
+- * BUG: An error after a procedure call on the same line named the last line of the procedure (`P RT :NOPE` reported P's line). The error line now comes from the token being executed or evaluated.
+- ~ CHANGE: The code editor is CodeMirror 6 instead of the hand-written contenteditable editor: line numbers, `[ ]` bracket matching, proper undo/redo, IME and mobile input, no full re-render on every keystroke. Tab still inserts two spaces; Shift+Tab un-indents; Ctrl/Cmd+/ toggles `;` comments. Colours unchanged (comments grey, code green on black); the Logo highlighter already tags commands, variables, numbers, words and brackets for a later colour pass.
+- ~ CHANGE: `editor.getValue()` returns the text exactly (the old editor dropped trailing empty lines).
+- + ADDITION: CodeMirror is bundled (MIT, `third-party/CodeMirror-MIT.txt`); the page still makes no third-party requests.
+- + ADDITION: Tests: token positions, the line-break rules, error lines inside and after procedure calls, and a browser check of the editor (typing, Tab, undo, line numbers, bracket match).
+
+---
+
 ## v8.4  2026-11-11
 **TYPESCRIPT — the whole app and the unit tests in strict TypeScript**
 

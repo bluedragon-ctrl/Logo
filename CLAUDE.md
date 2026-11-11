@@ -1,6 +1,6 @@
 # Blue Logo
 
-Browser-based Logo turtle graphics environment for teaching. TypeScript (strict) ES modules in `src/`, built with Vite into a static site and served on GitHub Pages. No framework and no runtime dependencies.
+Browser-based Logo turtle graphics environment for teaching. TypeScript (strict) ES modules in `src/`, built with Vite into a static site and served on GitHub Pages. No framework; the only runtime dependency is CodeMirror 6 (the editor), bundled by Vite.
 
 ```
 npm install        # once
@@ -35,7 +35,7 @@ Specification is split into two files:
 | `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.ts` runs a program headlessly. |
 | `tests/run-examples.js` | Browser test (Playwright) against the built `dist/`: all examples, beautify idempotency, the shared cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
-| `third-party/` | Licenses of bundled third-party assets (VT323 font, OFL). |
+| `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
 | `package.json` | Version number, scripts and dev tooling (Vite, Vitest, TypeScript, ESLint, Playwright). |
@@ -44,13 +44,13 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.4** (`package.json` → `8.4.0`)
+Current version: **v8.5** (`package.json` → `8.5.0`)
 
 ---
 
 ## Architecture in one paragraph
 
-Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — contenteditable with syntax highlighting, caret preservation and its own undo history; `format/beautify.ts`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.ts` imports everything; UI modules wire their DOM handlers on import.
+Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI canvas compositing, sprite, background, trail layer), **turtle** (`turtle/` — turtle state, drawing store of segments + labels, `move`/`rotate`/`circle`), **interpreter** (`interpreter/` — tokeniser → procedure extractor → `runStack` trampoline ⇄ precedence-climbing expression parser, `CMD` table, session, LogoIO), **editor** (`editor/` — CodeMirror 6 with a Logo `StreamLanguage`, line numbers, bracket matching; `format/beautify.ts`), **UI shell** (`ui/` — `runProgram`, buttons, direct mode, splitter, overlays, options, resize, files, autosave). `src/main.ts` imports everything; UI modules wire their DOM handlers on import.
 
 **The core has no DOM** — `interpreter/`, `turtle/`, `format/` cannot use browser APIs (`tsconfig.core.json` type-checks them without the DOM library) and cannot import `render/`, `ui/`, `editor/`, `app.ts` (ESLint `no-restricted-imports`). That is what lets Vitest run the interpreter in Node.
 - **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
@@ -104,7 +104,7 @@ evalExpr(tokens, idx, vars, rctx)                → async {value, nextIdx}
 CMD['NAME'] = async (t, i, v, rctx) => nextIdx
 resolveToken(tok, vars, rctx)                    → number
 tokenize(src) → token[] · extractBlock(tokens, idx) → {body, nextIdx} · extractProcedures(tokens) → {topLevel, newProcs}
-skipSen(tokens, idx, rctx?) → idx
+newLine(tokens, idx) → bool · noteTok(tok, rctx)   (Token = {text, line, col, lineText})
 setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)
@@ -126,7 +126,7 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | `render/` | `canvas.ts` (CW/CH/DPR) · `sprite.ts` · `background.ts` · `trail.ts` (`trailCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas`) · `render.ts` |
 | `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label store) · `motion.ts` (`move`, `rotate`, `circle`, `clipToCanvas`, `ouch`) |
 | `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
-| `editor/editor.ts`, `format/beautify.ts` | Editor (`Editor` interface) + undo history; pure formatter |
+| `editor/editor.ts`, `editor/logo-language.ts`, `format/beautify.ts` | CodeMirror setup behind the `Editor` interface; Logo highlighting tokenizer; pure formatter |
 | `ui/` | `console.ts` (`log`) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` · `splitter.ts` · `overlays.ts` · `examples-overlay.ts` · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
 | `examples.ts` | Loads `examples/*.logo` |
 
@@ -146,7 +146,7 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | Change error reporting | `interpreter/execute.ts` (`execute`) + `rctx.execLine` |
 | Change STOP / CLR | `interpreter/context.ts` (`haltRun`) + `ui/program.ts` |
 | Change trail storage / rendering | `turtle/drawing.ts` (data) · `render/trail.ts` + `render/render.ts` (painting) |
-| Change editor / highlighting / undo | `editor/editor.ts` |
+| Change editor / highlighting / undo | `editor/editor.ts` (extensions, colours) · `editor/logo-language.ts` (token classes) · `#editor .cm-…` in `app.css` |
 | Change beautify formatting | `format/beautify.ts` — pure function, safe to edit in isolation |
 | Add or edit an example | `examples/NN-name.logo`; impl-spec §6.6 |
 
@@ -245,7 +245,7 @@ npm run lint                          # typecheck, then ESLint (unused code, typ
 
 **Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.ts` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
 
-**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
+**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore, editor typing / Tab / undo / bracket match). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
 
 Manual checks still worth doing for UI changes: animated runs at speed 0 look right, STOP mid-animation, resize while idle and while running, font sizes, console toggle, HiDPI sharpness, Ctrl+Z in the editor.
 
@@ -288,5 +288,5 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Numbers only.** `"words` exist only for LABEL / PRINT / colour names.
 - **Autosave:** the editor text lives in localStorage under `blue-logo:program` (the pre-v8.3 key `claude-logo:program` is migrated once); `editor.onChange` drives it, `editor.initValue` restores it without an undo step.
 - **No third-party requests:** the font is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
-- **`document.execCommand`** is used for Tab/paste/copy fallback — deprecated but functional everywhere.
+- **Editor = CodeMirror 6** (`src/editor/`): it owns text, caret, undo, IME and paste. The rest of the app uses only the `Editor` interface (`getValue`, `setValue`, `initValue`, `onChange`, `focus`). `document.execCommand('copy')` remains only as the copy-button fallback.
 - **Not implemented:** `FILL`, `FOREVER`, `SETXY`, list/string values, short-circuit `AND`/`OR`.

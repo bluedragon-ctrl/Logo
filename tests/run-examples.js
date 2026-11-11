@@ -88,6 +88,21 @@ const UI_CHECKS = [
     const [got, oldKey] = await page.evaluate(() => [editor.getValue(), localStorage.getItem('claude-logo:program')]);
     return [got === src && oldKey === null, JSON.stringify(got)];
   }, { currentOnly: true }],
+  ['editor: typing, Tab, undo, line numbers, bracket match', async (page) => {
+    await page.evaluate(() => editor.setValue('REPEAT 4 [ FD 10 ]'));
+    await page.click('.cm-content');
+    await page.keyboard.press('Control+End');
+    await page.keyboard.press('Enter'); await page.keyboard.press('Tab'); await page.keyboard.type('rt 90');
+    const typed = await page.evaluate(() => editor.getValue());
+    const [gutter, ln] = await page.evaluate(() => [document.querySelectorAll('.cm-lineNumbers .cm-gutterElement').length > 1,
+                                                     document.getElementById('ln-indicator').textContent]);
+    await page.keyboard.press('Control+Home'); for (let k = 0; k < 9; k++) await page.keyboard.press('ArrowRight'); // caret before '['
+    const match = await page.evaluate(() => document.querySelectorAll('.cm-matchingBracket').length === 2);
+    await page.keyboard.press('Control+z');
+    const undone = await page.evaluate(() => editor.getValue());
+    const ok = typed === 'REPEAT 4 [ FD 10 ]\n  rt 90' && gutter && ln === 'L:2' && match && undone.trimEnd() === 'REPEAT 4 [ FD 10 ]';
+    return [ok, JSON.stringify({ typed, gutter, ln, match, undone })];
+  }, { currentOnly: true }],
   ['page is titled Blue Logo', async (page) => {
     const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);
     return [title === 'Blue Logo' && h1.includes('BLUE LOGO'), title + ' / ' + h1];

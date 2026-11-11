@@ -1,5 +1,5 @@
 # Blue Logo — Language Specification
-## Version 8.0 — November 2026
+## Version 8.5 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -19,6 +19,11 @@ Line breaks are mostly insignificant: a command may take its inputs from the nex
 IFELSE :N > 5 [ SETCOLOR RED ]
               [ SETCOLOR GREEN ]
 ```
+
+A line break does end things in three places:
+- **Operators:** outside parentheses, an operator at the start of a line does not continue the expression on the line before (`PRINT 5` ⏎ `+ 1` is an error). Inside `( )` an expression may span lines.
+- **`TO` header:** the procedure name and its parameters are the rest of the `TO` line.
+- **`DOT`:** takes its inputs only from its own line, so `DOT` alone on a line draws at the turtle.
 
 ### 1.1 Comments
 
@@ -292,7 +297,7 @@ PRINT :COUNT                 ; 2
 
 ## 8. Error Messages
 
-A runtime error halts the program and shows the line being executed:
+A runtime error halts the program and shows the line of the statement or value being worked on:
 
 ```
 ✗ Unknown variable: :SIZE

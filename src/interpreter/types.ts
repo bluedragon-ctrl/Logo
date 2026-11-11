@@ -3,10 +3,14 @@ import type { PROC_SCOPE, REPEAT_SCOPE } from './scope.ts';
 // ── Shared types of the interpreter core ──────────────────────────────────────
 // Types only (no runtime code). Values live in the modules named below.
 
-/** A token: an uppercase word, a number literal, an operator, `[` `]` `(` `)`,
- *  a `"word` (source case kept), `~` (negative sign) or a line sentinel
- *  (`LINE_SEN + n + ':' + source line`). */
-export type Token = string;
+/** A token (tokenizer.ts). `text`: an uppercase word, a number literal, an
+ *  operator, `[` `]` `(` `)`, a `"word` (source case kept) or `~` (negative sign).
+ *  `line` / `col`: 1-based source position of its first character.
+ *  `lineText`: the trimmed source line, for error messages. */
+export interface Token { text: string; line: number; col: number; lineText: string }
+
+/** The source position a run last executed (RunContext.execLine). n = 0: none yet. */
+export interface SourcePos { n: number; col: number; text: string }
 
 /** Turtle pose and pen (turtle/state.ts). */
 export interface Turtle {
@@ -82,7 +86,7 @@ export interface RunContext {
   session: Session;
   io: LogoIO;
   stopped: boolean;
-  execLine: { n: number; text: string };
+  execLine: SourcePos;
   speed: number;
   procs: ProcMap;
   globals: Scope | null;
