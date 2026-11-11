@@ -24,5 +24,14 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] Optional `WRAP` / `WINDOW` edge modes (currently always stops with OUCH)
 - [ ] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
 
-### Internals
-- [ ] Editor: re-render only the changed line instead of the whole editor on every keystroke (performance on long programs)
+### Internals — remaining technical work (agreed: finish this before the visual pass)
+1. [ ] Positioned tokens: give every token `{line, col}` instead of the `__L<n>:` line-sentinel tokens. Enables exact error locations and, later, step mode / running-line highlight. Update tokenizer, extractor, `skipSen` / `noteLine`, beautify's lexer if needed, tests.
+2. [ ] Collect all error messages in one module (`interpreter/errors.ts`), ready for the friendlier wording of phase 4.
+3. [ ] Editor decision: CodeMirror 6 (line numbers, bracket matching, error underline, running-line highlight) vs. fixing our own editor (it re-renders everything on every keystroke). Decide before the visual pass.
+4. [ ] Smaller: move the browser test to `@playwright/test`; `vite.config.ts`.
+
+Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and deterministic examples still draw pixel-identical canvases.
+
+### Later (agreed order)
+- Visual / interface pass (readability, layout) — after the technical work.
+- Phase 4 teaching features (share link, friendlier errors, lessons, PWA) — after the visual pass.
