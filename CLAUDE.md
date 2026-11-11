@@ -38,6 +38,7 @@ Specification is split into two files:
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
 | `docs/design-v9-lists.md` | Design proposal for v9.0 words and lists (not implemented yet; open questions in §11). |
 | `docs/review-v8.7.md` | v8.7 review of interpreter, language and examples (all items resolved in v8.8; kept for reference). |
+| `docs/review-v8.13.md` | v8.13 code quality review of `src/` (open items). |
 | `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
