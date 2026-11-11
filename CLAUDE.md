@@ -36,7 +36,7 @@ Specification is split into two files:
 | `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples (run, fit, drawing snapshots in `__snapshots__/`), the commands reference, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.ts` runs a program headlessly; `drawing-picture.ts` turns a drawing into a character picture + hash. |
 | `tests/run-examples.js` | Browser test (Playwright) against the built `dist/`: all examples, beautify idempotency, the shared cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
-| `docs/design-v9-lists.md` | Design for v9.0 words and lists, following UCBLogo (decided, not implemented yet; decisions §11, deliberate differences §12). |
+| `docs/design-v9-lists.md` | Design for UCBLogo compatibility (v8.12, §13) and v9.0 words and lists — UCBLogo programs should run, Blue Logo extras stay (not implemented yet; decisions §11, differences §12). |
 | `docs/review-v8.7.md` | v8.7 review of interpreter, language and examples (all items resolved in v8.8; kept for reference). |
 | `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |

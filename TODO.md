@@ -43,10 +43,23 @@ Missing language features (review of Nov 2026), in the agreed order:
 - [x] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
 - [ ] Maybe later: an interactive example (it cannot be in `examples/` while every example must finish on its own in the tests); a click queue (`CLICKP`) if polling `BUTTONP` proves too coarse
 
-**Step 3 — v9.0: words and lists (MAJOR, breaking)**
-- [x] Design written and decided: `docs/design-v9-lists.md` — follows UCBLogo (value model, list literals, primitives with UCBLogo names, `true` / `false`, FOREACH templates, UCBLogo input binding, phases A–D). Implementation later, as its own release series.
-- [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. See the design document; lists cannot be changed in place.
-- [ ] UCBLogo rules in v9.0 (decided, design §6 / §2): every prefix function input is a full expression (`SQRT 16 + 9` = 5, drops the v8 one-operand rule); predicates and comparisons output `true` / `false` and conditions require them
+**Step 3 — v8.12: UCBLogo compatibility without lists (non-breaking)** — `docs/design-v9-lists.md` §13, phase 0
+Guiding rule: UCBLogo programs should run; Blue Logo keeps its extras where they do not clash.
+- [ ] `FOR [i 1 10 2] [ … ]` (UCBLogo control list) next to `FOR :i 1 10 2 [ … ]`
+- [ ] `~` line continuation; `"word` ends only at space / brackets / parentheses (`"a-b` is one word)
+- [ ] Prefix `AND a b` / `OR a b` / `(AND a b c)`; `SUM` `DIFFERENCE` `PRODUCT` `QUOTIENT` `MINUS`; `REMAINDER`, `MODULO`, `LOG10`; `(RANDOM a b)`
+- [ ] `SETPC n` / `SETBG n` with UCBLogo's 16 palette colours
+- [ ] `PENERASE` / `PE`, `PENPAINT` / `PPT`; `CLEAN`; `SHOWNP`; `PENDOWNP`; `SETLABELHEIGHT`; `FILLED colour [ … ]`
+- [ ] `UNTIL`, `DO.WHILE`, `DO.UNTIL`; `TEST` / `IFTRUE` / `IFFALSE`; `NAME value "x`
+- [ ] Screen words (`SETSCRUNCH`, `TEXTSCREEN`, `SPLITSCREEN`, `FULLSCREEN`) and flood `FILL` as no-ops with an info line
+- [ ] Rewrite example 28, the RANDOM card and two cases into the form that works with both input-binding rules (prepares v9 §6)
+- [ ] Decide the two heavy mismatches (design §13): `ARC` (UCBLogo centred arc?) and `WAIT` (seconds + hint, or 60ths?)
+
+**Step 4 — v9.0: words and lists (MAJOR)** — `docs/design-v9-lists.md` phases A–D
+- [x] Design written and decided (UCBLogo programs should run; extras kept)
+- [ ] Values number | word | list; list literals with case kept; `FIRST` `BUTFIRST` `LAST` `BUTLAST` `ITEM` `COUNT` `EMPTYP` `LIST` `SENTENCE` `FPUT` `LPUT` `WORD` `MEMBERP` `PICK` `THING`, `SHOW` / `TYPE`, `RUN`, `FOREACH list template`; conditions accept `true` / `false`
+- [ ] `PENCOLOR`, `POS`, list forms of SETPENCOLOR / SETBG / SETPOS / TOWARDS; `READCHAR` / `RC`, `CHAR`, `ASCII`; indirect `MAKE`; rest inputs
+- [ ] UCBLogo input binding (the one breaking change): every prefix function input is a full expression (`SQRT 16 + 9` = 5)
 
 Not planned: multiple turtles, property lists, file I/O (SAVE / LOAD buttons cover it), `DEFINE` / `TEXT`, macros, `CATCH` / `THROW`.
 
