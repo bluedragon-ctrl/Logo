@@ -5,7 +5,7 @@ import { byId } from '../util.ts';
 // ── File save / load ───────────────────────────────────────────────────────────
 // Uses File System Access API (Chrome/Edge) with fallback to <a download> / <input type="file">.
 // Files are only written on explicit user action. (The editor text is also autosaved to
-// localStorage — see ui/autosave.js.)
+// localStorage — see ui/autosave.ts.)
 
 function defaultFileName(){
   const src = editor.getValue();

@@ -329,5 +329,5 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
 export async function run(tokens: Token[], startIdx: number, vars: Scope | null, rctx: RunContext): Promise<void> {
   const globals = vars || rctx.session.globals;
   rctx.globals = globals;
-  await runStack([{ tokens: tokens || [], idx: startIdx || 0, vars: globals }], rctx);
+  await runStack([{ tokens, idx: startIdx, vars: globals }], rctx);
 }

@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.13 — November 2026
+## Version 8.14 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -446,7 +446,7 @@ Options:
 |---|---|
 | Save | Save canvas as PNG (device resolution). |
 | Font size | Small / Medium / Large → `--fs-base` 1 / 1.25 / 1.5. Scales the reading text (editor, console, direct input, overlays), not the buttons or the panel width. |
-| Console log | Motion, Info, Status, Errors. |
+| Console log | Motion, Info, Status. (Errors are always shown.) |
 | Behaviour | Clear screen on run (on); Speed slider 0–4 (default 0). |
 | Canvas / Turtle | Beige / White; Turtle / Triangle. |
 

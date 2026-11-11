@@ -4,7 +4,7 @@ import { formatNum, hasOwn, isVarTok, procScopeOf, setVar, varName } from './sco
 import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, beginFill, endFill, notePoint, trailPushIfRoom } from '../turtle/drawing.ts';
-import { arc, circle, edgePath, move, ouch, rotate, wrapCoord } from '../turtle/motion.ts';
+import { arc, circle, edgePath, move, normAngle, ouch, rotate, wrapCoord } from '../turtle/motion.ts';
 import type { CommandHandler, EdgeMode, RunContext, Scope, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
@@ -212,7 +212,7 @@ CMD['DOT'] = async (t,i,v,rctx) => {
 // XCOR / YCOR / HEADING as standalone statements: log current value, no-op otherwise.
 CMD['XCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('XCOR = '   +formatNum(rctx.session.turtle.x),'info');                        return i; };
 CMD['YCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('YCOR = '   +formatNum(rctx.session.turtle.y),'info');                        return i; };
-CMD['HEADING'] = async (_t,i,_v,rctx) => { rctx.io.log('HEADING = '+formatNum(((rctx.session.turtle.angle%360)+360)%360),'info');    return i; };
+CMD['HEADING'] = async (_t,i,_v,rctx) => { rctx.io.log('HEADING = '+formatNum(normAngle(rctx.session.turtle.angle)),'info');    return i; };
 
 // ▸ Pen / visibility — data-table factory: [abbr, full, property, value, log-message]
 const PEN_COMMANDS: [string, string, 'pen' | 'visible', boolean, string][] = [
@@ -325,15 +325,14 @@ CMD['SETBG'] = CMD['SETBACKGROUND'] = async (t,i,v,rctx) => {
 CMD['SW'] = CMD['SETWIDTH'] = CMD['SETPENSIZE'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   const w = Math.max(0.5, Math.min(100, n)); // clamp: 0 or negative = invisible; >100 = unreasonable
-  if(w !== n) rctx.io.log('SETWIDTH ' + formatNum(n) + ' clamped to ' + w, 'info');
   rctx.session.turtle.width = w;
-  rctx.io.log('WIDTH ' + w, 'info');
+  rctx.io.log(w !== n ? 'SETWIDTH ' + formatNum(n) + ' clamped to ' + formatNum(w) : 'WIDTH ' + formatNum(w), 'info');
   return nextIdx;
 };
 // WAIT n: pause for n seconds (non-blocking, ends early on STOP). Capped at 30 s.
 CMD['WAIT'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
-  if(n < 0)  throw new Error('WAIT: duration must be >= 0, got ' + n);
+  if(n < 0)  throw new Error('WAIT: duration must be >= 0, got ' + formatNum(n));
   const secs = Math.min(n, 30); // cap: prevent accidental multi-hour freeze
   if(secs < n) rctx.io.log('WAIT ' + formatNum(n) + 's capped to 30s', 'info');
   rctx.io.log('WAIT ' + formatNum(secs) + 's', 'op');
@@ -345,9 +344,8 @@ CMD['WAIT'] = async (t,i,v,rctx) => {
 CMD['SPEED'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
   const s = Math.max(0, Math.min(4, Math.round(n)));
-  if(s !== Math.round(n)) rctx.io.log('SPEED ' + formatNum(n) + ' clamped to ' + s, 'info');
   rctx.speed   = s;   // takes effect immediately for the rest of this run
   rctx.io.setSpeed(s); // sync the slider so the next run starts at the same speed
-  rctx.io.log('SPEED ' + s, 'info');
+  rctx.io.log(s !== Math.round(n) ? 'SPEED ' + formatNum(n) + ' clamped to ' + s : 'SPEED ' + s, 'info');
   return nextIdx;
 };

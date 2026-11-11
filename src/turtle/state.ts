@@ -8,7 +8,7 @@ import type { Turtle } from '../interpreter/types.ts';
 //   visible  false = skip sprite draw in render() (HIDETURTLE)
 //   color    [r,g,b] Uint8-range values written directly into the trail store
 //   width    stroke width in pixels, clamped 0.5–100 by SETWIDTH
-// The turtle lives in a session (interpreter/session.js): session.turtle.
+// The turtle lives in a session (interpreter/session.ts): session.turtle.
 
 export function mkTurtle(): Turtle { return {x:0, y:0, angle:0, pen:true, visible:true, color:[0,0,0], width:3}; }
 

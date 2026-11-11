@@ -9,7 +9,7 @@ import { keyWaiting, mouse, readKey } from './ui/input.ts';
 // ── The page's session and IO ─────────────────────────────────────────────────
 // session: the one Logo session the page shows (turtle, drawing, variables,
 //          procedures). Modules mutate its fields; nothing replaces the object.
-// io:      the browser implementation of LogoIO (interpreter/io.js) — console,
+// io:      the browser implementation of LogoIO (interpreter/io.ts) — console,
 //          canvas, animation frames. Passed to every run via makeRunContext.
 export const session = createSession();
 

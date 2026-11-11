@@ -4,6 +4,17 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.14  2026-11-11
+**SMALL POLISH FROM THE v8.13 CODE REVIEW**
+- * BUG: the Errors checkbox in Options did nothing, because errors are always shown. It is removed (review 1.1).
+- * BUG: error messages printed raw floating-point numbers (WAIT: duration must be >= 0, got -0.20000000000000004). The ARCSIN, ARCCOS, SQRT, LN, LOG, EXP, RANDOM, POWER and WAIT errors now show numbers the way PRINT does (review 1.3).
+- ~ CHANGE: SETWIDTH and SPEED write one console line when they clamp, not two (review 4.2).
+- ~ CHANGE: log() uses the same filter rule as logs() instead of a second copy. The RUN button reads its idle label from index.html. RUN and CLR empty the console through io.clearText() (review 2.2, 2.4, 4.3).
+- - REMOVAL: guards that could never fail: the finite-number checks in CIRCLE and ARC (evalExpr already rejects non-finite values), the speed-table fallbacks in move() and rotate(), and the defaults in run() (review 4.1).
+- ~ CHANGE: comments name .ts files instead of the pre-TypeScript .js names, and the session header lists fills and the full procedure shape (review 3.3, 3.4).
+
+---
+
 ## v8.13  2026-11-11
 **CLEARER TOOLBAR; COMMANDS AND EXAMPLES MOVE UP**
 - ~ CHANGE: the buttons above the editor were a mix of hard-to-read symbols (≡ for beautify, ⎘ for copy — the latter missing from some fonts) and words (Log, Save, Load), with names only in tooltips. They are now drawn SVG icons in small groups — Tidy, Copy | Open, Save — each with an accessible name and a tooltip; Copy and Tidy flash a tick when done.

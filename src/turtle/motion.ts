@@ -142,7 +142,7 @@ async function walk(sx: number, sy: number, ex: number, ey: number, rctx: RunCon
     else { turtle.x = sx + (ex - sx) * i / steps; turtle.y = sy + (ey - sy) * i / steps; }
     if(pen) io.paintLine(ox, oy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
     advanceWalk(session);
-    if(rctx.speed < 4) await spendFrame(rctx, 1 / (STEPS_PER_FRAME[rctx.speed] || 1));
+    if(rctx.speed < 4) await spendFrame(rctx, 1 / STEPS_PER_FRAME[rctx.speed]);
   }
   // Store what was actually walked (all of it, or up to where STOP interrupted).
   if(pen && (turtle.x !== sx || turtle.y !== sy)) trailPushQuiet(rctx, sx, sy, turtle.x, turtle.y, w, col[0], col[1], col[2]);
@@ -159,7 +159,7 @@ export async function rotate(deg: number, rctx: RunContext): Promise<void> {
   let done = 0;
   while(total - done > 1e-9 && !rctx.stopped){
     if(rctx.speed >= 4) break; // slider moved to instant mid-turn: finish at once
-    const DPF = DEG_PER_FRAME[rctx.speed] || 3; // re-read: the slider can change it mid-run
+    const DPF = DEG_PER_FRAME[rctx.speed]; // re-read: the slider can change it mid-run
     const part = Math.min(total - done, DPF * (1 - rctx.frameUsed));
     done += part;
     turtle.angle = start + sign * done;
@@ -179,7 +179,6 @@ const capRadius = (r: number, what: string, rctx: RunContext): number => {
   return Math.sign(r) * MAX_CIRCLE_R;
 };
 export async function circle(r: number, rctx: RunContext): Promise<void> {
-  if(!isFinite(r)) throw new Error('CIRCLE: radius must be a finite number, got ' + r);
   if(r === 0) return;
   r = capRadius(r, 'CIRCLE', rctx);
   const steps = Math.max(36, Math.round(Math.abs(r)));
@@ -196,7 +195,6 @@ export async function circle(r: number, rctx: RunContext): Promise<void> {
 // true arc: ARC 90 100 from HOME ends at (100, 100), heading 90. Same step density
 // as CIRCLE. r = 0 is just the turn.
 export async function arc(deg: number, r: number, rctx: RunContext): Promise<void> {
-  if(!isFinite(r) || !isFinite(deg)) throw new Error('ARC: angle and radius must be finite numbers');
   if(deg === 0) return;
   if(r === 0){ await rotate(deg, rctx); return; }
   r = capRadius(r, 'ARC', rctx);

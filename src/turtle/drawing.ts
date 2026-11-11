@@ -2,7 +2,7 @@ import type { Drawing, Label, RunContext, Session } from '../interpreter/types.t
 
 // ── Drawing store: trail segments + labels ───────────────────────────────────
 // What the turtle has drawn, as data. Lives in a session (session.drawing) and
-// has no DOM dependency: the renderer (render/trail.js) paints it, tests read it.
+// has no DOM dependency: the renderer (render/trail.ts) paints it, tests read it.
 //
 // Pen strokes are stored as line segments in two pre-allocated typed arrays.
 // Writing a segment costs one push; reading costs direct index math.
