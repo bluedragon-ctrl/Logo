@@ -6,8 +6,8 @@ import type { LogoIO, RunContext, Session } from './types.ts';
 //   io:       the only way out to the screen / console (io.js). Never the DOM directly.
 //   stopped:  kill-switch checked every step in runStack/move/rotate.
 //             Set true by STOP/CLR buttons via haltRun() / activeRctx.
-//   execLine: { n, text } of the most recently executed source line.
-//             Updated from LINE_SEN sentinels; appended to error messages.
+//   execLine: { n, col, text } — source position of the most recently executed
+//             statement or operand (noteTok); appended to error messages.
 //   speed:    0–4 snapshot of the slider at RUN time; SPEED n updates it mid-run.
 //             Passed to move/rotate so they never read the DOM directly.
 //   procs:    session.procs (shortcut; the live user-procedure map).
@@ -27,7 +27,7 @@ export function makeRunContext(speed: number, session: Session, io: LogoIO): Run
     session,
     io,
     stopped:          false,
-    execLine:         { n: 0, text: '' },
+    execLine:         { n: 0, col: 0, text: '' },
     speed:            Math.max(0, Math.min(4, speed|0)), // 0=slowest animated … 4=instant
     procs:            session.procs,
     globals:          null,

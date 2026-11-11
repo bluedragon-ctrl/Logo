@@ -104,7 +104,7 @@ evalExpr(tokens, idx, vars, rctx)                → async {value, nextIdx}
 CMD['NAME'] = async (t, i, v, rctx) => nextIdx
 resolveToken(tok, vars, rctx)                    → number
 tokenize(src) → token[] · extractBlock(tokens, idx) → {body, nextIdx} · extractProcedures(tokens) → {topLevel, newProcs}
-skipSen(tokens, idx, rctx?) → idx
+newLine(tokens, idx) → bool · noteTok(tok, rctx)   (Token = {text, line, col, lineText})
 setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)

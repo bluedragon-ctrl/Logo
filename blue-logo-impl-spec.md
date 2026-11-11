@@ -33,7 +33,7 @@ The application is a set of TypeScript ES modules (`src/`, strict mode) bundled 
 
 ```
 btn-run → parseProgram(editor.getValue(), io)
-            → tokenize(src)               → token[]  (with LINE_SEN line sentinels)
+            → tokenize(src)               → token[]  ({ text, line, col, lineText })
             → extractProcedures(tokens)   → { topLevel, newProcs }
         → registerProcs(session, newProcs, io) → session.procs
         → runProgram(topLevel)                                   (ui/program.ts)
@@ -79,9 +79,9 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `interpreter/context.ts` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
 | `interpreter/execute.ts` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
 | `interpreter/scope.ts` | INTERPRETER header comment, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
-| `interpreter/tokenizer.ts` | `LINE_SEN`, `tokenize`. |
+| `interpreter/tokenizer.ts` | `tokenize`, `newLine`. |
 | `interpreter/procedures.ts` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
-| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `skipSen`, `noteLine`. |
+| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `noteTok`. |
 | `interpreter/signals.ts` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
 | `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
 | `interpreter/commands.ts` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
@@ -146,7 +146,7 @@ Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 | Field | Purpose |
 |---|---|
 | `stopped` | Kill switch. Set by `haltRun()` (STOP / CLR). Checked by `runStack`, `move`, `rotate`, `circle`. |
-| `execLine` | `{ n, text }` of the current source line, from LINE_SEN sentinels. Appended to error messages. |
+| `execLine` | `{ n, col, text }`: source position of the statement or operand executed last (`noteTok`, called by `runStack` for every statement and by `parseUnary` for every operand). Appended to error messages. |
 | `speed` | 0–4. Snapshot of the slider; `SPEED n` changes it mid-run (and moves the slider). |
 | `session`, `io` | What the program changes / where its output goes (§1.3). |
 | `procs` | `session.procs` (shortcut). |
@@ -166,15 +166,16 @@ Created by `makeRunContext(speed, session, io)` for every RUN / direct command.
 />=|<=|!=|[\[\]()+\-*\/=><~]|[^\s\[\]()+\-*\/=><~]+/g
 ```
 
-and push a sentinel `__L<line>:<trimmed source>` before the line's tokens (empty lines get none).
+into tokens `{ text, line, col, lineText }`: `line` / `col` are 1-based and point at the token's first character, `lineText` is the trimmed source line (one string shared by the line's tokens).
 
 - **Case:** tokens are uppercased (OPT-4) except `"quoted words`, which keep source case for `LABEL`/`PRINT`. Variable names are uppercased by `varName()` when the `:`/`"` prefix is stripped.
 - **Negative sign:** `-` preceded by start-of-line, whitespace, `[` or `(` and directly followed by a digit, `.`, `:`, `(` or a letter becomes the token `~`. `~` is a unary minus that is never binary, so it also ends the previous expression: `SETPOS 0 -100` → `SETPOS 0 ~ 100` (two inputs). Plain `-` is binary in operator position and unary in operand position.
-- Sentinels (`startsWith(LINE_SEN)`) survive block and procedure slicing, so line tracking works everywhere, including top level.
+- Positions survive block and procedure slicing, so error lines are right everywhere, including top level.
+- **Line breaks** matter in three places only, all through `newLine(tokens, idx)` (does `tokens[idx]` sit on a later line than the token before it?): outside `( )` a binary operator on the next line ends the expression; a `TO` header (name, parameters) is the rest of its line; `DOT` takes inputs only from its own line. Everywhere else a line break is ordinary whitespace.
 
 ### 2.3 Procedure Extractor
 
-`extractProcedures(tokens) → { topLevel, newProcs }` — pure. Moves `TO name :p… body END` out of the stream into `newProcs[name] = { params, body }`. Top-level sentinels are kept. Errors name the line: missing name, invalid name (must match `/^[A-Z_]/`), redefinition of a built-in (CMD, `CONTROL_WORDS`, functions, operators, queries, `REPCOUNT[MAX]`, `NOT`), `TO` inside a body (missing `END`), missing `END`, stray `END`.
+`extractProcedures(tokens) → { topLevel, newProcs }` — pure. Moves `TO name :p… body END` out of the stream into `newProcs[name] = { params, body }`; the header (name, parameters) is the rest of the `TO` line. Errors name the line: missing name, invalid name (must match `/^[A-Z_]/`), redefinition of a built-in (CMD, `CONTROL_WORDS`, functions, operators, queries, `REPCOUNT[MAX]`, `NOT`), `TO` inside a body (missing `END`), missing `END`, stray `END`.
 
 ### 2.4 Expression Evaluator
 
@@ -185,12 +186,12 @@ parseBinary(p, minPrec):  left = parseUnary(p)
                           while next token is a BINOP with prec ≥ minPrec:
                               right = parseBinary(p, prec + 1)     ← left-associative
                               left  = applyBinop(op, left, right)
-parseUnary(p):  skip sentinels (an operand is required, so a line break can't end here)
+parseUnary(p):  noteTok (an operand is required, so a line break can't end here)
                 '-' | '~'  → -parseUnary
                 NOT        → parseBinary(p, 3) === 0 ? 1 : 0      ← NOT :a = 1 → NOT(:a = 1)
                 UNARY fn   → fn(parseUnary)                       ← SIN :x * 2 → (SIN :x) * 2
                 else       → parsePrimary
-parsePrimary(p): '(' parseBinary(p,1) ')'   (sentinels skipped inside parens: may span lines)
+parsePrimary(p): '(' parseBinary(p,1) ')'   (paren > 0: the expression may span lines)
                  BINARY2 fn  parseBinary(p,1) parseBinary(p,1)
                  user proc   args = parseBinary(p,1) × params → runExpr
                  token       → resolveToken
@@ -220,13 +221,13 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 | `STOP` | Unwind to the nearest `procBoundary` (set `stopFired`, truncate the stack there); at top level, clear the stack. |
 | `OUTPUT` / `OP` | Evaluate, find the nearest boundary. `stmtCall` boundary → error ("You don't say what to do with …"). Otherwise store `outputVal` and truncate. No boundary → error. |
 | `BREAK` / `CONTINUE` | Scan down to the innermost loop frame (`isLoopFrame`); hitting a `procBoundary` first → error. BREAK truncates to `k` (drops the loop), CONTINUE to `k + 1` (keeps it). |
-| `IF` / `IFELSE` | Evaluate, `extractBlock` (skips sentinels, so a block may start on the next line), push the chosen body with the same `vars`. |
+| `IF` / `IFELSE` | Evaluate, `extractBlock` (a block may start on the next line), push the chosen body with the same `vars`. |
 | `REPEAT` / `WHILE` / `FOR` | Parse, push the typed control frame. |
 | User procedure | Evaluate the arguments in the caller's scope, apply the **tail-call rule**, push `{ tokens: body, vars: scope, procBoundary, procName, stmtCall: true }`. |
 | Leaf command | `frame.idx = await CMD[cmd](tokens, idx, vars, rctx)`. |
 | Anything else | Specific error (extra value, operator, value-producing word used as a command, unknown command). |
 
-**Tail-call rule:** before pushing a statement-level procedure frame, pop every top frame that has nothing left to run (`skipSen(tokens, idx) >= tokens.length`), stopping at loop frames and at expression boundaries (`procBoundary && !stmtCall`, which `runExpr` must keep to read `outputVal`). For direct self-recursion the new scope is based on the popped invocation's parent scope instead of chaining onto it, so endless recursive loops run in constant stack and memory.
+**Tail-call rule:** before pushing a statement-level procedure frame, pop every top frame that has nothing left to run (`idx >= tokens.length`), stopping at loop frames and at expression boundaries (`procBoundary && !stmtCall`, which `runExpr` must keep to read `outputVal`). For direct self-recursion the new scope is based on the popped invocation's parent scope instead of chaining onto it, so endless recursive loops run in constant stack and memory.
 
 **Responsiveness:** every 500 iterations `runStack` checks `Date.now() - rctx.lastYield`; after 40 ms without a yield it awaits a macrotask. Programs that never move the turtle therefore stay stoppable and do not freeze the page.
 
@@ -271,7 +272,7 @@ All update `rctx.lastYield`.
 
 ### 2.10 Command Dispatch Table
 
-`CMD['NAME'] = async (t, i, v, rctx) => nextIdx`. Aliases share the function (`CMD['FD'] = CMD['FORWARD']`). Flow-control words (`CONTROL_WORDS`) are handled in `runStack`. Helpers: `wordArg` (a `"word` argument with case kept), `isValueStart` (can a token start an expression — used where the argument is optional or may be text), `skipSen` (handlers that peek at raw tokens skip sentinels first, so arguments may sit on the next line; `DOT` deliberately does not, so `DOT` alone on a line takes no inputs).
+`CMD['NAME'] = async (t, i, v, rctx) => nextIdx`. Aliases share the function (`CMD['FD'] = CMD['FORWARD']`). Flow-control words (`CONTROL_WORDS`) are handled in `runStack`. Helpers: `wordArg` (a `"word` argument with case kept), `isValueStart` (can a token start an expression — used where the argument is optional or may be text) — arguments may sit on the next line, except for `DOT`, which takes inputs only from its own line (`newLine`), so `DOT` alone on a line takes none. Handlers compare `t[i]?.text`.
 
 ### 2.11 Error Handling
 
@@ -427,7 +428,7 @@ resolveToken(tok, vars, rctx)                    → number
 tokenize(src)                                    → token[]
 extractBlock(tokens, idx)                        → {body, nextIdx}
 extractProcedures(tokens)                        → {topLevel, newProcs}
-skipSen(tokens, idx, rctx?)                      → idx
+newLine(tokens, idx) → bool · noteTok(tok, rctx)
 setVar(vars, name, value, rctx) / procScopeOf(vars, rctx) / repeatInfo(vars)
 
 // Session, run context and execution

@@ -1,10 +1,9 @@
 import { CMD } from './commands.ts';
-import { BINARY2, BINOP_PREC, QUERY_TOKENS, UNARY, evalExpr, noteLine, skipSen } from './expr.ts';
+import { BINARY2, BINOP_PREC, QUERY_TOKENS, UNARY, evalExpr, noteTok } from './expr.ts';
 import { macroYield } from './pacing.ts';
 import { extractBlock } from './procedures.ts';
 import { PROC_SCOPE, REPEAT_SCOPE, formatNum, hasOwn, isVarTok, varName } from './scope.ts';
 import { MAX_STACK_FRAMES, STOP_SIGNAL } from './signals.ts';
-import { LINE_SEN } from './tokenizer.ts';
 import type { Proc, RunContext, Scope, Token } from './types.ts';
 
 // ── Frames of the runStack trampoline (see the header comment in scope.ts) ────
@@ -100,9 +99,9 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
     // ── Exec frame: tokens consumed — pop and resume caller ─────────────────
     if(frame.idx >= frame.tokens.length) { stack.pop(); continue; }
 
-    const raw = frame.tokens[frame.idx++];
-    if(raw.startsWith(LINE_SEN)) { noteLine(raw, rctx); continue; } // line tracker for error messages
-    const cmd = raw; // already uppercase (OPT-4)
+    const tok = frame.tokens[frame.idx++];
+    noteTok(tok, rctx); // source position for error messages
+    const cmd = tok.text; // already uppercase (OPT-4)
 
     // ── STOP: unwind to nearest procBoundary (top level: end the program) ───
     if(cmd === 'STOP') {
@@ -183,8 +182,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
     // Step is optional (±1 towards end). The loop variable lives in a FOR scope
     // that inherits everything visible outside; it disappears after the loop.
     if(cmd === 'FOR') {
-      frame.idx = skipSen(frame.tokens, frame.idx, rctx);
-      const rawVar = frame.tokens[frame.idx++];
+      const rawVar = frame.tokens[frame.idx++]?.text;
       if(!isVarTok(rawVar))
         throw new Error('FOR: expected a variable name like :i, got: ' + (rawVar || 'nothing'));
       const name = varName(rawVar);
@@ -192,8 +190,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       const {value:end,   nextIdx:i2} = await evalExpr(frame.tokens, i1, frame.vars, rctx);
       frame.idx = i2;
       let step = start <= end ? 1 : -1;
-      const peek = skipSen(frame.tokens, frame.idx);
-      if(frame.tokens[peek] !== '[') {
+      if(frame.tokens[frame.idx]?.text !== '[') {
         const {value:s, nextIdx:i3} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
         if(s === 0) throw new Error('FOR: step cannot be zero (infinite loop)');
         step = s; frame.idx = i3;
@@ -228,7 +225,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       while(stack.length) {
         const top = stack[stack.length - 1];
         if(isLoopFrame(top) || (top.procBoundary && !top.stmtCall)) break;
-        if(skipSen(top.tokens, top.idx) < top.tokens.length) break;
+        if(top.idx < top.tokens.length) break;
         stack.pop();
         if(top.procBoundary && top.procName === cmd && parentVars === top.vars) parentVars = Object.getPrototypeOf(top.vars);
       }
@@ -245,7 +242,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
 
     // Unknown word: halt with the most helpful message we can give.
     if(cmd === '~' || /^[\d.]/.test(cmd) || isVarTok(cmd)) {
-      const shown = cmd === '~' ? '-' + (frame.tokens[frame.idx] || '') : cmd;
+      const shown = cmd === '~' ? '-' + (frame.tokens[frame.idx]?.text || '') : cmd;
       throw new Error('Unexpected value ' + shown + ' — the previous command already has all its inputs.' +
                       (cmd === '~' ? ' For subtraction put spaces on both sides: 100 - 10' : ''));
     }
