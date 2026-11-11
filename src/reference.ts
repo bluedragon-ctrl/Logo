@@ -57,7 +57,7 @@ export const REFERENCE: RefSection[] = [
   { title: 'Decisions', entries: [
     { syntax: 'IF cond [ … ]',             desc: 'run the block if the condition is true', try: 'IF 3 > 2 [ PRINT "yes ]' },
     { syntax: 'IFELSE cond [ … ] [ … ]',   desc: 'run the first block if true, else the second', try: 'IFELSE 1 > 2 [ PRINT "yes ] [ PRINT "no ]' },
-    { syntax: '> < = >= <= !=',            desc: 'compare: 1 if true, 0 if false', try: 'PRINT 3 > 2' },
+    { syntax: '> < = >= <= != <>',         desc: 'compare: 1 if true, 0 if false', try: 'PRINT 3 > 2' },
     { syntax: 'AND OR NOT',                desc: 'combine conditions (1 / 0); NOT covers a whole comparison', try: 'PRINT NOT 1 > 2' },
   ]},
   { title: 'Procedures', entries: [

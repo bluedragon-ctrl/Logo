@@ -1,0 +1,14 @@
+;; title: Tree — Recursion
+;; desc: Every branch grows two smaller branches, then walks back to where it started
+TO TREE :LEN :DEPTH
+  IF :DEPTH = 0 [ STOP ]
+  FD :LEN
+  LT 25 TREE :LEN * 0.7 :DEPTH - 1      ; left branch
+  RT 50 TREE :LEN * 0.7 :DEPTH - 1      ; right branch
+  LT 25 BK :LEN                         ; back to the start of this branch
+END
+; Only parameters, no MAKE: every call has its own :LEN and :DEPTH
+HT
+SETCOLOR BROWN SETWIDTH 2
+PU SETPOS 0 -200 PD
+TREE 110 9

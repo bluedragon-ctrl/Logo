@@ -5,7 +5,7 @@ import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, trailPushIfRoom } from '../turtle/drawing.ts';
 import { circle, clipForRun, move, ouch, rotate } from '../turtle/motion.ts';
-import type { CommandHandler, Token } from './types.ts';
+import type { CommandHandler, RunContext, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
 // CMD maps uppercase command name → async handler.
@@ -28,7 +28,7 @@ CMD['MAKE'] = async (t,i,v,rctx) => {
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   setVar(v, name, value, rctx);
-  rctx.io.log('MAKE :' + name + ' = ' + formatNum(value), 'info');
+  if(rctx.io.logs('info')) rctx.io.log('MAKE :' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
 // LOCAL :a :b …  — declare variables local to the current procedure (no value yet).
@@ -45,7 +45,7 @@ CMD['LOCALMAKE'] = async (t,i,v,rctx) => {
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   procScopeOf(v, rctx)[name] = value;
-  rctx.io.log('LOCALMAKE :' + name + ' = ' + formatNum(value), 'info');
+  if(rctx.io.logs('info')) rctx.io.log('LOCALMAKE :' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
 
@@ -68,10 +68,11 @@ CMD['PRINT'] = CMD['PR'] = async (t,i,v,rctx) => {
   return nextIdx;
 };
 
-// isValueStart(tok): can tok begin an expression? (DOT / LABEL argument detection)
-function isValueStart(tok: string | undefined): boolean {
+// isValueStart(tok, rctx): can tok begin an expression? (DOT / LABEL / SETCOLOR argument
+// detection.) A user procedure counts: it may OUTPUT a value (LABEL DOUBLE 3).
+function isValueStart(tok: string | undefined, rctx: RunContext): boolean {
   if(!tok) return false;
-  return isVarTok(tok) || /^[\d.]/.test(tok) || tok === '~' || tok === '-' || tok === '(' ||
+  return isVarTok(tok) || hasOwn(rctx.procs, tok) || /^[\d.]/.test(tok) || tok === '~' || tok === '-' || tok === '(' ||
          QUERY_TOKENS.has(tok) || tok === 'REPCOUNT' || tok === 'REPCOUNTMAX' ||
          UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT';
 }
@@ -86,7 +87,7 @@ CMD['LABEL'] = async (t,i,v,rctx) => {
   else {
     const tok = t[i]?.text;
     if(!tok || tok === ']') throw new Error('LABEL: text argument missing');
-    if(isValueStart(tok)) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
+    if(isValueStart(tok, rctx)) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
     else { text = tok; i++; } // bare word (uppercase), e.g. LABEL HELLO
   }
   const tt = rctx.session.turtle;
@@ -97,16 +98,16 @@ CMD['LABEL'] = async (t,i,v,rctx) => {
 
 // ▸ Motion — all delegate to move()/rotate() which own animation and instant-mode logic
 CMD['FD'] = CMD['FORWARD'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('FD '+formatNum(n),'op'); await move(n,rctx);   return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); if(rctx.io.logs('op')) rctx.io.log('FD '+formatNum(n),'op'); await move(n,rctx);   return nextIdx;
 };
 CMD['BK'] = CMD['BACK'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('BK '+formatNum(n),'op'); await move(-n,rctx);  return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); if(rctx.io.logs('op')) rctx.io.log('BK '+formatNum(n),'op'); await move(-n,rctx);  return nextIdx;
 };
 CMD['RT'] = CMD['RIGHT'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('RT '+formatNum(n),'op'); await rotate(n,rctx);  return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); if(rctx.io.logs('op')) rctx.io.log('RT '+formatNum(n),'op'); await rotate(n,rctx);  return nextIdx;
 };
 CMD['LT'] = CMD['LEFT'] = async (t,i,v,rctx) => {
-  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); rctx.io.log('LT '+formatNum(n),'op'); await rotate(-n,rctx); return nextIdx;
+  const {value:n, nextIdx} = await evalExpr(t,i,v,rctx); if(rctx.io.logs('op')) rctx.io.log('LT '+formatNum(n),'op'); await rotate(-n,rctx); return nextIdx;
 };
 CMD['SETH'] = CMD['SETHEADING'] = async (t,i,v,rctx) => {
   const {value:n, nextIdx} = await evalExpr(t,i,v,rctx);
@@ -136,7 +137,7 @@ CMD['SETPOS'] = async (t,i,v,rctx) => {
   if(tt.pen && (ex !== tt.x || ey !== tt.y))
     trailPushIfRoom(rctx, tt.x,tt.y,ex,ey,tt.width, tt.color[0],tt.color[1],tt.color[2]);
   tt.x=ex; tt.y=ey;
-  rctx.io.log('SETPOS '+formatNum(nx)+' '+formatNum(ny), 'op');
+  if(rctx.io.logs('op')) rctx.io.log('SETPOS '+formatNum(nx)+' '+formatNum(ny), 'op');
   if(hit) ouch(rctx);
   await tick(rctx);
   return i2;
@@ -147,7 +148,7 @@ CMD['SETPOS'] = async (t,i,v,rctx) => {
 // segment (x1===x2, y1===y2), which paintLine/rebuildTrailCanvas draw as a filled circle.
 CMD['DOT'] = async (t,i,v,rctx) => {
   let px, py;
-  if(!newLine(t, i) && isValueStart(t[i]?.text)) {  // only inputs on DOT's own line: DOT alone on a line takes none
+  if(!newLine(t, i) && isValueStart(t[i]?.text, rctx)) {  // only inputs on DOT's own line: DOT alone on a line takes none
     const r1 = await evalExpr(t, i, v, rctx); px = r1.value; i = r1.nextIdx;
     const r2 = await evalExpr(t, i, v, rctx); py = r2.value; i = r2.nextIdx;
   } else {
@@ -155,7 +156,7 @@ CMD['DOT'] = async (t,i,v,rctx) => {
   }
   const tt = rctx.session.turtle;
   trailPushIfRoom(rctx, px, py, px, py, tt.width, tt.color[0], tt.color[1], tt.color[2]);
-  rctx.io.log('DOT '+formatNum(px)+' '+formatNum(py), 'info');
+  if(rctx.io.logs('info')) rctx.io.log('DOT '+formatNum(px)+' '+formatNum(py), 'info');
   await tick(rctx);
   return i;
 };
@@ -206,6 +207,8 @@ CMD['SC'] = CMD['SETCOLOR'] = async (t,i,v,rctx) => {
     return i+1;
   }
   if(word && word.startsWith('"')) throw new Error('SETCOLOR: unknown colour name ' + word.slice(1));
+  if(word && /^[A-Z_]/.test(word) && !isValueStart(word, rctx))
+    throw new Error('SETCOLOR: unknown colour name ' + word + ' (colours: ' + Object.keys(COLOR_NAMES).join(' ') + ')');
   // Numeric form: SETCOLOR r g b
   const {value:r, nextIdx:i1} = await evalExpr(t,i,v,rctx);
   const {value:g, nextIdx:i2} = await evalExpr(t,i1,v,rctx);

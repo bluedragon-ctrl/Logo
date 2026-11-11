@@ -28,6 +28,11 @@ export function setConsoleVisible(v: boolean): void { consoleVisible = v; }
 let showConsole: () => void = () => {};      // populated by the splitter (ui/splitter.js)
 export function setShowConsole(fn: () => void): void { showConsole = fn; }
 const MAX_LOG_LINES = 500;
+// logs(cls): would log(…, cls) show the line? (false for a class whose filter is off)
+export function logs(cls: LogClass): boolean {
+  const chk = logFilters[cls as keyof typeof logFilters];
+  return cls === 'print' || cls === 'cmd' || cls === 'err' || !chk || chk.checked;
+}
 export function log(msg: string, cls: LogClass = 'info'): void {
   // 'print' bypasses filter checkboxes and forces the console panel open so
   // PRINT output is always visible even if the user collapsed the console.

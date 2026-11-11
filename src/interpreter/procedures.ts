@@ -1,5 +1,4 @@
-import { CMD } from './commands.ts';
-import { BINARY2, BINOP_PREC, QUERY_TOKENS, UNARY } from './expr.ts';
+import { isBuiltinWord } from './expr.ts';
 import { isVarTok, varName } from './scope.ts';
 import { newLine } from './tokenizer.ts';
 import type { ProcMap, Token } from './types.ts';
@@ -33,21 +32,26 @@ export function extractBlock(tokens: Token[], idx: number): { body: Token[]; nex
 export const CONTROL_WORDS = new Set(['IF','IFELSE','REPEAT','WHILE','FOR','STOP','BREAK','CONTINUE','OUTPUT','OP','TO','END']);
 export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProcs: ProcMap } {
   const out: Token[] = [], newProcs: ProcMap = {}; let i = 0;
+  let depth = 0; // [ ] nesting at top level: TO is not allowed inside a block
   while(i < tokens.length) {
     const tok = tokens[i];
     if(tok.text === 'TO') {
       const defLine = tok.line;
+      if(depth > 0) throw new Error('TO inside [ ] (line ' + defLine + '): define procedures outside of blocks');
       i++;
       if(i >= tokens.length || newLine(tokens, i))
         throw new Error('TO: missing procedure name (line ' + defLine + ')');
       const name = tokens[i++].text;
       if(!/^[A-Z_]/.test(name))
         throw new Error('TO: invalid procedure name: ' + name + ' (line ' + defLine + ')');
-      if(CMD[name] || CONTROL_WORDS.has(name) || UNARY.has(name) || BINARY2.has(name) || BINOP_PREC.has(name) ||
-         QUERY_TOKENS.has(name) || name === 'REPCOUNT' || name === 'REPCOUNTMAX' || name === 'NOT')
+      if(isBuiltinWord(name))
         throw new Error('TO: ' + name + ' is a built-in word and cannot be redefined (line ' + defLine + ')');
       const params: string[] = [];
-      while(i < tokens.length && !newLine(tokens, i) && isVarTok(tokens[i].text)) params.push(varName(tokens[i++].text));
+      while(i < tokens.length && !newLine(tokens, i) && isVarTok(tokens[i].text)) {
+        const p = varName(tokens[i++].text);
+        if(params.includes(p)) throw new Error('TO ' + name + ': input :' + p + ' is listed twice (line ' + defLine + ')');
+        params.push(p);
+      }
       const body: Token[] = [];
       while(i < tokens.length && tokens[i].text !== 'END') {
         if(tokens[i].text === 'TO') throw new Error('Procedure ' + name + ' (line ' + defLine + '): missing END before the next TO');
@@ -57,8 +61,12 @@ export function extractProcedures(tokens: Token[]): { topLevel: Token[]; newProc
       i++; // consume END
       newProcs[name] = { params, body };
     } else if(tok.text === 'END') {
-      throw new Error('END without a matching TO (line ' + tok.line + ')');
+      // LABEL END: the END closed the procedure (or stands alone) — point at the fix.
+      const afterLabel = tokens[i - 1]?.text === 'LABEL' || (tokens[i - 1]?.text === 'END' && tokens[i - 2]?.text === 'LABEL');
+      throw new Error('END without a matching TO (line ' + tok.line + ')' + (afterLabel ? ' — to draw the word END write LABEL "END' : ''));
     } else {
+      if(tok.text === '[') depth++;
+      else if(tok.text === ']' && depth > 0) depth--;
       out.push(tokens[i++]);
     }
   }

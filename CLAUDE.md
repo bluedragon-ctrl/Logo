@@ -36,6 +36,7 @@ Specification is split into two files:
 | `tests/unit/` | Vitest unit tests of the core in Node: language cases, all examples (run, fit, drawing snapshots in `__snapshots__/`), the commands reference, interpreter state, tokenizer, procedures, beautify, clipping. `run-logo.ts` runs a program headlessly; `drawing-picture.ts` turns a drawing into a character picture + hash. |
 | `tests/run-examples.js` | Browser test (Playwright) against the built `dist/`: all examples, beautify idempotency, the shared cases, UI checks. |
 | `docs/architecture-proposal.md` | Architecture review & modernisation roadmap (agreed direction, Nov 2026). |
+| `docs/review-v8.7.md` | v8.7 review of interpreter, language and examples (all items resolved in v8.8; kept for reference). |
 | `third-party/` | Licenses of bundled third-party code and assets (VT323 font, OFL; CodeMirror, MIT). |
 | `docs/archive/` | Superseded documents (old v4.1 spec, completed graph-features plan). |
 | `.github/workflows/pages.yml` | On every PR and push: lint, build, test. On `main`, after the tests pass: deploys the tested `dist/` plus `versions/` to GitHub Pages. |
@@ -45,7 +46,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.7** (`package.json` → `8.7.0`)
+Current version: **v8.8** (`package.json` → `8.8.0`)
 
 ---
 
@@ -55,7 +56,7 @@ Five layers, one folder each under `src/`: **rendering** (`render/` — HiDPI ca
 
 **The core has no DOM** — `interpreter/`, `turtle/`, `format/` cannot use browser APIs (`tsconfig.core.json` type-checks them without the DOM library) and cannot import `render/`, `ui/`, `editor/`, `app.ts` (ESLint `no-restricted-imports`). That is what lets Vitest run the interpreter in Node.
 - **State** a program changes lives in a **session** (`createSession()` → `{ turtle, drawing, globals, procs, walkTick, isMoving }`), reached as `rctx.session`. The page has one, exported by `src/app.ts`; tests make a fresh one per case.
-- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
+- **Output** goes through **`rctx.io`** (LogoIO, `interpreter/io.ts`): `log`, `logs`, `render`, `paintLine`, `paintLabel`, `redraw`, `clearText`, `canvasSize`, `setSpeed`, `nextFrame`, `macroYield`. The browser implementation is `io` in `src/app.ts`; tests use `headlessIO()`. New side effects = a new `io` method, implemented in both.
 
 **Module state rule:** change session fields, never replace the session (`session.turtle` and `session.procs` are reset in place, too). For UI state held in module variables, a module never assigns to a variable it imports (ES modules forbid it; ESLint `no-import-assign` catches it) — the owner exports a setter: `setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`. Export only what other modules use.
 
@@ -73,7 +74,7 @@ btn-run → parseProgram(editor.getValue(), io) → tokenize() → extractProced
 
 ### RunContext (`rctx`)
 
-Created by `makeRunContext(speed, session, io)` per run. Fields: `session`, `io`, `stopped` (kill switch, set by `haltRun()`), `execLine` `{n, text}` (current source line for errors), `speed` 0–4 (slider snapshot; `SPEED n` updates it and the slider), `procs` (= `session.procs`), `globals` (root scope, set by `run()`), `exprDepth`, yield bookkeeping (`instantStepCount`, `tickCount`, `steps`, `lastYield`), `wake` (ends a WAIT early), `onFinish` (callback after unwind; CLR uses it).
+Created by `makeRunContext(speed, session, io)` per run. Fields: `session`, `io`, `stopped` (kill switch, set by `haltRun()`), `execLine` `{n, text}` (current source line for errors), `speed` 0–4 (slider snapshot; `SPEED n` updates it and the slider, which the RUN button restores afterwards), `procs` (= `session.procs`), `globals` (root scope, set by `run()`), `exprDepth`, yield bookkeeping (`instantStepCount`, `frameUsed`, `steps`, `lastYield`), `wake` (ends a WAIT early), `onFinish` (callback after unwind; CLR uses it).
 
 **Invariants to preserve:**
 - Every interpreter function receives `rctx` and reaches state only via `rctx.session` and the outside world only via `rctx.io`.
@@ -110,7 +111,7 @@ setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)
 move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · clipForRun(rctx, x0,y0,x1,y1)
-tick(rctx) · nextFrame(rctx) · macroYield(rctx) · sleep(ms, rctx)
+tick(rctx) · spendFrame(rctx, part) · nextFrame(rctx) · macroYield(rctx) · sleep(ms, rctx)
 trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · clearScreen(session, io) · clearProcs(session)
 render() · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab)        (browser only)
 ```
@@ -141,7 +142,7 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | Add a CMD command | `interpreter/commands.ts` — copy a nearby handler; impl-spec §6.1 |
 | Add a math function / query / operator | `interpreter/expr.ts`; impl-spec §6.3 |
 | Add a loop construct | `interpreter/runtime.ts` (`isRepeat`/`isWhile`/`isFor` + `isLoopFrame`); impl-spec §6.2 |
-| Change scoping | `interpreter/scope.ts` (header comment, `setVar` / `procScopeOf` / `repeatInfo`); lang-spec §6 |
+| Change scoping | `interpreter/runtime.ts` (header comment, tail-call rule) · `interpreter/scope.ts` (`setVar` / `procScopeOf` / `repeatInfo`); lang-spec §6 |
 | Change animation / pacing | `turtle/motion.ts`, `interpreter/pacing.ts`, `io.nextFrame` in `src/app.ts` |
 | Add a side effect (new output) | a method in the `LogoIO` interface (`interpreter/types.ts`), implemented in `src/app.ts` and `headlessIO()` (`interpreter/io.ts`) — the compiler points at both |
 | Add state a program changes | a field in `Session` (`interpreter/types.ts`) + `createSession()` |
@@ -166,7 +167,8 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | `MAX_EXPR_DEPTH` | 500 | Expression nesting (parens, unary chains, procedures as values) |
 | `MAX_LOG_LINES` | 500 | Console line cap |
 | `INSTANT_FLUSH` | 150 | Instant-mode steps between paint yields |
-| `STEPS_PER_FRAME` | [1, 4, 16, 64] | Animated steps per frame by speed 0–3 |
+| `STEPS_PER_FRAME` | [1, 4, 16, 64] | Animated move sub-steps / ticks per frame by speed 0–3 (one budget per frame shared by all commands) |
+| `DEG_PER_FRAME` | [3, 12, 48, 192] | Animated degrees of turning per frame by speed 0–3 |
 | `INLINE_THRESHOLD` | 8 | Max tokens for inline `[ block ]` in beautify |
 
 ---
@@ -286,8 +288,10 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Precedence (v8.0+):** standard maths precedence, left-associative, `( )` supported: `2 + 3 * 4 = 14`, `10 - 2 - 3 = 5`. Single-input functions bind to one operand: `SIN :x * 2 = (SIN :x) * 2`; `NOT` covers a comparison.
 - **Negative sign:** `-` glued to the following operand and separated from the previous one is a negative sign (`SETPOS 0 -100`, `FD -:X`); `FD 100 -10` is an error (extra value).
 - **Scoping (v8.0+):** dynamic, UCBLogo-style. `MAKE` updates the nearest existing variable or creates a global; `LOCAL` / `LOCALMAKE` create procedure-private variables. FOR's loop variable exists only inside the loop. Recursive procedures need `LOCALMAKE` for working variables.
-- **Tail calls** are unbounded; other recursion is capped (10 000 frames; 500 levels inside expressions).
-- **Numbers only.** `"words` exist only for LABEL / PRINT / colour names.
+- **Tail calls** are unbounded; other recursion is capped (10 000 frames; 500 levels inside expressions). A tail call drops the caller's scope only when all its variables are callee parameters, so dynamic scoping is unchanged.
+- **Comparisons are approximate** (`approxEq`, ~12 significant digits); turtle positions/headings are snapped to 10⁻⁹. `MOD` has the sign of the divisor.
+- **Variables:** examples and docs use `MAKE "x` / `LOCALMAKE "x`; `MAKE :x` is accepted. A `"word` where a number is expected is an error.
+- **Numbers only.** `"words` exist only for LABEL / PRINT / colour names / variable names in MAKE, LOCAL, LOCALMAKE, FOR.
 - **Autosave:** the editor text lives in localStorage under `blue-logo:program` (the pre-v8.3 key `claude-logo:program` is migrated once); `editor.onChange` drives it, `editor.initValue` restores it without an undo step.
 - **No third-party requests:** the UI uses system fonts; VT323 (title + LABEL only) is self-hosted (`src/assets/fonts/`); the test fails if the page fetches anything outside its own origin. Keep it that way.
 - **Look:** colours and font stacks are CSS variables in `:root` of `app.css` (impl-spec §4.1a); syntax colours are in `editor.ts`. Keep text at ≥ 4.5:1 contrast, buttons neutral (only Run / Stop coloured), sentence case except Logo commands.

@@ -1,6 +1,5 @@
 ;; title: House
 ;; desc: Walls (square) and roof (triangle) drawn with two procedures
-; House
 TO WALLS
   REPEAT 4 [ FD 110 RT 90 ]
 END

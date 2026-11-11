@@ -65,6 +65,15 @@ const UI_CHECKS = [
     await page.waitForFunction(() => activeRctx === null);
     return [busy, ''];
   }],
+  ['SPEED in a program does not stick; in direct mode it does', async (page) => {
+    await page.evaluate(() => { optSpeed.value = 2; editor.setValue('SPEED 4\nFD 10'); document.getElementById('btn-run').click(); });
+    await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 });
+    const afterRun = await page.evaluate(() => optSpeed.value);
+    await page.evaluate(() => runDirectCommand('SPEED 1'));
+    const afterDirect = await page.evaluate(() => optSpeed.value);
+    await page.evaluate(() => { optSpeed.value = 4; });
+    return [afterRun === '2' && afterDirect === '1', JSON.stringify({ afterRun, afterDirect })];
+  }],
   ['infinite WHILE can be stopped', async (page) => {
     await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE :I 1 ]'); document.getElementById('btn-run').click(); });
     await page.waitForTimeout(300);

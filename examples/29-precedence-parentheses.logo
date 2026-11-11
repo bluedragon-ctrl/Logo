@@ -1,6 +1,5 @@
 ;; title: Precedence & Parentheses
 ;; desc: * and / before + and -, ( ) to group — like in maths class
-; Precedence & Parentheses
 PRINT 2 + 3 * 4      ; 14
 PRINT (2 + 3) * 4    ; 20
 PRINT 10 - 2 - 3     ; 5

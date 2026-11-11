@@ -45,7 +45,7 @@ const INLINE_THRESHOLD = 8; // blocks with ≤ this many non-bracket tokens stay
 export function beautify(src: string): string {
   // Same token classes as the interpreter's tokenize(), except '~' stays glued to
   // the operand that follows it ('~100', '~:X') so it can be rendered back as '-100'.
-  const TOK   = />=|<=|!=|[\[\]()+\-*\/=><]|[^\s\[\]()+\-*\/=><]+/g;
+  const TOK   = /(?:\d+\.?\d*|\.\d+)[eE][+-]\d+|>=|<=|!=|<>|[\[\]()+\-*\/=><]|[^\s\[\]()+\-*\/=><]+/g;
   const INDEN = '  '; // 2-space indent unit
 
   // ── Pass 1: split each source line into code and comment ──────────────────

@@ -1,11 +1,10 @@
 ;; title: FOR — Starburst
 ;; desc: FOR loop counts a variable from start to end with optional step
-; FOR — Starburst
 ; Spokes at every 15 degrees, length grows with angle
 FOR :A 0 345 15 [
   SETCOLOR 80 :A * 0.7 220
-  MAKE :LEN :A * 0.5
-  MAKE :LEN :LEN + 20
+  MAKE "LEN :A * 0.5
+  MAKE "LEN :LEN + 20
   FD :LEN
   BK :LEN
   RT 15

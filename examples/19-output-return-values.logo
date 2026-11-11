@@ -1,6 +1,5 @@
 ;; title: OUTPUT — Return Values
 ;; desc: Procedures that return values using OUTPUT
-; OUTPUT — Return Values
 ; Hypotenuse of a right triangle
 TO HYPO :A :B
   OUTPUT SQRT (:A * :A + :B * :B)
@@ -11,8 +10,9 @@ TO SQR :N
 END
 ; Draw spokes scaled by computed length
 REPEAT 12 [
-  FD HYPO 90 120
-  BK HYPO 90 120
+  MAKE "L HYPO 90 120   ; compute once, use twice
+  FD :L
+  BK :L
   RT 30
 ]
 PRINT HYPO 3 4   ; 5

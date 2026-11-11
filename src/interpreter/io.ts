@@ -5,6 +5,7 @@ import type { LogClass, LogoIO } from './types.ts';
 // through rctx.io, an object with these methods:
 //
 //   log(msg, cls)                      console line; cls = op | info | ok | err | print | cmd
+//   logs(cls) → bool                   would a line of class cls be shown? (filters)
 //   render()                           repaint the visible canvas (turtle moved / pen changed)
 //   paintLine(x1,y1,x2,y2,w, r,g,b)    draw one segment (or DOT when both ends coincide)
 //                                      onto the trail layer; storage is the session's job
@@ -34,6 +35,7 @@ export function headlessIO({ width = 800, height = 600 } = {}): HeadlessIO {
     lines,
     text: () => lines.map(l => l.msg).join('\n'),
     log(msg, cls){ lines.push({ msg, cls: cls || 'info' }); },
+    logs: () => true,
     render(){},
     paintLine(){},
     paintLabel(){},

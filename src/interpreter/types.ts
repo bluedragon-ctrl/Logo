@@ -70,6 +70,8 @@ export type LogClass = 'op' | 'info' | 'ok' | 'err' | 'print' | 'cmd';
 /** The interpreter's only way out (io.ts). */
 export interface LogoIO {
   log(msg: string, cls?: LogClass): void;
+  /** Would a line of this class be shown? Lets hot paths skip building messages nobody sees. */
+  logs(cls: LogClass): boolean;
   render(): void;
   paintLine(x1: number, y1: number, x2: number, y2: number, w: number, r: number, g: number, b: number): void;
   paintLabel(lab: Label): void;
@@ -92,7 +94,8 @@ export interface RunContext {
   globals: Scope | null;
   exprDepth: number;
   instantStepCount: number;
-  tickCount: number;
+  /** Part of the current animation frame already spent (0 … 1), shared by move / rotate / tick. */
+  frameUsed: number;
   steps: number;
   lastYield: number;
   wake: (() => void) | null;

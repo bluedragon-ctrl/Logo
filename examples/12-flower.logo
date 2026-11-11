@@ -1,4 +1,3 @@
 ;; title: Flower
 ;; desc: Twelve circles, turning 30 degrees after each one
-; Flower
-REPEAT 12 [ CIRCLE 80 RT 30 ]
+repeat 12 [ circle 80 rt 30 ]

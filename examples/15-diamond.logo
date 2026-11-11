@@ -1,7 +1,6 @@
 ;; title: Diamond
 ;; desc: Uses SETPOS to jump directly to coordinates
-; Diamond
-MAKE :N - 150
+MAKE "N -150
 PU
 SETPOS 0 150
 PD

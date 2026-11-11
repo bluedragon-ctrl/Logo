@@ -1,12 +1,11 @@
 ;; title: Random Splatter
 ;; desc: RND for random colours and lengths — a new pattern each run
-; Random Splatter
 ; RND n returns a random integer 0 to n-1
 HT
 SETWIDTH 2
 REPEAT 80 [
-  SETCOLOR RND 255 RND 255 RND 255
-  MAKE :LEN 20 + RND 180
+  SETCOLOR RND 256 RND 256 RND 256  ; 0 … 255
+  MAKE "LEN 20 + RND 180
   FD :LEN
   BK :LEN
   RT RND 360

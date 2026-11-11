@@ -4,6 +4,27 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.8  2026-11-11
+**REVIEW FIXES: INTERPRETER, LANGUAGE AND EXAMPLES** (`docs/review-v8.7.md`)
+
+Some results change: see the language changes below. Four example pictures moved by one cell where a line now sits exactly on 0 (Spinning Squares, House, Precedence, Global Counter).
+- * BUG: Floating-point drift was visible: after `REPEAT 4 [FD 100 RT 90]`, `XCOR` was 1.4e-14 and `IF XCOR = 0` false; 3600 × `RT 0.1` gave a heading of 1.3e-11. Turtle positions and headings are now kept on a 10⁻⁹ grid, headings are normalised to [0, 360), and comparisons treat numbers that agree to ~12 significant digits as equal (`0.1 + 0.2 = 0.3` is true).
+- * BUG: Animated pacing: every move or turn waited for at least one frame, so `REPEAT 360 [FD 1 RT 1]` took 12 s at speed 3 while `FD 360` took 0.1 s, `CIRCLE 100` 3.3 s and `RT 0` a frame each. Move, turn and tick now share one budget per animation frame (`spendFrame`); speed 0 is unchanged, and many small steps run as fast as one long one.
+- * BUG: `LABEL` and `DOT` did not accept a procedure that OUTPUTs (`LABEL DOUBLE 3` drew the word DOUBLE, then failed).
+- * BUG: Tail-call optimisation hid the caller's `LOCALMAKE` variables from a self-recursive call, so a procedure behaved differently depending on whether anything followed the recursive call. A finished caller's scope is now dropped only when all its variables are parameters of the callee; mutual tail recursion now also runs in constant memory.
+- * BUG: An error after a procedure used as a value had returned (`PRINT 10 / Z`) named a line inside that procedure; it now names the caller's line.
+- ~ CHANGE: `MOD` has the sign of the divisor (`-7 MOD 3` = 2, like UCBLogo `MODULO`); `ROUND` rounds halves away from zero (`ROUND -2.5` = -3).
+- ~ CHANGE: A `"word` where a number is expected is an error (`"red is a word, not a number — for a variable write :red`) instead of silently reading the variable.
+- ~ CHANGE: Clearer errors: too few inputs for a procedure ("SQ needs 1 input (:S)"), unknown bare colour names in `SETCOLOR`, a parameter listed twice, `TO` inside `[ ]`, a hint for `LABEL END`.
+- ~ CHANGE: `SPEED` in a program no longer leaves the slider changed after the run; typed in direct mode it still sets the slider.
+- + ADDITION: `<>` as another spelling of `!=`; numbers with a negative exponent (`1E-5`).
+- + ADDITION: Four examples: Clock Face (`MOD`, `LABEL`, `WAIT`), Chase (`TOWARDS`, `DISTANCE`, `WHILE`), BREAK / CONTINUE with a test procedure, Tree (branching recursion).
+- ~ CHANGE: Examples use the standard `MAKE "X` / `LOCALMAKE "X` form and glued negative numbers (`-150`); duplicated title comments removed; Square and Flower in lowercase; Random Splatter uses `RND 256`; Sine Wave, OUTPUT and Global Counter tidied (Global Counter now shows `LOCALMAKE` shadowing a global). The language spec teaches `MAKE "x` as the main form.
+- ~ CHANGE: Performance: `io.logs(cls)` tells the interpreter whether a console class is shown, so the hot paths (MAKE, calls, motion, …) skip building messages that the console filters would drop.
+- ~ CHANGE: Code: shared word-class helpers in `expr.ts` (`isReporterWord`, `isCommandWord`, `isBuiltinWord`); the interpreter header comment moved to `runtime.ts`; `MOD` has one implementation.
+
+---
+
 ## v8.7  2026-11-11
 **VISUAL PASS, PART 2A: COMMANDS AND EXAMPLES PANELS; EXAMPLES IN THE TESTS**
 
