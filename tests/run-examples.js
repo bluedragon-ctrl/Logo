@@ -305,6 +305,20 @@ const UI_CHECKS = [
     const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);
     return [title === 'Blue Logo' && h1.includes('BLUE LOGO'), title + ' / ' + h1];
   }, { currentOnly: true }],
+  ['toolbar: buttons named, fits the narrowest panel; Console header collapses and reopens', async (page) => {
+    const named = await page.evaluate(() => [...document.querySelectorAll('#code-label button, #title-row button')]
+      .filter(b => !(b.getAttribute('aria-label') || b.textContent.trim())).map(b => b.id));
+    await page.setViewportSize({ width: 900, height: 900 });          // panel at its 360 px minimum
+    await page.waitForTimeout(100);
+    const fits = await page.evaluate(() => { const l = document.getElementById('code-label'); return l.scrollWidth <= l.clientWidth; });
+    await page.setViewportSize({ width: 1400, height: 900 });
+    const state = () => page.evaluate(() => [document.getElementById('btn-console-toggle').getAttribute('aria-expanded'),
+      getComputedStyle(document.getElementById('console')).display, getComputedStyle(document.getElementById('console-label')).display]);
+    await page.click('#btn-console-toggle'); const hidden = await state();
+    await page.click('#btn-console-toggle'); const shown = await state();
+    const ok = named.length === 0 && fits && hidden.join() === 'false,none,flex' && shown.join() === 'true,block,flex';
+    return [ok, JSON.stringify({ named, fits, hidden, shown })];
+  }, { currentOnly: true }],
 ];
 
 (async () => {

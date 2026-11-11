@@ -10,14 +10,35 @@
 <body>
 
 <div id="panel">
-  <h1><img class="logo" src="/src/assets/logo.svg" alt=""> BLUE LOGO <span class="version">v%APP_VERSION%</span></h1>
+  <header id="title-row">
+    <h1><img class="logo" src="/src/assets/logo.svg" alt=""> BLUE LOGO <span class="version">v%APP_VERSION%</span></h1>
+    <button id="opt-btn" class="tb-btn" aria-label="Options" title="Options — speed, font size, canvas, save picture"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.5"/><circle cx="8" cy="17" r="2.5"/></svg></button>
+  </header>
   <div id="split">
-    <div id="code-label"><span>Code</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">Log</button><button id="btn-save-file" title="Save program to file">Save</button><button id="btn-load-file" title="Load program from file">Load</button><button id="opt-btn" title="Options">⚙</button></span></div>
+    <!-- Toolbar above the editor: help on the left, editor tools on the right.
+         Icons are inline SVG (src/styles/app.css .ic); every icon button has an aria-label. -->
+    <div id="code-label" role="toolbar" aria-label="Code tools">
+      <span class="tb-group">
+        <button id="btn-ref" class="tb-btn tb-wide" title="Commands — every Logo command, with examples (F1)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg><span>Commands</span></button>
+        <button id="btn-examples" class="tb-btn tb-wide" title="Examples — ready-made programs to open and run"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span>Examples</span></button>
+      </span>
+      <span id="code-label-btns">
+        <span id="ln-indicator" title="Current line number">L:1</span>
+        <span class="tb-group">
+          <button id="btn-fmt-code" class="tb-btn" aria-label="Tidy code" title="Tidy code — fix the indentation"><svg class="ic ic-main" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M11 10h9M11 15h9M4 20h16"/><path d="m4 9.5 3 2.5-3 2.5"/></svg><svg class="ic ic-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+          <button id="btn-copy-code" class="tb-btn" aria-label="Copy code" title="Copy the code to the clipboard"><svg class="ic ic-main" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg><svg class="ic ic-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+        </span>
+        <span class="tb-group">
+          <button id="btn-load-file" class="tb-btn" aria-label="Open file" title="Open a program from a file"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+          <button id="btn-save-file" class="tb-btn" aria-label="Save to file" title="Save the program to a file"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/></svg></button>
+        </span>
+      </span>
+    </div>
     <div id="code-wrap">
       <div id="editor"></div> <!-- CodeMirror mounts here (src/editor/editor.ts) -->
     </div>
     <div id="splitter"></div>
-    <div id="console-label"><span>Console</span></div>
+    <div id="console-label"><button id="btn-console-toggle" class="pane-toggle" aria-expanded="true" title="Show / hide the console"><svg class="ic ic-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span class="pane-title">Console</span></button></div>
     <div id="console"></div>
     <!-- Direct-mode input (inside #split so flex layout is shared) -->
     <div id="direct-panel">
@@ -36,10 +57,6 @@
     <button id="btn-stop">■ Stop</button>
     <button id="btn-clear" title="Clear screen, variables, procedures and console">Clear</button>
     <button id="btn-direct-toggle" title="Toggle direct command input mode">Direct</button>
-  </div>
-  <div class="btn-row">
-    <button id="btn-ref">Commands</button>
-    <button id="btn-examples">Examples</button>
   </div>
 </div>
 

@@ -1,5 +1,4 @@
 import { consoleVisible, setConsoleVisible, setShowConsole } from './console.ts';
-import { directMode } from './direct.ts';
 import { byId } from '../util.ts';
 
 // ── Splitter ──────────────────────────────────────────────────────────────────
@@ -70,28 +69,27 @@ import { byId } from '../util.ts';
     window.addEventListener('touchend',  onTouchEnd);
   }, {passive:true});
 
-  // ── LOG button toggle ──
-  // Hides/shows console-label + #console completely (display:none).
+  // ── Console button toggle ──
+  // The Console header is a collapse toggle: it hides/shows #console (display:none);
+  // the header itself stays, so the console can be opened again from there.
   // If the user drags the splitter while hidden, auto-show — dragging always
   // implies intent to see the console.
   let savedCodeH = 0;
 
   function showConsole(){
     setConsoleVisible(true);
-    conLabel.style.display = '';
     conEl.style.display    = '';
     codeEl.style.height    = (savedCodeH || Math.floor((wrap.clientHeight - chromeH()) * 0.5)) + 'px';
-    btnConsole.classList.add('active');
+    btnConsole.setAttribute('aria-expanded', 'true');
   }
   setShowConsole(showConsole);
 
   function hideConsole(){
     savedCodeH = codeEl.offsetHeight;
     setConsoleVisible(false);
-    if(!directMode) conLabel.style.display = 'none';
     conEl.style.display = 'none';
     codeEl.style.height = Math.max(40, wrap.clientHeight - chromeH()) + 'px';
-    btnConsole.classList.remove('active');
+    btnConsole.setAttribute('aria-expanded', 'false');
   }
 
   btnConsole.addEventListener('click', function(){
