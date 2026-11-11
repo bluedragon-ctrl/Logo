@@ -69,6 +69,17 @@ describe('beautify', () => {
     expect(out.split('\n')[1]).toMatch(/^\s+\S/);
     expect(beautify(out)).toBe(out);
   });
+  test('keeps optional inputs on the TO line, so the procedure stays the same', () => {
+    const src = 'to box :w [:h -5] [:d (:w + 1)]\nprint :w + :h + :d\nend\n(box 1\n 2)';
+    const out = beautify(src);
+    expect(out.split('\n')[0]).toBe('TO BOX :W [:H -5] [:D (:W + 1)]');
+    expect(beautify(out)).toBe(out);
+    const procText = (s: string) => {
+      const p = extractProcedures(tokenize(s)).newProcs.BOX;
+      return [p.params, p.required, p.defaults.map(d => d.map(t => t.text)), p.body.map(t => t.text)];
+    };
+    expect(procText(out)).toEqual(procText(src));
+  });
   test('keeps comments', () => {
     expect(beautify('FD 10 ; forward')).toContain('; forward');
   });

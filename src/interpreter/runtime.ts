@@ -1,5 +1,5 @@
-import { CMD } from './commands.ts';
-import { BINOP_PREC, UNARY, checkProcInput, evalExpr, isReporterWord, noteTok } from './expr.ts';
+import { CMD, PAREN_CMD } from './commands.ts';
+import { BINOP_PREC, UNARY, bindDefaults, evalExpr, isReporterWord, noteTok, procInputs } from './expr.ts';
 import { macroYield } from './pacing.ts';
 import { extractBlock } from './procedures.ts';
 import { PROC_SCOPE, REPEAT_SCOPE, formatNum, hasOwn, isVarTok, varName } from './scope.ts';
@@ -256,17 +256,33 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       continue;
     }
 
+    // ── ( … ) as a statement: (PRINT a b …), (LABEL a b …), (PROC a b c) ─────
+    // The parentheses give a command a different number of inputs: PRINT / LABEL
+    // take several, a procedure its optional ones.
+    let parens = false;
+    if(cmd === '(') {
+      const name = frame.tokens[frame.idx]?.text;
+      if(name !== undefined && hasOwn(PAREN_CMD, name)) {
+        frame.idx = await PAREN_CMD[name](frame.tokens, frame.idx + 1, frame.vars, rctx);
+        continue;
+      }
+      if(name === undefined || !hasOwn(rctx.procs, name)) throw new Error('Unexpected ( — a statement can start with ( only for (PRINT …), (LABEL …) or a procedure call with optional inputs');
+      frame.idx++;
+      parens = true;
+    }
+
     // ── User procedure call (as a command) ──────────────────────────────────
-    if(hasOwn(rctx.procs, cmd)) {
-      if(rctx.io.logs('info')) rctx.io.log('CALL ' + cmd, 'info');
-      const proc = rctx.procs[cmd];
+    const procName = parens ? frame.tokens[frame.idx - 1].text : cmd;
+    if(hasOwn(rctx.procs, procName)) {
+      if(rctx.io.logs('info')) rctx.io.log('CALL ' + procName, 'info');
+      const proc = rctx.procs[procName];
       const args: number[] = [];
-      for(let p = 0; p < proc.params.length; p++) {
-        checkProcInput(frame.tokens, frame.idx, cmd, proc, p);
+      const got = await procInputs(frame.tokens, () => frame.idx, procName, proc, parens, async () => {
         const {value, nextIdx} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
         args.push(value);
         frame.idx = nextIdx;
-      }
+      });
+      if(parens) frame.idx++; // the )
       // Dynamic scope: the callee sees the caller's variables.
       let parentVars = frame.vars;
       // Tail call: drop frames that have nothing left to do (the caller's finished
@@ -284,9 +300,10 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
           parentVars = Object.getPrototypeOf(top.vars);
       }
       const scope: Scope = Object.create(parentVars);
-      scope[PROC_SCOPE] = cmd;
-      proc.params.forEach((name, k) => { scope[name] = args[k]; });
-      stack.push({ tokens:proc.body, idx:0, vars:scope, procBoundary:true, procName:cmd, stmtCall:true });
+      scope[PROC_SCOPE] = procName;
+      args.forEach((v, k) => { scope[proc.params[k]] = v; });
+      await bindDefaults(procName, proc, got, scope, rctx);
+      stack.push({ tokens:proc.body, idx:0, vars:scope, procBoundary:true, procName, stmtCall:true });
       continue;
     }
 

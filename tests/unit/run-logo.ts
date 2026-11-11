@@ -8,11 +8,11 @@ import { createSession } from '../../src/interpreter/session.ts';
 import type { HeadlessIO } from '../../src/interpreter/io.ts';
 import type { RunContext, Session } from '../../src/interpreter/types.ts';
 
-export interface RunOptions { speed?: number; width?: number; height?: number; session?: Session }
+export interface RunOptions { speed?: number; width?: number; height?: number; session?: Session; keys?: number[]; mouse?: { x: number; y: number; down: boolean } }
 export interface RunResult { out: string; io: HeadlessIO; session: Session; rctx: RunContext }
 
-export async function runLogo(src: string, { speed = 4, width = 800, height = 600, session = createSession() }: RunOptions = {}): Promise<RunResult> {
-  const io = headlessIO({ width, height });
+export async function runLogo(src: string, { speed = 4, width = 800, height = 600, session = createSession(), keys, mouse }: RunOptions = {}): Promise<RunResult> {
+  const io = headlessIO({ width, height, keys, mouse });
   const rctx = makeRunContext(speed, session, io);
   const parsed = parseProgram(src, io);
   if (parsed) {

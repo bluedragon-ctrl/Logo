@@ -10,7 +10,7 @@ import { runLogo } from './run-logo.ts';
 const BUILTINS = new Set<string>([
   ...Object.keys(CMD), ...CONTROL_WORDS, ...UNARY, ...BINARY2, ...QUERY_TOKENS.keys(),
   ...[...BINOP_PREC.keys()].filter(w => /^[A-Z]+$/.test(w)),   // AND, OR, MOD
-  'REPCOUNT', 'REPCOUNTMAX', 'NOT',
+  'REPCOUNT', 'REPCOUNTMAX', 'NOT', 'READKEY',
 ]);
 const documented = new Set(REFERENCE.flatMap(s => s.entries.flatMap(e => syntaxWords(e.syntax))));
 const entries = REFERENCE.flatMap(s => s.entries);

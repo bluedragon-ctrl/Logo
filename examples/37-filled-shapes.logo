@@ -1,0 +1,64 @@
+;; title: Filled Shapes
+;; desc: BEGINFILL … ENDFILL fills the path the turtle walks; STAR has an optional input; (LABEL …) writes words and numbers together
+
+; STAR :SIZE [:POINTS 5] — POINTS is optional: STAR 40 has 5 points,
+; (STAR 40 7) has 7. An odd number of points makes the star close.
+TO STAR :SIZE [:POINTS 5]
+  LOCALMAKE "TURN 180 - 180 / :POINTS
+  BEGINFILL
+  REPEAT :POINTS [ FD :SIZE RT :TURN ]
+  ENDFILL
+END
+
+; A box W wide and H high, filled with the pen colour, outlined in black:
+; the fill takes the colour the pen has at BEGINFILL.
+TO BOX :W :H
+  BEGINFILL
+  SETCOLOR BLACK
+  REPEAT 2 [ FD :H RT 90 FD :W RT 90 ]
+  ENDFILL
+END
+
+TO HOUSE :X :Y :W
+  PU SETXY :X :Y SETH 0 PD
+  SETCOLOR BROWN
+  BOX :W :W
+  ; the roof: an equilateral triangle on top of the walls
+  FD :W RT 30
+  SETCOLOR RED
+  BEGINFILL
+  SETCOLOR BLACK
+  REPEAT 3 [ FD :W RT 120 ]
+  ENDFILL
+  ; the door
+  PU SETXY :X + :W / 2 - 12 :Y SETH 0 PD
+  SETCOLOR NAVY
+  BOX 24 40
+END
+
+HT
+SETWIDTH 2
+
+; The ground, then the sun: a filled CIRCLE
+PU SETXY -300 -200 SETH 0 PD
+SETCOLOR GREEN
+BOX 600 80
+PU SETXY 180 120 SETH 0 PD
+SETCOLOR GOLD
+BEGINFILL
+CIRCLE 50
+ENDFILL
+
+HOUSE -230 -120 120
+HOUSE 20 -120 90
+
+; A row of stars: 5 points (the default), then 7 and 9
+FOR :I 0 2 [
+  LOCALMAKE "N 5 + 2 * :I
+  PU SETXY -260 + 110 * :I 205 SETH 90 PD
+  SETCOLOR ORANGE
+  IFELSE :I = 0 [ STAR 60 ] [ (STAR 60 :N) ]
+  PU SETXY -255 + 110 * :I 130
+  SETCOLOR BLACK
+  (LABEL :N "points)
+]

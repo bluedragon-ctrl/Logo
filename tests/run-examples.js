@@ -86,6 +86,39 @@ const UI_CHECKS = [
     const after = await corner();
     return [navy === '0,0,150' && after === '244,238,223', JSON.stringify({ navy, after })];
   }, { currentOnly: true }],
+  ['key presses after clicking the canvas reach READKEY, not the editor', async (page) => {
+    const src = 'MAKE "A READKEY\nMAKE "B READKEY\nPRINT :A * 1000 + :B';
+    await page.evaluate(c => { editor.setValue(c); editor.focus(); document.getElementById('btn-run').click(); }, src);
+    await page.click('#c');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('a');
+    const done = await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).then(() => true, () => false);
+    if(!done) await page.evaluate(() => document.getElementById('btn-stop').click());
+    const out = await page.evaluate(() => document.getElementById('console').textContent);
+    const code = await page.evaluate(() => editor.getValue());
+    return [done && out.includes('PRINT → 38065') && code === src, JSON.stringify({ done, printed: /PRINT → \d+/.exec(out)?.[0], editorUnchanged: code === src })];
+  }, { currentOnly: true }],
+  ['MOUSEX / MOUSEY / BUTTONP follow the mouse on the canvas', async (page) => {
+    await page.evaluate(() => { editor.setValue('FOREVER [ IF BUTTONP [ (PRINT "at MOUSEX MOUSEY) BREAK ] ]'); document.getElementById('btn-run').click(); });
+    const box = await page.locator('#c').boundingBox();
+    await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2 - 30);
+    await page.mouse.down();
+    const done = await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).then(() => true, () => false);
+    await page.mouse.up();
+    if(!done) await page.evaluate(() => document.getElementById('btn-stop').click());
+    const out = await page.evaluate(() => document.getElementById('console').textContent);
+    return [done && out.includes('PRINT → at 50 30'), JSON.stringify({ done, printed: /PRINT → at[^✓]*/.exec(out)?.[0] })];
+  }, { currentOnly: true }],
+  ['BEGINFILL … ENDFILL paints the inside; a resize repaints it the same', async (page) => {
+    await page.evaluate(() => { editor.setValue('PU SETXY -50 -50 PD SETCOLOR RED BEGINFILL REPEAT 4 [ FD 100 RT 90 ] ENDFILL HT'); document.getElementById('btn-run').click(); });
+    await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 });
+    const centre = () => page.evaluate(() => { const c = document.getElementById('c'); return [...c.getContext('2d').getImageData(c.width >> 1, c.height >> 1, 1, 1).data.slice(0, 3)].join(); });
+    const live = await centre();
+    await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+    await page.waitForTimeout(300);                       // resize is debounced (150 ms), then rebuilds the trail layer
+    const rebuilt = await centre();
+    return [live === '220,50,50' && rebuilt === live, JSON.stringify({ live, rebuilt })];
+  }, { currentOnly: true }],
   ['infinite WHILE can be stopped', async (page) => {
     await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE :I 1 ]'); document.getElementById('btn-run').click(); });
     await page.waitForTimeout(300);

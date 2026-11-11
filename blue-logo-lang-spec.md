@@ -1,10 +1,12 @@
 # Blue Logo — Language Specification
-## Version 8.9 — November 2026
+## Version 8.10 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
 This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `blue-logo-impl-spec.md`.
 
+> **New in v8.10:** filled shapes `BEGINFILL` … `ENDFILL` (§2.2), edge modes `WRAP` / `WINDOW` / `FENCE` (§2.1), keyboard, mouse and time — `KEYP`, `READKEY`, `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER`, `RESETTIMER` (§2.7), several inputs in `(PRINT …)` / `(LABEL …)` (§2.2, §2.6), optional procedure inputs `TO BOX :W [:H 50]` (§2.5). **Changed:** `HOME` draws a line when the pen is down, as in UCBLogo (§2.1); the new words are built-in and can no longer be procedure names.
+>
 > **New in v8.9** (no changes to existing programs, except that `AND` / `OR` no longer evaluate a right side the left side already decides, and new built-in words can no longer be procedure names): `SETXY` / `SETX` / `SETY`, `ARC`, `SETBG`, `FOREVER`, `PI`, `PENSIZE`, the aliases `SETPC` / `SETPENCOLOR` / `SETPENSIZE`, `IFELSE` as a value (§2.4), short-circuit `AND` / `OR` (§3.2).
 >
 > **Changes in v8.8 that can affect older programs:** comparisons allow for floating-point drift (`0.1 + 0.2 = 0.3` is true, §3.2); `MOD` has the sign of the divisor (`-7 MOD 3` = 2) and `ROUND` rounds halves away from zero (§3.1); a `"word` used as a number is an error instead of reading the variable (§1.2); `TO` inside `[ ]` and a parameter listed twice are errors (§2.5).
@@ -28,6 +30,8 @@ A line break does end things in three places:
 - **Operators:** outside parentheses, an operator at the start of a line does not continue the expression on the line before (`PRINT 5` ⏎ `+ 1` is an error). Inside `( )` an expression may span lines.
 - **`TO` header:** the procedure name and its parameters are the rest of the `TO` line.
 - **`DOT`:** takes its inputs only from its own line, so `DOT` alone on a line draws at the turtle.
+
+A statement starts with `(` only to give a command a different number of inputs: `(PRINT "Score: :N)`, `(LABEL …)` (§2.6), or a procedure with optional inputs `(BOX 10 20)` (§2.5). Inside these parentheses the inputs may span lines.
 
 ### 1.1 Comments
 
@@ -81,11 +85,19 @@ See §6 for scoping rules.
 | `RIGHT n` / `RT n` | Turn clockwise n degrees. |
 | `LEFT n` / `LT n` | Turn counter-clockwise n degrees. |
 | `SETHEADING n` / `SETH n` | Set absolute heading. 0 = north (up), 90 = east, 180 = south, 270 = west. Animates via the shorter arc (≤ 180°). |
-| `HOME` | Teleport to the origin (0, 0), heading 0°. Instant — no trail drawn. |
+| `HOME` | Go straight back to the origin (0, 0) — drawing a line if the pen is down, like `SETPOS 0 0` — then heading 0°. Not animated. (Before v8.10 `HOME` never drew.) |
 | `SETPOS x y` / `SETXY x y` | Move straight to (x, y) without changing heading. Draws a line if the pen is down. |
 | `SETX x` / `SETY y` | Move straight to a new x (or y); the other coordinate stays. Draws like `SETPOS`. |
 
-**Canvas edge:** if `FD`, `BK`, `SETPOS`, `SETX`, `SETY` or `ARC` would take the turtle off the canvas, it moves to the edge, the console shows `OUCH! Turtle went off the canvas.` and the program ends.
+**Canvas edge:** what happens when `FD`, `BK`, `SETPOS`, `SETX`, `SETY`, `HOME`, `CIRCLE` or `ARC` reaches the edge of the canvas depends on the edge mode:
+
+| Command | Edge mode |
+|---|---|
+| `FENCE` | The start setting. The turtle moves to the edge, the console shows `OUCH! Turtle went off the canvas.` and the program ends. |
+| `WRAP` | The turtle leaves on one side and comes back in on the opposite side, drawing on: the canvas behaves like the surface of a doughnut. `SETX SCRWIDTH / 2 + 10` ends 10 steps in from the left edge. A very long move draws at most 1 000 crossings and then jumps to where it ends. |
+| `WINDOW` | The turtle may walk off the canvas and come back; what it draws out there is not seen (it is still stored, up to the trail limit). |
+
+`CS` keeps the edge mode; RUN (with "Clear screen on run") and CLR go back to `FENCE`. Switching to `WRAP` or `FENCE` while the turtle is off the canvas (after `WINDOW`) brings it back, wrapped onto the canvas.
 
 **Turtle and canvas queries (usable in expressions):**
 
@@ -117,9 +129,11 @@ See §6 for scoping rules.
 | `SETBG name` / `SETBG r g b` / `SETBACKGROUND …` | Canvas background colour, same inputs as `SETCOLOR`. `CS` keeps it; RUN (with "Clear screen on run") and CLR go back to the canvas colour chosen in Options. |
 | `LABEL "text` | Draw text (case kept) at the turtle position in the pen colour. One word per LABEL. |
 | `LABEL value` | Draw a number: `LABEL :X`, `LABEL XCOR`, `LABEL (:A + 1)`, or a procedure that OUTPUTs (`LABEL DOUBLE 3`). |
-| `CLEARSCREEN` / `CS` | Clear the trail, dots and labels; reset the turtle (position, heading, pen, colour, width). Variables, procedures and console are kept. |
+| `(LABEL a b …)` | Draw several words and values as one label, with a space between each: `(LABEL "x: XCOR)`. |
+| `CLEARSCREEN` / `CS` | Clear the trail, dots, labels and fills; reset the turtle (position, heading, pen, colour, width). Variables, procedures, console, `SETBG` and the edge mode are kept. |
 | `HIDETURTLE` / `HT` | Hide the turtle sprite. |
 | `SHOWTURTLE` / `ST` | Show the turtle sprite. |
+| `BEGINFILL` … `ENDFILL` | Fill the shape the turtle walks in between. `BEGINFILL` starts recording at the turtle; every move (`FD`, `BK`, `CIRCLE`, `ARC`, `SETPOS`, `SETXY`, `SETX`, `SETY`, `HOME`) adds the point where it ends, with the pen up or down; `ENDFILL` closes the shape with a straight line back to the start and fills it. The fill colour is the pen colour at `BEGINFILL`, so `SETCOLOR YELLOW BEGINFILL SETCOLOR BLACK REPEAT 4 [ FD 50 RT 90 ] ENDFILL` is a yellow square with a black outline. The fill lies under everything drawn after `BEGINFILL` (the outline stays visible) and over what was drawn before. A crossing shape is filled completely (non-zero rule: the middle of `REPEAT 5 [ FD 100 RT 144 ]` is filled). Fewer than 3 corners fill nothing. A second `BEGINFILL` starts again; `CS` drops an unfinished fill. At most 1 000 fills of up to 10 000 corners each. |
 
 ### 2.3 Loops
 
@@ -155,6 +169,20 @@ TO name :param1 :param2
 END
 ```
 
+**Optional inputs** follow the required ones, each written `[:name default]` on the `TO` line:
+
+```logo
+TO BOX :W [:H 50]
+  REPEAT 2 [ FD :H RT 90 FD :W RT 90 ]
+END
+BOX 100          ; H is 50
+(BOX 100 20)     ; H is 20
+```
+
+- A call without parentheses passes the required inputs only; the optional ones get their defaults. To pass optional inputs, put the whole call in parentheses: `(BOX 100 20)` as a command, `PRINT (AREA 3 4) + 1` as a value. In parentheses a call takes at least the required inputs and at most all of them (`BOX takes at most 2 inputs (:W [:H])`).
+- A default is one value, worked out at each call, after the inputs before it are set — so it may use them: `TO RECT :W [:H :W]` makes a square by default.
+- Required inputs come first (`TO F [:A 1] :B` is an error), and every optional input needs a default (`[:A]` alone is an error).
+
 - Parameters are listed with `:` on the `TO` line and are private to each call. A name may appear only once (`TO F :A :A` is an error).
 - `TO … END` must stand outside every `[ ]` block (`REPEAT 2 [ TO X … END ]` is an error).
 - A call with too few inputs is an error that names them: `SQUARE` on its own → `SQUARE needs 1 input (:SIZE)`.
@@ -184,7 +212,36 @@ FD DOUBLE 50    ; forward 100
 | `LOCAL "a "b …` | Declare variables private to the current procedure; give them values later with `MAKE`. Reading one before it has a value is an error. |
 | `PRINT val` / `PR val` | Print a value to the console (`0.1 + 0.2` prints `0.3`). Always shown, opens the console if hidden. |
 | `PRINT "word` | Print a word. |
+| `(PRINT a b …)` | Print several words and values on one line, with a space between each: `(PRINT "Score: :N)` → `Score: 7`. |
 | `CLEARTEXT` / `CT` | Clear the console. |
+
+### 2.7 Keyboard, mouse and time
+
+| Word | Description |
+|---|---|
+| `KEYP` | 1 if a key was pressed and not read yet, else 0. Does not wait. |
+| `READKEY` | Wait for a key press and give its key code (the STOP button ends the wait). Key presses wait in a queue (up to 32), oldest first. |
+| `MOUSEX` / `MOUSEY` | Where the mouse pointer was last seen over the canvas, in turtle coordinates (the centre is 0 0, y up). |
+| `BUTTONP` | 1 while the (left) mouse button is pressed on the canvas, else 0. |
+| `TIMER` | Seconds since the program started, with a fraction (`0.25`). In direct mode every command is a new start. |
+| `RESETTIMER` | Start `TIMER` again from 0. |
+
+**Key codes** (the classic browser codes): letters `A`–`Z` are 65–90 whatever the case, digits `0`–`9` are 48–57, space 32, Enter 13, Escape 27, Backspace 8, arrows left 37, up 38, right 39, down 40. Other keys, and keys pressed with Ctrl / Alt / Cmd, are ignored.
+
+Keys reach a program only while it runs, and only when they are not typed into a text field (the editor, the direct-mode line): click the canvas first. While a program runs, the arrow keys and space do not scroll the page. Key presses from before the run are forgotten.
+
+```logo
+; steer with the arrow keys, Escape ends
+FOREVER [
+  IF KEYP [
+    MAKE "K READKEY
+    IF :K = 37 [ LT 15 ]
+    IF :K = 39 [ RT 15 ]
+    IF :K = 27 [ BREAK ]
+  ]
+  FD 2
+]
+```
 
 ---
 
@@ -311,12 +368,12 @@ Tail calls (§2.5) keep these rules: a procedure called as the last thing its ca
 |---|---|
 | **Numbers only** | No lists or strings; quoted words exist only for `LABEL`, `PRINT` and colour names. |
 | **`REPCOUNT` is innermost only** | Use `FOR` with a named variable if you need an outer loop's count. |
-| **`HOME` does not draw** | Unlike UCBLogo, `HOME` never draws a line, even with the pen down. |
-| **Canvas edge ends the program** | There is no `WRAP` / `WINDOW` mode. |
 | **Procedures take whole expressions** | A user procedure's inputs, and those of two-input functions (`MAX`, `TOWARDS`, `DISTANCE`, …), are full expressions — unlike single-input functions such as `SQRT`. `(DISTANCE 0 0) > 5` needs the `( )`. See §2.5, §3.3. |
 | **Approximate comparisons** | `=` / `<` / … treat numbers within ~12 significant digits as equal (§3.2); there is no exact-equality operator. |
 | **No `PENCOLOR`** | There are no list values, so the pen colour cannot be read back as `[r g b]` (planned with lists). |
-| **Not implemented** | `FILL`, edge modes (`WRAP` / `WINDOW`), keyboard / mouse input, file commands (use the SAVE / LOAD buttons). |
+| **Fills are shapes, not flood fills** | `BEGINFILL` … `ENDFILL` fills the path the turtle walked; there is no `FILL` that floods the area around the turtle. |
+| **Key codes, not characters** | `READKEY` gives a number (there are no words to compare with), and only letters, digits and a few special keys have one (§2.7). |
+| **Not implemented** | Flood `FILL`, file commands (use the SAVE / LOAD buttons). |
 
 ---
 
@@ -336,6 +393,10 @@ A runtime error halts the program and shows the line of the statement or value b
 | Extra value after a command | `Unexpected value -10 — the previous command already has all its inputs. …` |
 | Command used as a value | `RT is a command, not a value — a value was expected here` |
 | Too few inputs for a procedure | `SQ needs 1 input (:S)` / `R needs 2 inputs (:A :B), got only 1` |
+| Too many inputs in `( )` | `BOX takes at most 2 inputs (:W [:H])` |
+| Optional inputs in `TO` | `TO F: input :B comes after an optional input — required inputs go first` / `TO F: optional input :A needs a default value, e.g. [:A 0]` / `F: the default of :A must be one value, found …` |
+| `(` starting a statement | `Unexpected ( — a statement can start with ( only for (PRINT …), (LABEL …) or a procedure call with optional inputs` / `Missing ) — (PRINT … was opened but never closed` |
+| `ENDFILL` | `ENDFILL without BEGINFILL` |
 | Word used as a number | `"red is a word, not a number — for a variable write :red` |
 | Unknown colour | `SETCOLOR: unknown colour name RDE (colours: RED ORANGE …)` (also `SETBG: …`) |
 | `IFELSE` value block | `IFELSE used as a value: a [ ] block must hold one value, found …` / `… a [ ] block is empty …` |
@@ -358,13 +419,13 @@ A runtime error halts the program and shows the line of the statement or value b
 | Deep recursion | `Stack overflow: … (> 10000 frames)` / `Expression nested too deeply (> 500 levels) …` |
 | `FOR` step 0, `WAIT` < 0, non-finite `CIRCLE` / `ARC` | Specific error |
 
-Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLOR` / `SETBG` / `SETWIDTH` / `SPEED` clamped, `WAIT` > 30 s capped, `CIRCLE` / `ARC` radius capped, trail limit (50 000 segments) or label limit (500) reached.
+Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLOR` / `SETBG` / `SETWIDTH` / `SPEED` clamped, `WAIT` > 30 s capped, `CIRCLE` / `ARC` radius capped, trail limit (50 000 segments), label limit (500) or fill limit (1 000) reached, `ENDFILL` with fewer than 3 corners.
 
 ---
 
 ## 9. Examples
 
-36 built-in examples are available from the EXAMPLES panel.
+37 built-in examples are available from the EXAMPLES panel.
 
 | Title | Features demonstrated |
 |---|---|
@@ -398,3 +459,4 @@ Warnings (execution continues): `REPEAT` with negative count (skipped), `SETCOLO
 | BREAK, CONTINUE and a Test | A procedure that OUTPUTs 1 / 0, `NOT`, `CONTINUE`, `BREAK` |
 | Tree — Recursion | Branching (non-tail) recursion with parameters only |
 | Arc Flowers | `ARC`, `SETBG`, `SETXY`, `IFELSE` as a value, `FOREVER` with `BREAK` |
+| Filled Shapes | `BEGINFILL` / `ENDFILL` (fill colour from `BEGINFILL`, black outline), an optional procedure input, `(LABEL …)` |

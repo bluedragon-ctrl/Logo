@@ -3,9 +3,9 @@ import { sleep, tick } from './pacing.ts';
 import { formatNum, hasOwn, isVarTok, procScopeOf, setVar, varName } from './scope.ts';
 import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
-import { addLabel, trailPushIfRoom } from '../turtle/drawing.ts';
-import { arc, circle, clipForRun, move, ouch, rotate } from '../turtle/motion.ts';
-import type { CommandHandler, RunContext, Scope, Token } from './types.ts';
+import { addLabel, beginFill, endFill, notePoint, trailPushIfRoom } from '../turtle/drawing.ts';
+import { arc, circle, edgePath, move, ouch, rotate, wrapCoord } from '../turtle/motion.ts';
+import type { CommandHandler, EdgeMode, RunContext, Scope, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
 // CMD maps uppercase command name → async handler.
@@ -68,13 +68,41 @@ CMD['PRINT'] = CMD['PR'] = async (t,i,v,rctx) => {
   return nextIdx;
 };
 
+// ▸ (PRINT a b …) / (LABEL a b …): several inputs in parentheses, joined with spaces.
+// Each input is a "word or a value: (PRINT "Score: :N) → Score: 7. runStack calls
+// these when a statement starts with ( and one of these words; idx is the first
+// input, and the handler consumes the closing ).
+async function itemsText(t: Token[], i: number, v: Scope, rctx: RunContext, cmd: string): Promise<{ text: string; nextIdx: number }> {
+  const parts: string[] = [];
+  for(;;) {
+    const tok = t[i]?.text;
+    if(tok === ')') return { text: parts.join(' '), nextIdx: i + 1 };
+    if(tok === undefined || tok === ']') throw new Error('Missing ) — (' + cmd + ' … was opened but never closed');
+    const w = wordArg(t, i);
+    if(w) { parts.push(w.text); i = w.nextIdx; continue; }
+    const r = await evalExpr(t, i, v, rctx);
+    parts.push(formatNum(r.value)); i = r.nextIdx;
+  }
+}
+export const PAREN_CMD: Record<string, CommandHandler> = {};
+PAREN_CMD['PRINT'] = PAREN_CMD['PR'] = async (t,i,v,rctx) => {
+  const { text, nextIdx } = await itemsText(t, i, v, rctx, 'PRINT');
+  rctx.io.log('PRINT → ' + text, 'print');
+  return nextIdx;
+};
+PAREN_CMD['LABEL'] = async (t,i,v,rctx) => {
+  const { text, nextIdx } = await itemsText(t, i, v, rctx, 'LABEL');
+  await drawLabel(text, rctx);
+  return nextIdx;
+};
+
 // isValueStart(tok, rctx): can tok begin an expression? (DOT / LABEL / SETCOLOR argument
 // detection.) A user procedure counts: it may OUTPUT a value (LABEL DOUBLE 3).
 function isValueStart(tok: string | undefined, rctx: RunContext): boolean {
   if(!tok) return false;
   return isVarTok(tok) || hasOwn(rctx.procs, tok) || /^[\d.]/.test(tok) || tok === '~' || tok === '-' || tok === '(' ||
          QUERY_TOKENS.has(tok) || tok === 'REPCOUNT' || tok === 'REPCOUNTMAX' ||
-         UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT' || tok === 'IFELSE';
+         UNARY.has(tok) || BINARY2.has(tok) || tok === 'NOT' || tok === 'IFELSE' || tok === 'READKEY';
 }
 
 // LABEL "text | value | bareword — draw text at the turtle position.
@@ -90,11 +118,13 @@ CMD['LABEL'] = async (t,i,v,rctx) => {
     if(isValueStart(tok, rctx)) { const r = await evalExpr(t, i, v, rctx); text = formatNum(r.value); i = r.nextIdx; }
     else { text = tok; i++; } // bare word (uppercase), e.g. LABEL HELLO
   }
-  const tt = rctx.session.turtle;
-  if(!addLabel(rctx, {x:tt.x, y:tt.y, text, r:tt.color[0], g:tt.color[1], b:tt.color[2]})) return i;
-  await tick(rctx);
+  await drawLabel(text, rctx);
   return i;
 };
+async function drawLabel(text: string, rctx: RunContext): Promise<void> {
+  const tt = rctx.session.turtle;
+  if(addLabel(rctx, {x:tt.x, y:tt.y, text, r:tt.color[0], g:tt.color[1], b:tt.color[2]})) await tick(rctx);
+}
 
 // ▸ Motion — all delegate to move()/rotate() which own animation and instant-mode logic
 CMD['FD'] = CMD['FORWARD'] = async (t,i,v,rctx) => {
@@ -121,23 +151,26 @@ CMD['SETH'] = CMD['SETHEADING'] = async (t,i,v,rctx) => {
   if(!rctx.stopped) rctx.session.turtle.angle = target; // snap to exact value after animation to eliminate float drift
   return nextIdx;
 };
-// HOME: teleport to origin (0,0), heading 0°. Instant — no animation, no trail segment.
-// Pen/color/width state is unchanged; use CS to clear the trail.
+// HOME: straight back to the origin (0,0) — a line if the pen is down, like SETPOS
+// 0 0 — then heading 0°. Pen/colour/width are unchanged; use CS to clear the trail.
 CMD['HOME'] = async (_t,i,_v,rctx) => {
-  rctx.session.turtle.x=0; rctx.session.turtle.y=0; rctx.session.turtle.angle=0; rctx.io.render(); rctx.io.log('HOME','info'); return i;
+  await goTo(0, 0, 'HOME', rctx);
+  rctx.session.turtle.angle = 0; rctx.io.render();
+  return i;
 };
 // goTo(nx, ny, what, rctx): straight line (pen down) to (nx, ny) without changing
-// heading — SETPOS / SETXY / SETX / SETY. Leaving the canvas behaves like FD: the
-// line stops at the edge and the run ends (OUCH!).
+// heading — SETPOS / SETXY / SETX / SETY / HOME. Not animated (one tick). At the
+// canvas edge it behaves like FD: FENCE stops the line there and ends the run
+// (OUCH!), WRAP comes back in on the other side, WINDOW goes on.
 async function goTo(nx: number, ny: number, what: string, rctx: RunContext): Promise<void> {
   const tt = rctx.session.turtle;
-  const hit = clipForRun(rctx, tt.x, tt.y, nx, ny);
-  const [ex, ey] = hit || [nx, ny];
-  if(tt.pen && (ex !== tt.x || ey !== tt.y))
-    trailPushIfRoom(rctx, tt.x,tt.y,ex,ey,tt.width, tt.color[0],tt.color[1],tt.color[2]);
-  tt.x=ex; tt.y=ey;
+  const path = edgePath(rctx, tt.x, tt.y, nx, ny);
+  if(tt.pen) for(const [x0, y0, x1, y1] of path.pieces)
+    if(x0 !== x1 || y0 !== y1) trailPushIfRoom(rctx, x0, y0, x1, y1, tt.width, tt.color[0], tt.color[1], tt.color[2]);
+  tt.x = path.endX; tt.y = path.endY;
+  notePoint(rctx.session);
   if(rctx.io.logs('op')) rctx.io.log(what, 'op');
-  if(hit) ouch(rctx);
+  if(path.hit) ouch(rctx);
   await tick(rctx);
 }
 // SETPOS x y / SETXY x y: go to (x, y).
@@ -196,7 +229,7 @@ PEN_COMMANDS.forEach(([abbr, full, prop, val, msg]) => {
 CMD['CS'] = CMD['CLEARSCREEN'] = async (_t,i,_v,rctx) => {
   // CS clears trail segments, labels, and dots; resets turtle to home.
   // Does NOT clear variables, procedures, or the console — use CLR for a full reset.
-  clearScreen(rctx.session, rctx.io, { keepBackground: true }); rctx.io.render(); rctx.io.log('CLEAR','info'); return i;
+  clearScreen(rctx.session, rctx.io, { keepSettings: true }); rctx.io.render(); rctx.io.log('CLEAR','info'); return i;
 };
 CMD['CT'] = CMD['CLEARTEXT'] = async (_t,i,_v,rctx) => { rctx.io.clearText(); return i; };
 CMD['CIRCLE'] = async (t,i,v,rctx) => {
@@ -211,6 +244,35 @@ CMD['ARC'] = async (t,i,v,rctx) => {
   await arc(a, r, rctx);
   return i2;
 };
+// BEGINFILL … ENDFILL: fill the shape the turtle walks in between (pen up or down)
+// with the pen colour BEGINFILL saw. See turtle/drawing.ts.
+CMD['BEGINFILL'] = async (_t,i,_v,rctx) => { beginFill(rctx.session); rctx.io.log('BEGINFILL','info'); return i; };
+CMD['ENDFILL']   = async (_t,i,_v,rctx) => {
+  if(!endFill(rctx)) rctx.io.log('ENDFILL: the path has fewer than 3 corners — nothing to fill', 'info');
+  else rctx.io.log('ENDFILL', 'info');
+  rctx.io.render();
+  await tick(rctx);
+  return i;
+};
+// WRAP / WINDOW / FENCE: what the canvas edge does (turtle/motion.ts, edgePath).
+// Kept by CS; RUN (with "clear screen on run") and CLR go back to FENCE. Switching
+// to WRAP or FENCE brings a turtle that is off the canvas back onto it.
+const EDGE_MODES: [string, EdgeMode][] = [['WRAP','wrap'], ['WINDOW','window'], ['FENCE','fence']];
+EDGE_MODES.forEach(([name, mode]) => {
+  CMD[name] = async (_t,i,_v,rctx) => {
+    const { session, io } = rctx, tt = session.turtle, { w, h } = io.canvasSize();
+    session.edge = mode;
+    if(mode !== 'window'){
+      const fx = wrapCoord(tt.x, w / 2), fy = wrapCoord(tt.y, h / 2);
+      if(fx !== tt.x || fy !== tt.y){ tt.x = fx; tt.y = fy; io.render(); }
+    }
+    io.log(name, 'info');
+    return i;
+  };
+});
+// RESETTIMER: TIMER starts again from 0.
+CMD['RESETTIMER'] = async (_t,i,_v,rctx) => { rctx.timerStart = Date.now(); rctx.io.log('RESETTIMER','info'); return i; };
+
 // Named colour table — 16 kid-friendly colours accepted by SETCOLOR.
 // GREY is an alias for GRAY (same slot, not counted separately).
 export const COLOR_NAMES: Record<string, [number, number, number]> = {

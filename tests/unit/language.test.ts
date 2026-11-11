@@ -4,6 +4,7 @@ import { makeRunContext } from '../../src/interpreter/context.ts';
 import { execute, parseProgram } from '../../src/interpreter/execute.ts';
 import { headlessIO } from '../../src/interpreter/io.ts';
 import { clearScreen, createSession } from '../../src/interpreter/session.ts';
+import { segment } from '../../src/turtle/drawing.ts';
 import { runLogo } from './run-logo.ts';
 
 describe('language cases (tests/cases.js)', () => {
@@ -87,6 +88,79 @@ describe('interpreter state', () => {
     setTimeout(() => { rctx.stopped = true; }, 50);
     await run;
     expect(io.text()).not.toMatch(/✗|Done/);
+  });
+  test('BEGINFILL … ENDFILL stores a polygon under the outline, in the pen colour of BEGINFILL', async () => {
+    const { session } = await runLogo('FD 10\nSETCOLOR RED\nBEGINFILL\nSETCOLOR BLACK\nREPEAT 4 [ FD 50 RT 90 ]\nENDFILL');
+    const [f] = session.drawing.fills;
+    expect(session.drawing.fills.length).toBe(1);
+    expect(f.at).toBe(1);                                    // after the first FD, before the square
+    expect([f.r, f.g, f.b]).toEqual([220, 50, 50]);
+    expect(f.pts).toEqual([0, 10, 0, 60, 50, 60, 50, 10]);   // the start point is not repeated at the end
+    expect(session.fillPath).toBeNull();
+  });
+  test('a fill records pen-up moves, SETXY and HOME; CS drops a fill in progress', async () => {
+    const { session } = await runLogo('PU\nBEGINFILL\nSETXY 100 0\nSETXY 100 100\nHOME\nENDFILL');
+    expect(session.drawing.len).toBe(0);
+    expect(session.drawing.fills[0].pts).toEqual([0, 0, 100, 0, 100, 100]);
+    const cs = await runLogo('BEGINFILL\nFD 50 RT 90 FD 50\nCS\nPRINT 1');
+    expect(cs.session.fillPath).toBeNull();
+    expect(cs.session.drawing.fills.length).toBe(0);
+    const line = await runLogo('BEGINFILL FD 50 ENDFILL');
+    expect(line.session.drawing.fills.length).toBe(0);
+    expect(line.out).toContain('fewer than 3 corners');
+  });
+  test('WRAP splits a line at the edge into pieces', async () => {
+    const { session } = await runLogo('WRAP\nRT 90\nFD 700', { width: 400, height: 300 });
+    expect(session.drawing.len).toBe(3);                     // 0 → 200, -200 → 200, -200 → -100
+    expect(segment(session.drawing, 0).slice(0, 4)).toEqual([0, 0, 200, 0]);
+    expect(segment(session.drawing, 1).slice(0, 4)).toEqual([-200, 0, 200, 0]);
+    expect(segment(session.drawing, 2).slice(0, 4)).toEqual([-200, 0, -100, 0]);
+    expect(session.turtle.x).toBe(-100);
+    const animated = await runLogo('WRAP\nRT 90\nFD 700', { width: 400, height: 300, speed: 3 });
+    expect(animated.session.drawing.len).toBe(3);
+    expect(animated.session.turtle.x).toBe(-100);
+  });
+  test('WRAP with a huge distance draws a bounded number of pieces', async () => {
+    const { session, out } = await runLogo('WRAP\nRT 89\nFD 1E9\nPRINT 1');
+    expect(out).toContain('PRINT → 1');
+    expect(session.drawing.len).toBeLessThanOrEqual(1000);
+  });
+  test('HOME draws a line when the pen is down, none when it is up', async () => {
+    const down = await runLogo('SETXY 30 40\nHOME');
+    expect(down.session.drawing.len).toBe(2);
+    expect(segment(down.session.drawing, 1).slice(0, 4)).toEqual([30, 40, 0, 0]);
+    const up = await runLogo('SETXY 30 40\nPU\nHOME');
+    expect(up.session.drawing.len).toBe(1);
+  });
+  test('clearScreen (RUN / CLR) resets WRAP to FENCE; CS keeps it', async () => {
+    const { session } = await runLogo('WRAP\nCS');
+    expect(session.edge).toBe('wrap');
+    clearScreen(session, headlessIO());
+    expect(session.edge).toBe('fence');
+  });
+  test('(LABEL …) joins its inputs with spaces', async () => {
+    const { session } = await runLogo('MAKE "N 3\n(LABEL "n: :N * 2 "cm)');
+    expect(session.drawing.labels.map(l => l.text)).toEqual(['n: 6 cm']);
+  });
+  test('READKEY reads the key presses in order; KEYP sees them', async () => {
+    const { out } = await runLogo('PRINT KEYP\nPRINT READKEY\nPRINT READKEY\nPRINT KEYP', { keys: [65, 38] });
+    expect(out).toMatch(/PRINT → 1\nPRINT → 65\nPRINT → 38\nPRINT → 0/);
+  });
+  test('READKEY waits for a key press, and STOP ends the wait', async () => {
+    const io = headlessIO();
+    const rctx = makeRunContext(4, createSession(), io);
+    const parsed = parseProgram('PRINT READKEY\nPRINT READKEY', io);
+    if (!parsed) throw new Error('parse failed');
+    const run = execute(parsed.topLevel, rctx);
+    setTimeout(() => io.keys.push(32), 20);
+    setTimeout(() => { rctx.stopped = true; }, 60);
+    await run;
+    expect(io.text()).toContain('PRINT → 32');
+    expect(io.text()).not.toMatch(/✗|Done/);
+  });
+  test('MOUSEX / MOUSEY / BUTTONP come from io.mouse()', async () => {
+    const { out } = await runLogo('PRINT MOUSEX\nPRINT MOUSEY\nPRINT BUTTONP', { mouse: { x: -20, y: 35, down: true } });
+    expect(out).toMatch(/PRINT → -20\nPRINT → 35\nPRINT → 1/);
   });
   test('STOP (rctx.stopped) ends the run without an error', async () => {
     const io = headlessIO();

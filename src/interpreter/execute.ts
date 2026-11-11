@@ -1,3 +1,4 @@
+import { paramList } from './expr.ts';
 import { extractProcedures } from './procedures.ts';
 import { run } from './runtime.ts';
 import { STOP_SIGNAL } from './signals.ts';
@@ -18,7 +19,7 @@ export function parseProgram(src: string, io: LogoIO): { topLevel: Token[]; newP
 export function registerProcs(session: Session, newProcs: ProcMap, io: LogoIO): void {
   Object.entries(newProcs).forEach(([name, proc]) => {
     session.procs[name] = proc;
-    io.log('Defined: ' + name + (proc.params.length ? ' (' + proc.params.map(p => ':' + p).join(' ') + ')' : ''), 'info');
+    io.log('Defined: ' + name + (proc.params.length ? ' (' + paramList(proc) + ')' : ''), 'info');
   });
 }
 // execute(tokens, rctx): run top-level tokens in the session's globals and report

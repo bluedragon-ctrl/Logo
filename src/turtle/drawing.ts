@@ -1,4 +1,4 @@
-import type { Drawing, Label, RunContext } from '../interpreter/types.ts';
+import type { Drawing, Label, RunContext, Session } from '../interpreter/types.ts';
 
 // ── Drawing store: trail segments + labels ───────────────────────────────────
 // What the turtle has drawn, as data. Lives in a session (session.drawing) and
@@ -26,9 +26,13 @@ import type { Drawing, Label, RunContext } from '../interpreter/types.ts';
 //   0 <= len <= MAX_TRAIL_SEGS
 //   capWarned = false until the first rejected segment; then true until cleared
 //   labels: {x, y, text, r, g, b} in Logo coordinates, at most MAX_LABELS
+//   fills:  {at, pts, r, g, b} sorted by at (BEGINFILL … ENDFILL), at most MAX_FILLS,
+//           each with at most MAX_FILL_POINTS corners
 
-export const MAX_TRAIL_SEGS = 50000;
-export const MAX_LABELS     = 500;
+export const MAX_TRAIL_SEGS  = 50000;
+export const MAX_LABELS      = 500;
+export const MAX_FILLS       = 1000;
+export const MAX_FILL_POINTS = 10000;
 
 export function createDrawing(): Drawing {
   return {
@@ -36,10 +40,13 @@ export function createDrawing(): Drawing {
     u8:  new Uint8Array(MAX_TRAIL_SEGS * 3),   // r,g,b
     len: 0, capWarned: false,
     labels: [], labelCapWarned: false,
+    fills: [], fillCapWarned: false,
   };
 }
 // clearDrawing: erase everything (CS, RUN with "clear screen on run", CLR).
-export function clearDrawing(d: Drawing): void { d.len = 0; d.capWarned = false; d.labels = []; d.labelCapWarned = false; }
+export function clearDrawing(d: Drawing): void {
+  d.len = 0; d.capWarned = false; d.labels = []; d.labelCapWarned = false; d.fills = []; d.fillCapWarned = false;
+}
 
 // segment(d, i) → [x1, y1, x2, y2, w, r, g, b] — convenience reader for tests / tools.
 export type Segment = [x1: number, y1: number, x2: number, y2: number, w: number, r: number, g: number, b: number];
@@ -83,5 +90,47 @@ export function addLabel(rctx: RunContext, lab: Label): boolean {
   }
   d.labels.push(lab);
   rctx.io.paintLabel(lab);
+  return true;
+}
+
+// ── Filled shapes ─────────────────────────────────────────────────────────────
+// BEGINFILL starts recording the turtle's path (session.fillPath); every move,
+// SETPOS / SETXY / SETX / SETY and HOME adds the point where the turtle ends up
+// (notePoint), with the pen up or down. ENDFILL closes the path and stores it as a
+// polygon painted in the pen colour BEGINFILL saw, under everything drawn after
+// BEGINFILL (so the outline stays on top).
+
+// beginFill(session): start (or restart) recording at the turtle.
+export function beginFill(session: Session): void {
+  const t = session.turtle;
+  session.fillPath = { at: session.drawing.len, pts: [t.x, t.y], rgb: [...t.color] };
+}
+// notePoint(session): add the turtle position to the fill path, if one is recorded.
+export function notePoint(session: Session): void {
+  const fp = session.fillPath;
+  if(!fp) return;
+  const t = session.turtle, n = fp.pts.length;
+  if(fp.pts[n - 2] === t.x && fp.pts[n - 1] === t.y) return;  // the turtle did not move
+  if(n / 2 < MAX_FILL_POINTS) fp.pts.push(t.x, t.y);
+}
+// endFill(rctx): store and paint the recorded polygon. Paths of fewer than three
+// corners fill nothing. Returns false when there was nothing to fill.
+export function endFill(rctx: RunContext): boolean {
+  const { session, io } = rctx, d = session.drawing, fp = session.fillPath;
+  if(!fp) throw new Error('ENDFILL without BEGINFILL');
+  session.fillPath = null;
+  const p = fp.pts, n = p.length;
+  if(n > 2 && p[n - 2] === p[0] && p[n - 1] === p[1]) p.length = n - 2;   // back at the start: the polygon closes itself
+  if(p.length < 6) return false;
+  if(d.fills.length >= MAX_FILLS){
+    if(!d.fillCapWarned){ io.log('ENDFILL: fill limit ('+MAX_FILLS+') reached — use CS to clear','err'); d.fillCapWarned = true; }
+    return false;
+  }
+  if(fp.pts.length / 2 >= MAX_FILL_POINTS) io.log('ENDFILL: the shape has more than '+MAX_FILL_POINTS+' corners — the rest is left out','info');
+  const f = { at: Math.min(fp.at, d.len), pts: fp.pts, r: fp.rgb[0], g: fp.rgb[1], b: fp.rgb[2] };
+  d.fills.push(f);
+  // Nothing drawn since BEGINFILL: the fill goes on top, exactly as a full repaint
+  // would show it. Otherwise repaint everything, so the fill lies under the outline.
+  if(f.at === d.len) io.paintFill(f); else io.redraw();
   return true;
 }

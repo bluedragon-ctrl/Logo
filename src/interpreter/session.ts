@@ -12,6 +12,8 @@ import type { LogoIO, Session } from './types.ts';
 //   walkTick  cyclic 16-bit counter that drives the sprite animation
 //   isMoving  true while move() animates (leg swing in the sprite)
 //   background  SETBG colour, or null for the Options canvas style
+//   edge      WRAP / WINDOW / FENCE — what the canvas edge does
+//   fillPath  the path recorded since BEGINFILL, or null
 export function createSession(): Session {
   return {
     turtle:   mkTurtle(),
@@ -21,15 +23,19 @@ export function createSession(): Session {
     walkTick: 0,
     isMoving: false,
     background: null,
+    edge:     'fence',
+    fillPath: null,
   };
 }
 
 // clearScreen(session, io): erase trail + labels and reset the turtle. Shared by CS,
 // RUN-with-"clear screen on run", and the CLR button. Variables and procedures stay.
-// The SETBG background is reset too, except by CS (keepBackground), as in UCBLogo.
-export function clearScreen(session: Session, io: LogoIO, opts: { keepBackground?: boolean } = {}): void {
+// The SETBG background and the edge mode (WRAP / WINDOW / FENCE) are reset too,
+// except by CS (keepSettings), as in UCBLogo. A BEGINFILL in progress is dropped.
+export function clearScreen(session: Session, io: LogoIO, opts: { keepSettings?: boolean } = {}): void {
   clearDrawing(session.drawing);
-  if(!opts.keepBackground) session.background = null;
+  session.fillPath = null;
+  if(!opts.keepSettings){ session.background = null; session.edge = 'fence'; }
   resetTurtle(session.turtle);
   io.redraw();
 }
