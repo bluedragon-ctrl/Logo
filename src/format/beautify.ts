@@ -133,6 +133,19 @@ export function beautify(src: string): string {
       if(i < stream.length && stream[i].tok !== '[') cur.toks.push(stream[i++].tok); // proc name
       while(i < stream.length && (stream[i].tok.startsWith(':') || stream[i].tok.startsWith('"')))
         cur.toks.push(stream[i++].tok); // collect :param tokens
+      // Optional inputs [:NAME default] belong to the header: keep them on the TO line,
+      // written compactly as one piece ("[:H 50]"). Only those on the TO's own line.
+      while(i + 1 < stream.length && stream[i].tok === '[' && stream[i].li === li && stream[i + 1].tok.startsWith(':')) {
+        const inner: string[] = [];
+        let d = 1;
+        for(i++; i < stream.length; i++) {
+          const t = stream[i].tok;
+          if(t === '[') d++;
+          else if(t === ']' && --d === 0) { i++; break; }
+          inner.push(t);
+        }
+        cur.toks.push('[' + joinToks(inner) + ']');
+      }
       flushLine();
       depth++;
       continue;

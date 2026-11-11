@@ -4,6 +4,19 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.11  2026-11-11
+**LANGUAGE ADDITIONS, STEP 2 (FILLS, EDGE MODES, KEYBOARD AND MOUSE, (PRINT …), OPTIONAL INPUTS)**
+- + ADDITION: `BEGINFILL` … `ENDFILL` — fills the path the turtle walks in between (pen up or down; every move, SETPOS / SETXY / SETX / SETY and HOME adds a corner) with the pen colour BEGINFILL saw. The fill lies under the outline and everything drawn after BEGINFILL, over what came before; non-zero rule, so crossing stars fill completely. New drawing-store list `fills` (`{at, pts, r, g, b}`, max 1 000 × 10 000 corners), painted by `paintDrawing`, the example pictures and the snapshot pictures (`+`); new `io.paintFill`. Live painting and a repaint after resize are identical.
+- + ADDITION: edge modes `WRAP` (leave on one side, come back on the other), `WINDOW` (walk off the canvas) and `FENCE` (the old behaviour, still the default). For FD / BK / CIRCLE / ARC and SETPOS / SETXY / SETX / SETY / HOME, via `edgePath` in `turtle/motion.ts`. CS keeps the mode; RUN with "clear screen on run" and CLR go back to FENCE. `clearScreen`'s option is now `{ keepSettings }` (background + edge mode). New session fields `edge` and `fillPath`.
+- + ADDITION: keyboard, mouse and time: `KEYP`, `READKEY` (waits; key codes A–Z 65–90, digits 48–57, space 32, Enter 13, Escape 27, Backspace 8, arrows 37–40; STOP ends the wait), `MOUSEX` / `MOUSEY` (turtle coordinates), `BUTTONP`, `TIMER` (seconds since the run started), `RESETTIMER`. New io methods `keyWaiting`, `readKey`, `mouse` (browser: `ui/input.ts`, keys queued only while a program runs and not typed into a text field; clicking the canvas takes the focus from the editor. Headless: options `keys` / `mouse`).
+- + ADDITION: several inputs in parentheses: `(PRINT "Score: :N)` → `Score: 7`, `(LABEL "x: XCOR)`; the inputs are joined with spaces and may span lines.
+- + ADDITION: optional procedure inputs `TO BOX :W [:H 50]`: `BOX 10` uses the default, `(BOX 10 20)` passes it — as a command or a value. A default is one value, worked out per call, and may use the inputs before it. `Proc` gains `required` and `defaults`; `procInputs` / `bindDefaults` are shared by statement and value calls.
+- ~ CHANGE: `HOME` draws a line back to the centre when the pen is down, as in UCBLogo (it used to jump). No example changes: they all lift the pen first.
+- ~ CHANGE: the new built-in words (WRAP, WINDOW, FENCE, BEGINFILL, ENDFILL, KEYP, READKEY, MOUSEX, MOUSEY, BUTTONP, TIMER, RESETTIMER) can no longer be used as procedure names.
+- - REMOVAL: `clipForRun` (replaced by `edgePath`).
+- + ADDITION: example 37 "Filled Shapes" (fills with black outlines, an optional input, `(LABEL …)`). Commands panel: cards for the new words and a "Keyboard and mouse" group.
+- + ADDITION: tests — 33 language cases; unit tests for fills, WRAP pieces, HOME, READKEY / KEYP / mouse; browser checks for real key presses, the mouse and fill painting; and for every example that beautifying it does not change its drawing (beautify keeps optional inputs `[:H 50]` on the TO line — moving them to the next line would have turned them into body code).
+
 ## v8.10  2026-11-11
 **COMMANDS AND EXAMPLES PANELS: SEPARATE COMMANDS, SEARCH, LINKS**
 - ~ CHANGE: Commands panel — every command is its own row that opens into a card: a longer explanation, other ways to write it, two or three examples (Try in direct mode, Insert into the program at the caret), See also links and "Used in": pictures of the examples that use it, plus "All n examples →". `REFERENCE` entries gained `more`, `forms`, `examples` (replacing `try`), `see`, `tags`; variants such as SETCOLOR r g b / name, DOT / DOT x y, FOR with a step are folded into one command.

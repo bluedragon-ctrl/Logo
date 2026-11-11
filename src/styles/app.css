@@ -238,6 +238,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   overflow: hidden;
 }
 canvas { image-rendering: auto; display: block; }
+#c:focus { outline: none; } /* focused by a click (keys for KEYP / READKEY), never by Tab */
 
 /* ── Overlays ── */
 #ref-overlay, #ex-overlay, #opt-overlay {

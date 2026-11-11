@@ -15,7 +15,7 @@ import { CONTROL_WORDS } from '../interpreter/procedures.ts';
 //   squareBracket · paren · definitionKeyword (TO / END) · controlKeyword
 //   keyword (CMD) · variableName.function (math functions, queries, REPCOUNT)
 
-const FUNCTIONS = new Set([...UNARY, ...BINARY2, ...QUERY_TOKENS.keys(), 'REPCOUNT', 'REPCOUNTMAX', 'NOT', 'AND', 'OR', 'MOD']);
+const FUNCTIONS = new Set([...UNARY, ...BINARY2, ...QUERY_TOKENS.keys(), 'REPCOUNT', 'REPCOUNTMAX', 'READKEY', 'NOT', 'AND', 'OR', 'MOD']);
 const WORD = /^[^\s\[\]()+\-*\/=><~;]+/;
 
 function token(stream: StringStream): string | null {

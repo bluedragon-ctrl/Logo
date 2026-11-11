@@ -27,7 +27,12 @@ export interface Turtle {
 /** A LABEL drawn on the canvas, in Logo coordinates. */
 export interface Label { x: number; y: number; text: string; r: number; g: number; b: number }
 
-/** Trail segments + labels (turtle/drawing.ts). */
+/** A filled polygon (BEGINFILL … ENDFILL). pts: x0, y0, x1, y1, … in Logo coordinates.
+ *  at: the number of segments drawn before BEGINFILL — the fill is painted under
+ *  everything drawn after that, so the outline stays on top. */
+export interface Fill { at: number; pts: number[]; r: number; g: number; b: number }
+
+/** Trail segments + labels + fills (turtle/drawing.ts). */
 export interface Drawing {
   /** x1, y1, x2, y2, w per segment. */
   f32: Float32Array;
@@ -37,10 +42,16 @@ export interface Drawing {
   capWarned: boolean;
   labels: Label[];
   labelCapWarned: boolean;
+  /** In painting order (by .at). */
+  fills: Fill[];
+  fillCapWarned: boolean;
 }
 
-/** A user procedure: TO NAME :a :b … END. */
-export interface Proc { params: string[]; body: Token[] }
+/** A user procedure: TO NAME :a :b [:c default] … END.
+ *  params: all input names; the first `required` are needed by every call, the rest
+ *  are optional (`defaults[k]` = the default expression of params[required + k];
+ *  they get a value only in a call in parentheses: (NAME a b c)). */
+export interface Proc { params: string[]; required: number; defaults: Token[][]; body: Token[] }
 export type ProcMap = Record<string, Proc>;
 
 /** REPCOUNT / REPCOUNTMAX of a REPEAT iteration. */
@@ -54,6 +65,12 @@ export interface Scope {
   [PROC_SCOPE]?: string;
 }
 
+/** What happens at the canvas edge (WRAP / WINDOW / FENCE). */
+export type EdgeMode = 'fence' | 'wrap' | 'window';
+
+/** A BEGINFILL in progress: the path so far (x, y pairs), its colour, Fill.at. */
+export interface FillPath { at: number; pts: number[]; rgb: [number, number, number] }
+
 /** Everything a Logo program can change (session.ts). */
 export interface Session {
   turtle: Turtle;
@@ -64,6 +81,10 @@ export interface Session {
   isMoving: boolean;
   /** SETBG colour; null = the canvas style chosen in Options. */
   background: [number, number, number] | null;
+  /** WRAP / WINDOW / FENCE (default). Kept by CS, like the background. */
+  edge: EdgeMode;
+  /** Set between BEGINFILL and ENDFILL. */
+  fillPath: FillPath | null;
 }
 
 /** Console line classes: filtered in the page's console (see ui/console.ts). */
@@ -77,12 +98,20 @@ export interface LogoIO {
   render(): void;
   paintLine(x1: number, y1: number, x2: number, y2: number, w: number, r: number, g: number, b: number): void;
   paintLabel(lab: Label): void;
+  /** Draw one fill on top of the trail layer (only used when nothing was drawn after its BEGINFILL). */
+  paintFill(f: Fill): void;
   redraw(): void;
   clearText(): void;
   canvasSize(): { w: number; h: number };
   setSpeed(n: number): void;
   nextFrame(): Promise<unknown>;
   macroYield(): Promise<unknown>;
+  /** Keyboard (KEYP / READKEY): is a key press waiting? */
+  keyWaiting(): boolean;
+  /** The oldest waiting key press as a key code, removed from the queue; null if none. */
+  readKey(): number | null;
+  /** The mouse over the canvas, in Logo coordinates; down = a button is pressed. */
+  mouse(): { x: number; y: number; down: boolean };
 }
 
 /** Per-run interpreter state (context.ts). */
@@ -102,6 +131,8 @@ export interface RunContext {
   lastYield: number;
   wake: (() => void) | null;
   onFinish: (() => void) | null;
+  /** Date.now() when TIMER was last 0 (start of the run, or RESETTIMER). */
+  timerStart: number;
 }
 
 /** A leaf command handler: consumes its arguments from tokens[idx…], returns the next index. */

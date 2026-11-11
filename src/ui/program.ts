@@ -5,6 +5,7 @@ import { execute, parseProgram, registerProcs } from '../interpreter/execute.ts'
 import { clearProcs, clearScreen } from '../interpreter/session.ts';
 import { render } from '../render/render.ts';
 import { con, log, optSpeed } from './console.ts';
+import { clearKeys } from './input.ts';
 import type { Token } from '../interpreter/types.ts';
 import { byId } from '../util.ts';
 
@@ -33,6 +34,7 @@ function setRunning(on: boolean): void {
 // state; always cleans up, then runs rctx.onFinish (used by CLR).
 export async function runProgram(tokens: Token[]): Promise<void> {
   const rctx = makeRunContext(parseInt(optSpeed.value), session, io);
+  clearKeys(); // key presses from before the run are not for it
   setActiveRctx(rctx);
   setRunning(true);
   try {
@@ -50,6 +52,7 @@ byId<HTMLButtonElement>('btn-run').onclick = async function(){
   if(activeRctx) return; // belt-and-suspenders: btn is disabled by setRunning, but guard here too
   con.innerHTML = ''; session.globals = {};
   if(byId<HTMLInputElement>('opt-clear-on-run').checked) clearScreen(session, io);
+  else session.fillPath = null; // a BEGINFILL left open by the last run does not carry over
   clearProcs(session);
   render();
   const parsed = parseProgram(editor.getValue(), io);

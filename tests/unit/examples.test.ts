@@ -57,4 +57,8 @@ describe('examples', () => {
     const once = beautify(code);
     expect(beautify(once)).toBe(once);
   });
+  test.each(EXAMPLES.filter(e => !isRandom(e.code)).map(e => [e.title, e]))('beautify does not change the drawing: %s', async (_title, e) => {
+    const before = await runLogo(e.code, SMALL), after = await runLogo(beautify(e.code), SMALL);
+    expect(drawingPicture(after.session.drawing, SMALL.width, SMALL.height)).toBe(drawingPicture(before.session.drawing, SMALL.width, SMALL.height));
+  }, 30000);
 });
