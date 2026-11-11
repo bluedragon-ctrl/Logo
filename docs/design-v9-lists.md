@@ -1,17 +1,21 @@
 # Blue Logo v9 — Words and Lists, and UCBLogo compatibility (design)
 
-Status: **agreed direction, not scheduled** (November 2026, written after v8.11).
+Status: **decided, not scheduled** (November 2026, written after v8.11).
 Nothing in this document is in the code yet.
 
-**Guiding rule: UCBLogo programs should run.** Blue Logo is not a 1:1 copy of UCBLogo (Berkeley Logo 6, Brian Harvey's *Computer Science Logo Style*):
+**Guiding rules**
+
+1. **UCBLogo programs should run.** Blue Logo is not a 1:1 copy of UCBLogo (Berkeley Logo 6, Brian Harvey's *Computer Science Logo Style*):
 - It keeps its own extra words and friendlier syntaxes (infix `AND`, `SETCOLOR RED`, `FOR :i 1 10 [ … ]`, `BREAK`, …) as long as they do not stop a UCBLogo program from working.
 - Where the two **clash**, so that a UCBLogo program fails or silently does something else, Blue Logo aligns with UCBLogo.
   - It does so by **accepting the UCBLogo form as well** wherever possible.
-  - It changes an existing Blue Logo rule only when both cannot coexist.
+  - It changes an existing Blue Logo rule only when both cannot coexist **and** the UCBLogo rule is not harder to understand (rule 2).
 
-§13 reviews the whole language by this rule. Most fixes need no lists and can ship first as a non-breaking **v8.12** (§7, phase 0). Words and lists (§2–§5) are the big step and ship as **v9.0**, together with the only UCBLogo alignment that changes existing programs: function-input binding (§6).
+2. **Keep the current approach when it is simpler and clearer.** Where Blue Logo's own rule is easier to teach, it stays, even if a UCBLogo program then behaves differently. The difference is documented (§12), and the UCBLogo form is accepted as well wherever that costs nothing in clarity. This settled `ARC`, `WAIT`, the binding of function inputs, quoted-word delimiters and `MAKE :x`.
 
-This is step 3 of the missing-features list in `TODO.md` → Language.
+§13 reviews the whole language by these rules. Most fixes need no lists and can ship first as a non-breaking **v8.12** (§7, phase 0). Words and lists (§2–§5) are the big step and ship as **v9.0**. Apart from the new built-in names (§9), it changes no existing program.
+
+These are steps 3 (v8.12) and 4 (v9.0) of the missing-features list in `TODO.md` → Language.
 
 ---
 
@@ -26,7 +30,7 @@ This is step 3 of the missing-features list in `TODO.md` → Language.
   Predicates are spelled both `…P` and `…?`.
 - Turtle state as lists: `PENCOLOR` → `[r g b]`, `POS` → `[x y]`, and `SETPENCOLOR` / `SETPOS` / `TOWARDS` accepting a list.
 - A program from UCBLogo teaching material that uses only the words Blue Logo has runs and draws the same picture (§13 lists the exceptions).
-- Every existing Blue Logo program keeps working, except for the one binding change of §6.
+- Every existing Blue Logo program keeps working (except for procedures named like the new built-in words).
 - Error messages stay as clear as today.
 
 **Non-goals (not in v9)**
@@ -34,6 +38,7 @@ This is step 3 of the missing-features list in `TODO.md` → Language.
 - Property lists, `DEFINE` / `TEXT`, macros.
 - `MAP`, `FILTER`, `REDUCE`, `APPLY`. The template machinery of `FOREACH` (§5.1) makes them cheap later, so they are the first candidates for v9.x.
 - Console input (`READWORD`, `READLIST`). They need a prompt line in the UI and can come later.
+- Changing Blue Logo rules that are simpler than UCBLogo's (§12): function-input binding, `ARC`, `WAIT`, `MAKE :x`.
 - Screen and environment words with no meaning here (`SETSCRUNCH`, `TEXTSCREEN`, `SPLITSCREEN`, `BYE`, `EDIT`, `SAVE`, `LOAD`). They could become no-ops with an info line, so UCBLogo programs do not stop on them (§13).
 
 ---
@@ -144,23 +149,17 @@ MAKE "P [[0 0] [100 0] [50 80]] ; nested lists
 
 `"Ann` is a word value anywhere a value is expected: `MAKE "N "Ann`, `PRINT WORD "Ann "e`. The v8 error "`"size` is a word, not a number — for a variable write `:size`" stays, but only where a number is really needed (`FD "size`).
 
-**Quoted-word delimiters** follow UCBLogo (phase 0). A `"word` ends only at a space, a bracket or a parenthesis, so `"a-b`, `"x=1` and `"3+4` are single words.
-- Today the tokenizer splits them at `- = +` and the like.
-- This only changes programs that put an operator right after a quoted word with no space, such as `PRINT "x+1`, which today is an error anyway.
+**Quoted-word delimiters stay as today.** A `"word` ends at a space, a bracket or parenthesis, or an operator character (`+ - * / = < >`), the same delimiters as everywhere else, so there is one rule. UCBLogo ends a quoted word only at a space, bracket or parenthesis, so `"a-b` is one word there and two tokens here. That rarely matters in teaching programs; it is listed in §12.
 
-### 4.3 Inputs of built-in functions (UCBLogo binding, breaking)
+### 4.3 Inputs of built-in functions (unchanged)
 
-In UCBLogo every input of a prefix function, built-in or user-defined, is a **full expression**, because infix operators bind tighter than prefix calls:
+Blue Logo keeps its v8.0 rule: a **one-input function takes the one operand after it**, as in maths notation, so `SIN :A * 2` is `(SIN :A) * 2` and `SQRT 16 + 9` is 13. Two-input functions and user procedures take full expressions.
 
-```logo
-PRINT SQRT 16 + 9      ; UCBLogo: SQRT 25 = 5      (Blue Logo v8: (SQRT 16) + 9 = 13)
-PRINT SIN :A * 2       ; UCBLogo: SIN (:A * 2)     (Blue Logo v8: (SIN :A) * 2)
-PRINT RANDOM 6 + 1     ; UCBLogo: RANDOM 7         (Blue Logo v8: (RANDOM 6) + 1)
-```
+UCBLogo gives every prefix input a full expression (`SQRT 16 + 9` = 5). The Blue Logo rule is kept because it reads like the maths pupils know (guiding rule 2). A UCBLogo program that relies on the other reading needs `( )`, as in `SQRT (:X * :X + :Y * :Y)`, which works the same in both. Listed in §12.
 
-Here the two rules **cannot coexist**: the same text means different numbers, and a UCBLogo program such as `SQRT :X * :X + :Y * :Y` would silently compute something else. So v9 follows UCBLogo. One-input functions (`SIN`, `SQRT`, `ABS`, `RANDOM`, …) take a full expression, like two-input functions and user procedures already do.
-- One rule everywhere: **a prefix word takes everything up to its next input or the end of the expression; use `( )` to stop it early**, as in `(SQRT 16) + 9`.
-- This reverses the v8.0 rule "single-input functions bind to one operand" (§6).
+The new list words follow Blue Logo's rule for their kind:
+- one-input words (`FIRST`, `BUTFIRST`, `COUNT`, `EMPTYP`, …) take one operand, so `COUNT :L + 1` is `(COUNT :L) + 1`;
+- two-input words (`ITEM`, `FPUT`, `WORD`, …) take full expressions, like `MAX`.
 
 ### 4.4 What stays the same
 
@@ -202,8 +201,9 @@ All names and behaviour as in UCBLogo. "thing" is a list or a word. The UCBLogo 
 | `TOWARDS list`, `DISTANCE list` | `[x y]` | UCBLogo's form of TOWARDS; `TOWARDS x y` stays, with the same rule as SETPOS. DISTANCE gets the same list form. |
 | `READCHAR` / `RC` | → word | UCBLogo: waits for a key and outputs it as a one-character word. Enter / Escape / Backspace give `CHAR 13` / `27` / `8`. Arrows have no character: READCHAR skips them, and `READKEY` (v8.11) stays for them. |
 | `CHAR n` / `ASCII word` | number ↔ one-character word | `ASCII "A` = 65 |
-| `MAKE` with an indirect name | | UCBLogo: `MAKE :V 5` sets the variable *named by* the word in `:V`. Blue Logo's shortcut, where `MAKE :X 5` sets X, stays when `:X` does not hold a word (§13). |
 | Rest inputs `TO P :A [:REST]` | | UCBLogo: a `[:name]` with no default collects the remaining inputs of a `( … )` call as a list |
+
+Indirect `MAKE` (UCBLogo: `MAKE :V 5` sets the variable named by the word in `:V`) is **not** added. `MAKE :X 5` keeps meaning "set X", the simpler rule. `THING :V` gives indirect access when it is needed (§12).
 
 Every new name becomes a built-in word, so programs with `TO FIRST`, `TO LIST`, `TO COUNT` and so on stop working (§9). Each word gets a Commands-panel card in a new **"Words and lists"** group. The `…P` / `…?` pairs are forms of one card.
 
@@ -228,25 +228,9 @@ FOREACH [3 4 5] [[N] REPEAT :N [ FD 40 RT 360 / :N ]]     ; named-slot template 
 
 ---
 
-## 6. Binding of function inputs (breaking, v9.0)
+## 6. Binding of function inputs (decided: unchanged)
 
-Decided: **UCBLogo binding** (§4.3). Every input of every prefix function is a full expression; two-input functions are unchanged.
-
-| v8 (one-operand rule) | v9 (UCBLogo) | Write instead (works in both) |
-|---|---|---|
-| `SIN :A * :H` = `(SIN :A) * :H` | `SIN (:A * :H)` | `:H * SIN :A` or `(SIN :A) * :H` |
-| `SQRT 16 + 9` = 13 | 5 | `(SQRT 16) + 9` |
-| `RANDOM 6 + 1` = 1 … 6 | `RANDOM 7` = 0 … 6 | `1 + RANDOM 6` |
-| `ABS XCOR + ABS YCOR` | `ABS (XCOR + ABS YCOR)` | `(ABS XCOR) + ABS YCOR` |
-
-**Known places to update** (checked against v8.11):
-- **Example 28** (DOT — Sine Wave Scatter): `MAKE "Y SIN :A * :H` becomes `:H * SIN :A`. This is the only example whose meaning changes.
-- **Example 17**: its comment explains the v8 rule; the code `180 * SIN :X` works in both.
-- **Commands panel:** the RANDOM card text ("RANDOM 6 + 1 is a dice throw").
-- **`tests/cases.js`:** "unary function binds tight" (`SIN 30 * 2`), and the ARC case (`ABS XCOR + ABS YCOR`).
-- **lang-spec:** §3 and §3.3.
-
-**Prepare in phase 0:** v8.12 can already rewrite example 28, the RANDOM card and the cases into the "works in both" form. Then v9.0 changes only the parser and the docs.
+The first draft proposed UCBLogo's binding, where every prefix input is a full expression. It is **dropped** by guiding rule 2: Blue Logo's one-operand rule for one-input functions (`SIN :A * 2` = `(SIN :A) * 2`) is the clearer one for pupils. It stays, and no example, card or case needs rewriting. The difference is documented in lang-spec §3.3 / §7 and in §12 here, with the advice to use `( )` for a function's input, which reads the same in both.
 
 ---
 
@@ -257,14 +241,12 @@ Decided: **UCBLogo binding** (§4.3). Every input of every prefix function is a 
 Everything marked *v8.12* in §13. None of it needs list values:
 - `FOR [i 1 10 2] [ … ]`;
 - `~` line continuation;
-- quoted-word delimiters;
 - the prefix arithmetic and logic words;
 - `MODULO` / `REMAINDER` / `LOG10`;
 - the palette numbers for SETPC / SETBG;
 - `PENERASE` / `PENPAINT`;
 - `CLEAN`, `SHOWNP`, `UNTIL` / `DO.WHILE` / `DO.UNTIL`, `TEST` / `IFTRUE` / `IFFALSE`, `FILLED`;
 - no-ops for screen words;
-- the "works in both" rewrites of §6.
 
 The new names become built-in words, which is minor: programs with `TO SUM` and the like.
 
@@ -283,16 +265,11 @@ The new names become built-in words, which is minor: programs with `TO SUM` and 
 6. All of `tests/cases.js` and the example snapshots must pass unchanged.
 
 **Phase B — words and lists**
-- The primitives of §5 in a new module `interpreter/lists.ts`, plus `SHOW`, `TYPE`, `RUN`, `FOREACH`, list-valued blocks, indirect `MAKE`, `THING`, rest inputs.
+- The primitives of §5 in a new module `interpreter/lists.ts`, plus `SHOW`, `TYPE`, `RUN`, `FOREACH`, list-valued blocks, `THING`, rest inputs.
 - Caps (§8).
 
 **Phase C — turtle and input integration**
 - `PENCOLOR`, `POS`, list forms of SETPENCOLOR / SETBG / SETPOS / TOWARDS / DISTANCE, `READCHAR` / `RC`, `CHAR`, `ASCII`.
-
-**Phase D — function-input binding (§6, the one breaking change)**
-- One-input functions parse their input with `parseBinary(p, 1)` instead of `parseUnary`.
-- With the phase 0 rewrites in place, the examples and cases keep their results.
-- Update lang-spec §3.
 
 **Docs and UI**
 - lang-spec: §1.2 Values rewritten; a new §2.x "Words and lists"; the errors in §8; the limitations in §7; a new section "Blue Logo and UCBLogo" (from §12 and §13).
@@ -300,7 +277,7 @@ The new names become built-in words, which is minor: programs with `TO SUM` and 
 - CLAUDE.md "Language rules that are easy to get wrong".
 - Commands panel: a "Words and lists" group; Examples topic "Words and lists".
 
-**Release shape**: phase 0 as v8.12; phases A–D on one branch, released once as **v9.0**.
+**Release shape**: phase 0 as v8.12; phases A–C on one branch, released once as **v9.0**.
 
 ---
 
@@ -328,26 +305,23 @@ New error messages, in the style of lang-spec §8:
 
 **v8.12** (phase 0):
 - New built-in names (`SUM`, `PRODUCT`, `CLEAN`, `TEST`, `UNTIL`, `FILLED`, `PE`, …) can no longer be procedure names.
-- `"a-b` is now one word.
 
 **v9.0:**
 
 | v8 | v9.0 | Who is affected |
 |---|---|---|
-| `SIN :A * 2` = `(SIN :A) * 2` | `SIN (:A * 2)` (§6) | Programs with an operator after a one-input function's input. In the examples: only example 28, rewritten in v8.12. |
 | `TO FIRST`, `TO LIST`, `TO COUNT`, `TO ITEM`, `TO WORD`, `TO PICK`, `TO SHOW`, `TO TYPE`, `TO RUN`, `TO POS`, `TO CHAR`, `TO THING` … allowed | error: built-in word | Programs that defined these names |
-| `MAKE :X 5` where `:X` holds a word | sets the variable named by that word (UCBLogo) | Only programs that stored a word in X; impossible in v8, where words were not values |
 | `MAKE "N "abc`, `PRINT [1 2]`, `"` alone, `IF "true […]` → errors | work | Nobody (relaxations) |
 
-Comparisons keep outputting 1 / 0, so printed results and arithmetic with predicates do not change.
+Nothing else changes: comparisons keep outputting 1 / 0, the binding of function inputs is unchanged, and `MAKE :x` keeps its meaning.
 
 ---
 
 ## 10. Testing plan
 
 - **Phase 0:**
-  - one case per added form (`FOR [i 1 5]`, `~` continuation, `"a-b`, `SUM 1 2`, `REMAINDER -7 3`, `SETPC 4`, `PE`, `UNTIL`, `TEST` / `IFTRUE`, `FILLED`, the no-ops);
-  - the examples and cases rewritten into the "works in both" form keep their snapshots.
+  - one case per added form (`FOR [i 1 5]`, `~` continuation, `SUM 1 2`, `REMAINDER -7 3`, `SETPC 4`, `PE`, `UNTIL`, `TEST` / `IFTRUE`, `FILLED`, the no-ops);
+  - every example snapshot unchanged.
 - **Phase A:**
   - the whole existing suite, including the snapshots, passes unchanged;
   - new cases for words as values, number-like words, list literals (case kept, nesting, negative numbers, `:X` as a word), `=` on words and lists (case ignored, `"true` = 1), PRINT / SHOW / LABEL of lists, and `true` / `false` conditions.
@@ -356,15 +330,12 @@ Comparisons keep outputting 1 / 0, so printed results and arithmetic with predic
   - `RUN`;
   - `FOREACH` with `?`, `#`, `?REST`, named slots, a word as input, and BREAK / CONTINUE;
   - list-valued blocks;
-  - indirect `MAKE`, `THING`, rest inputs;
+  - `THING`, rest inputs;
   - immutability;
   - the caps.
 - **Phase C:**
   - unit tests: `PENCOLOR` round trip, `SETPOS POS`, `TOWARDS [0 0]`, `CHAR` / `ASCII`;
   - a browser check for `READCHAR`.
-- **Phase D:**
-  - cases for the binding table in §6;
-  - every example's snapshot unchanged.
 - **Beautify:**
   - keeps the case inside brackets;
   - idempotent;
@@ -385,15 +356,18 @@ Comparisons keep outputting 1 / 0, so printed results and arithmetic with predic
 | 2 | Case in `=` | Ignored, UCBLogo's default (§3.1). |
 | 3 | `READCHAR` | UCBLogo one-character word; `CHAR` / `ASCII`; arrows stay with `READKEY` (§5). |
 | 4 | Beautify and case in lists | Keep the source case of every word inside `[ ]` (§4.1). |
-| 5 | Function-input binding | UCBLogo binding, every prefix input a full expression. The only rule that cannot coexist with UCBLogo, so the one breaking change of v9.0. Prepared in v8.12 by rewriting the affected examples and cases (§6). |
+| 5 | Function-input binding | Unchanged: Blue Logo's maths-like rule stays (guiding rule 2, §4.3, §6). |
 | 6 | `FOREACH` form | UCBLogo's `FOREACH list template`, with `?`, `#`, `?REST` and named slots (§5.1). A `FOR`-style form is not needed, since `FOR :x …` stays for counting. |
-| 7 | Release shape | v8.12 for the non-breaking UCBLogo fixes (§13), then one v9.0 for lists and the binding change. |
+| 7 | Release shape | v8.12 for the non-breaking UCBLogo fixes (§13), then one v9.0 for words and lists. |
+| 8 | `ARC` | Unchanged: the turtle walks the arc (§12). |
+| 9 | `WAIT` | Unchanged: seconds, no hint (§12). |
+| 10 | Quoted-word delimiters, `MAKE :x` | Unchanged (§4.2, §5). |
 
 ---
 
 ## 12. Deliberate differences from UCBLogo that stay
 
-Blue Logo extras that UCBLogo programs never notice, or differences that are only in what is printed:
+Blue Logo extras that UCBLogo programs never notice, differences only in what is printed, and simpler Blue Logo rules kept by guiding rule 2:
 
 | Blue Logo | UCBLogo | Why it is fine |
 |---|---|---|
@@ -401,8 +375,12 @@ Blue Logo extras that UCBLogo programs never notice, or differences that are onl
 | Comparisons output `1` / `0` | `true` / `false` | Only what is printed differs; conditions accept both (§2) |
 | Approximate `=` for numbers (~12 digits) | Exact | `0.1 + 0.2 = 0.3` should be true in a classroom; no UCBLogo program relies on it being false |
 | `SETCOLOR r g b` with 0–255 (also `[r g b]` in v9) | `[r g b]` in 0–100 | 0–255 is what pupils meet elsewhere (FMSLogo uses it too). A UCBLogo RGB list draws in a darker shade, still visible. Palette numbers match UCBLogo (§13). |
+| One-input functions take one operand: `SQRT 16 + 9` = 13 | Full expression: 5 | Reads like maths. Use `( )` for a function's input, which works the same in both (§4.3). |
+| `ARC angle r`: the turtle walks the arc and ends turned | The turtle stays at the centre; the arc is drawn around it | Consistent with `CIRCLE`; a UCBLogo ARC picture comes out shifted |
+| `WAIT n` in seconds | `WAIT n` in 60ths of a second | Seconds are simpler to teach. A UCBLogo `WAIT 60` waits 30 s here (the cap). |
+| `"a-b` is `"a`, `-`, `b` | One word `a-b` | One set of delimiters everywhere |
+| `MAKE :X 5` sets X | Sets the variable named by the value of `:X` | The simpler rule; use `THING` for indirect access (v9) |
 | `REPEAT 2.5` runs 3 times | Whole numbers expected | Only affects fractional counts |
-| `MAKE :X 5` sets X when `:X` holds no word | Always indirect | The UCBLogo meaning applies whenever it can (§5) |
 
 ---
 
@@ -418,7 +396,7 @@ Verdicts:
 |---|---|---|---|
 | Motion: FD BK RT LT SETH HOME SETXY SETX SETY XCOR YCOR HEADING | | Same (`HOME` draws since v8.11) | OK |
 | `SETPOS [x y]`, `POS`, `TOWARDS [x y]` | Lists | `SETPOS x y`, `TOWARDS x y`; no POS | v9.0: both forms (§5) |
-| `ARC angle radius` | Turtle at the centre, does not move | Turtle walks the arc (v8.9) | **Differs: a heavy mismatch to decide.** UCBLogo programs using ARC draw something else. Recommendation: in v8.12 make `ARC` the UCBLogo arc (centre at the turtle, turtle stays) and keep the walking arc under a new name (e.g. `WALKARC`; the Arc Flowers example switches to it). The alternative is to keep it and document the difference. Breaking only for programs written since v8.9. |
+| `ARC angle radius` | Turtle at the centre, does not move | Turtle walks the arc (v8.9) | differs, kept (§12) |
 | `CIRCLE` | Not in UCBLogo 6 core (some versions have it, centred) | Walks the circle | extra |
 | Pen: PU PD PENDOWNP | | `PD?` names | v8.12: `PENDOWNP` alias |
 | `PENERASE` / `PE`, `PENPAINT` / `PPT`, `PENREVERSE` / `PX` | Erase / paint / invert | Missing | v8.12: PE draws in the background colour, PPT back to normal. PX is not planned (needs pixel XOR); it becomes an info line and draws normally. |
@@ -441,21 +419,17 @@ Verdicts:
 | `REMAINDER` (sign of dividend), `MODULO` (sign of divisor) | | `MOD` (= MODULO) | v8.12: both names |
 | `LOG10`, `LN`, `EXP`, `SQRT`, `POWER`, `INT`, `ROUND`, `ABS`, trig in degrees, `ARCTAN` | | Same, plus `LOG` = log10 | v8.12: `LOG10` alias |
 | `RANDOM n`, `(RANDOM a b)` | | `RANDOM n` | v8.12: the two-input range form `(RANDOM a b)` |
-| One-input function binding | Full expression | One operand | v9.0 (§6) |
+| One-input function binding | Full expression | One operand | differs, kept (§6, §12) |
 | `PRINT` `SHOW` `TYPE` | | PRINT only | v9.0 (needs values) |
-| `"word` delimiters | Space, brackets, parentheses | Also `+ - * / = < >` | v8.12 (§4.2) |
+| `"word` delimiters | Space, brackets, parentheses | Also `+ - * / = < >` | differs, kept (§4.2) |
 | `~` at the end of a line | Line continuation | An error | **v8.12** |
 | `;` comments | | Same | OK |
 | `TO` / `END`, inputs, `[:opt default]` | | Same (v8.11) | OK |
 | Rest inputs `[:rest]` | | Missing | v9.0 (§5) |
 | `OUTPUT` / `OP`, `STOP` | | Same | OK |
-| `MAKE "x`, `LOCAL`, `LOCALMAKE`, `:x`, `THING`, `NAME value "x` | | No THING / NAME | v8.12: `NAME value "x` (MAKE with its inputs swapped). v9.0: `THING`, indirect MAKE. |
+| `MAKE "x`, `LOCAL`, `LOCALMAKE`, `:x`, `THING`, `NAME value "x` | | No THING / NAME | v8.12: `NAME value "x` (MAKE with its inputs swapped). v9.0: `THING`. Indirect `MAKE :v` is not added (§12). |
 | Dynamic scope | | Same | OK |
-| `WAIT n` | **60ths of a second** | **Seconds** | **Differs: a heavy mismatch to decide.** A UCBLogo `WAIT 60` (1 s) waits 30 s here (the cap); a Blue Logo `WAIT 0.5` would be about nothing in UCBLogo. Recommendation: keep seconds (every Blue Logo example and lesson uses them), and log a hint when `WAIT n` has n ≥ 10: "WAIT counts seconds in Blue Logo (UCBLogo counts 60ths) — did you mean WAIT n / 60?". |
+| `WAIT n` | 60ths of a second | Seconds | differs, kept (§12) |
 | `KEYP`, `READCHAR` / `RC`, `READWORD`, `READLIST`, `MOUSEPOS`, `BUTTONP`, `CLICKPOS` | | KEYP, READKEY (codes), MOUSEX / MOUSEY, BUTTONP | v9.0: READCHAR / RC; `MOUSEPOS` / `CLICKPOS` as lists. READWORD / READLIST later (non-goal). |
 | `BYE`, `EDIT`, `SAVE`, `LOAD`, `ERASE`, `PO` | Workspace | Missing | Not planned; workspace handling is the editor and files UI |
 | Property lists, macros, `CATCH` / `THROW`, arrays | | Missing | Not planned (TODO.md) |
-
-**Two heavy mismatches need your call** (recommendations in the table):
-1. **`ARC`**: switch to UCBLogo's centred arc, or keep and document?
-2. **`WAIT`**: keep seconds with a hint, or switch to 60ths?

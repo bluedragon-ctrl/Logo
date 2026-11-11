@@ -215,6 +215,7 @@ Severity markers in reviews use 🔴 (bug) / 🟡 (design) / 🟢 (polish). Use 
 ## Making changes
 
 ### Before touching code
+0. **Design preference:** when the current approach is simpler and clearer, keep it. UCBLogo programs should run, so accept UCBLogo forms as well where they cost nothing in clarity; documented differences from UCBLogo are fine (`docs/design-v9-lists.md` §12).
 1. Read the relevant section of `blue-logo-impl-spec.md` (internals) or `blue-logo-lang-spec.md` (language behaviour).
 2. Check **Known Limitations** in `blue-logo-lang-spec.md` §7 — the behaviour may be intentional.
 3. Read the code section you are changing, not just the lines around the change.
