@@ -2,7 +2,6 @@ import { byId, context2d } from '../util.ts';
 // ── Canvas setup ──────────────────────────────────────────────────────────────
 // canvas/ctx  — the main visible canvas; redrawn every frame by render().
 // con         — the console log panel DOM element; appended to by log().
-// imageSmoothingEnabled=false keeps pixel-art sprite edges crisp when scaled.
 export const canvas = byId<HTMLCanvasElement>('c');
 export const ctx    = context2d(canvas);
 

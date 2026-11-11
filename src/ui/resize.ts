@@ -1,6 +1,5 @@
 import { session } from '../app.ts';
 import { activeRctx } from '../interpreter/context.ts';
-import { buildBgCache, buildGrains } from '../render/background.ts';
 import { DPR, canvas, setCanvasSize } from '../render/canvas.ts';
 import { render } from '../render/render.ts';
 import { rebuildTrailCanvas } from '../render/trail.ts';
@@ -24,8 +23,6 @@ export function resizeCanvas(){
   setCanvasSize(w, h, window.devicePixelRatio || 1);
   canvas.width  = Math.round(w * DPR); canvas.height = Math.round(h * DPR);
   canvas.style.width = w + 'px';       canvas.style.height = h + 'px';
-  buildGrains();
-  buildBgCache();
   rebuildTrailCanvas();
   // Re-centre the turtle when idle so it stays at the canvas origin after resize.
   // Guard: do NOT reset position while a program is running — that would corrupt

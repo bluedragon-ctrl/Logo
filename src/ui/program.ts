@@ -22,7 +22,7 @@ function setRunning(on: boolean): void {
     btnRun.disabled = true;
   } else {
     btnRun.classList.remove('running');
-    btnRun.textContent = '▶ RUN';
+    btnRun.textContent = '▶ Run';
     btnRun.disabled = false;
   }
 }

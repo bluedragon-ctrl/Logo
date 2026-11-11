@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.5 — November 2026
+## Version 8.6 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -7,7 +7,7 @@ This document covers the internal architecture, data structures, algorithms, and
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). Served as a static site (GitHub Pages). |
 | Delivery | ES modules in `src/`, built by Vite into `dist/` (`index.html` + hashed JS/CSS/font). Module scripts do not load from `file://` — use `npm run dev` or `npm run preview` locally. Versions up to v8.1 are frozen single-file HTML in `versions/`. |
-| External dependencies | CodeMirror 6 (editor, MIT), bundled into the app by Vite. VT323 is self-hosted (`src/assets/fonts/`, OFL; licenses in `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: TypeScript, Vite, Vitest, ESLint, Playwright. |
+| External dependencies | CodeMirror 6 (editor, MIT), bundled into the app by Vite. VT323 (title and LABEL text only) is self-hosted (`src/assets/fonts/`, OFL; licenses in `third-party/`); everything else uses system fonts; the page makes no third-party requests (checked by the tests). Dev tooling: TypeScript, Vite, Vitest, ESLint, Playwright. |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
@@ -21,7 +21,7 @@ The application is a set of TypeScript ES modules (`src/`, strict mode) bundled 
 
 | Layer | Responsibility |
 |---|---|
-| Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
+| Rendering | Canvas compositing (HiDPI), turtle drawing, background and trail painting. |
 | Turtle | `session.turtle` (position, heading, pen, colour, width), `session.drawing` (trail segments + labels), `move`/`rotate`/`circle`. |
 | Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
 | Editor | CodeMirror 6 (`editor/editor.ts`, `editor/logo-language.ts`): Logo highlighting, line numbers, `[ ]` matching, undo/redo, Tab = two spaces. |
@@ -56,18 +56,19 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `index.html` | Markup only: left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
 | `src/app.ts` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
 | `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
-| `src/styles/app.css` | All CSS, including the VT323 `@font-face`. |
+| `src/styles/app.css` | All CSS: design tokens (colours, font stacks, `--fs-base`), the VT323 `@font-face`. |
 | `src/assets/fonts/` | `VT323-Regular.woff2` (latin subset). |
+| `src/assets/logo.svg` | The app logo (favicon and header): the canvas turtle without the pen dot. Keep it in sync with `render/sprite.ts`. |
 | `src/util.ts` | `escHtml()`, `byId<T>(id)` (throws if `index.html` lacks the element), `context2d(canvas)`. |
 | `src/types/` | `file-system-access.d.ts` — the File System Access API (not in TypeScript's DOM library). |
 | `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
 | `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` lines are metadata; the rest is the code. The number prefix sets the order. |
 | **render/** | |
 | `render/canvas.ts` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
-| `render/sprite.ts` | Palette, `drawShell`/`drawLeg`/`drawHead`/`drawBelly`, `spr`, `buildSprite`, `SPRITE_OFFSET`. |
-| `render/background.ts` | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`/`turtleStyle` + setters. |
+| `render/sprite.ts` | `drawTurtleSprite` — the flat vector turtle, drawn each frame. |
+| `render/background.ts` | `drawBackground` (flat fill), `canvasStyle`/`turtleStyle` + setters. |
 | `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing`). |
-| `render/render.ts` | `render()` (background → trail → sprite; reads `session.turtle`, `walkTick`, `isMoving`). |
+| `render/render.ts` | `render()` (background → trail → turtle; reads `session.turtle`, `walkTick`, `isMoving`). |
 | **turtle/** | |
 | `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
 | `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `MAX_TRAIL_SEGS`, `MAX_LABELS`. |
@@ -134,7 +135,6 @@ Storage is the core's job, painting is the IO's: `trailPushIfRoom(rctx, …)` st
 | `INSTANT_FLUSH` | 150 | Instant-mode steps between paint yields. |
 | `STEPS_PER_FRAME` | [1, 4, 16, 64] | Move sub-steps / instant commands per frame, by speed 0–3. |
 | `INLINE_THRESHOLD` | 8 | Max tokens for inline `[ block ]` in beautify. |
-| `SPRITE_SIZE` / `SPRITE_OFFSET` | 64 px / 18.8 px | Turtle sprite canvas size / nose-to-centre distance. |
 
 ---
 
@@ -285,7 +285,7 @@ Errors are plain `Error`s with Logo-level messages. `execute` logs `✗ message`
 
 ### 3.1 Coordinate System and HiDPI
 
-`CW`/`CH` are the logical canvas size in CSS pixels = Logo units. The backing store is `CW×DPR` by `CH×DPR` device pixels (`DPR = devicePixelRatio`, re-read on every resize, so browser zoom is handled). The main canvas, `trailCanvas` and `bgCache` all draw through `setTransform(DPR,0,0,DPR,0,0)`, so **all drawing code works in logical units — always use `CW`/`CH`, never `canvas.width/height`** for geometry. Saved PNGs are at device resolution.
+`CW`/`CH` are the logical canvas size in CSS pixels = Logo units. The backing store is `CW×DPR` by `CH×DPR` device pixels (`DPR = devicePixelRatio`, re-read on every resize, so browser zoom is handled). The main canvas and `trailCanvas` draw through `setTransform(DPR,0,0,DPR,0,0)`, so **all drawing code works in logical units — always use `CW`/`CH`, never `canvas.width/height`** for geometry. Saved PNGs are at device resolution.
 
 ```
 canvas_x = CW / 2 + logo_x          dx = sin(heading) × dist
@@ -296,11 +296,11 @@ canvas_y = CH / 2 - logo_y          dy = cos(heading) × dist
 
 ### 3.2 Render Pipeline
 
-`render()` resets the transform, then composites back to front: background (`bgCache` blit or white fill), `trailCanvas` blit, turtle (if visible). Context state is re-applied per frame (`imageSmoothingEnabled = false` keeps the sprite crisp) because resizing a canvas resets it.
+`render()` resets the transform, then composites back to front: background (flat fill), `trailCanvas` blit (1:1, `imageSmoothingEnabled = false`), turtle (if visible). Context state is re-applied per frame because resizing a canvas resets it.
 
 ### 3.3 Background
 
-Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates) painted once into `bgCache` (`buildBgCache`) and rebuilt on resize. WHITE style fills instead.
+A flat fill: BEIGE `#f4eedf` (default) or WHITE `#ffffff`. Nothing is cached; saved PNGs include it.
 
 ### 3.4 Trail Storage
 
@@ -323,9 +323,11 @@ Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates
 
 ### 3.6 Turtle Sprite
 
-**ANIMATED (default):** procedurally generated 64×64 sprite (`buildSprite(session.walkTick, session.isMoving, pen)`, cached), drawn facing east and rotated by `(heading − 90)°`, centred `SPRITE_OFFSET` ahead of the pen position (`spriteCenter()`). Animation variables derive from `walkTick` (16-bit counter): leg `swing`, `headExt`, `blink`, `pulse`.
+Both styles are centred on the pen position and show the pen state as a dot there: red = pen down, white = pen up.
 
-**TRIANGLE:** small triangle at the pen position with a pen-state dot.
+**TURTLE (default):** a blue flat vector turtle — the same drawing as the app logo `src/assets/logo.svg` (`drawTurtleSprite`, about 26 × 40 px: shell with a centre plate, head with eyes, four legs, tail), drawn straight into the main context every frame in logical units, so it is sharp at any DPR. While `session.isMoving` the legs swing in diagonal pairs, driven by `session.walkTick` (16-bit counter); a resting turtle is static.
+
+**TRIANGLE:** small triangle with the same pen-state dot.
 
 ### 3.7 Motion
 
@@ -348,14 +350,21 @@ Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates
 
 ### 4.1 Layout
 
-Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, code editor, splitter, console, direct-mode panel and buttons; right panel `#canvas-panel` (`flex: 1`) with the canvas and overlays.
+Horizontal flex: left panel `#panel` (`clamp(360px, 32vw, 520px)` — it follows the window, not the font size) with title, code editor, splitter, console, direct-mode panel and buttons; right panel `#canvas-panel` (`flex: 1`) with the canvas and overlays.
+
+### 4.1a Look (fonts and colours)
+
+- **Fonts:** the interface uses the system UI font (`--font-ui`: `system-ui`, Segoe UI, Roboto, …); code, console, direct input and the code samples in the overlays use the system monospace font (`--font-mono`: `ui-monospace`, Cascadia Mono, SF Mono, Menlo, Consolas, DejaVu Sans Mono, …). Nothing is downloaded for them. VT323 is used only for the title and for LABEL text on the canvas.
+- **Sizes:** buttons and labels 13–14 px (fixed); reading text `--fs-code` 15 px, `--fs-console` / `--fs-read` 14 px, `--fs-small` 13 px, all × `--fs-base`.
+- **Colours:** design tokens in `:root` of `app.css` (`--bg`, `--panel`, `--surface`, `--raised`, `--border`, `--text`, `--muted`, `--faint`, `--accent`, run / stop colours). Buttons are neutral; only Run (green) and Stop (red) are coloured; `--accent` blue marks focus and active toggles. Every text colour is at least 4.5:1 against the background it sits on.
+- **Wording:** sentence case for the interface ("Clear screen on run"); capitals only for Logo commands.
 
 ### 4.2 Code Editor
 
 CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`. Public API `{ getValue, setValue, initValue, onChange, focus }` — the rest of the app never touches CodeMirror directly.
 
 - **Extensions:** `lineNumbers`, `highlightActiveLineGutter`, `history`, `bracketMatching`, `logoLanguage`, `syntaxHighlighting(logoHighlight)`, `lineWrapping`, a placeholder (the welcome text, shown while empty), and a keymap: Tab inserts two spaces, Shift+Tab un-indents, Ctrl/Cmd+/ toggles `;` comments, then CodeMirror's history and default keymaps.
-- **Highlighting:** `logoLanguage` (`editor/logo-language.ts`) is a `StreamLanguage` that mirrors `tokenize()`'s word / operator split and tags comments, `"words`, `:variables`, numbers, operators, brackets, `TO`/`END`, control words, commands and functions. Only comments are coloured for now (`#556`; `logoHighlight`); colouring more classes is a change to that style. Editor colours: `#editor .cm-…` rules in `app.css`.
+- **Highlighting:** `logoLanguage` (`editor/logo-language.ts`) is a `StreamLanguage` that mirrors `tokenize()`'s word / operator split and tags comments, `"words`, `:variables`, numbers, operators, brackets, `TO`/`END`, control words, commands and functions. Token colours are in `logoHighlight` (`editor.ts`): commands blue, control words and `TO`/`END` purple, functions cyan, `:variables` yellow, numbers orange, `"words` green, comments grey; all at least 4.5:1 on the editor background. Editor chrome: `#editor .cm-…` rules in `app.css`.
 - **getValue()** is the document text, exactly.
 - **setValue(src)** replaces the whole document as its own undo step (`isolateHistory`), so loading an example, LOAD or beautify can be undone; the caret goes to the start.
 - **initValue(src)** creates a fresh `EditorState`: empty undo history and no change event (autosave restore).
@@ -363,7 +372,7 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 
 ### 4.3 Splitter and Console Toggle
 
-6 px drag bar resizing `#code-wrap` (mouse + touch). The LOG button hides/shows the console; dragging while hidden re-shows it (`applyDragGuarded`).
+8 px drag bar (with a grip line) resizing `#code-wrap` (mouse + touch). The LOG button hides/shows the console; dragging while hidden re-shows it (`applyDragGuarded`).
 
 ### 4.4 Console / Log
 
@@ -384,8 +393,8 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 |---|---|
 | RUN | Ignored while running. Clears console and `session.globals`; `clearScreen(session, io)` if "clear screen on run"; clears `session.procs`; `parseProgram` (errors stop here); `registerProcs`; `runProgram`. |
 | STOP | `haltRun()` (sets `stopped`, ends a WAIT) and logs "■ Stopped." The run unwinds within a frame; `runProgram` re-enables RUN. |
-| CLR | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
-| ⌘ DIRECT | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
+| Clear (CLR) | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
+| Direct | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
 | ≡ / ⎘ / LOG / SAVE / LOAD / ⚙ | Beautify, copy, console toggle, save/load `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes), options. |
 
 ### 4.6 Overlays and Options
@@ -394,11 +403,11 @@ One overlay at a time (`openOverlay` toggles, Escape closes all): commands refer
 
 | Section | Controls |
 |---|---|
-| SAVE | Save canvas as PNG (device resolution). |
-| FONT SIZE | SMALL / MEDIUM / LARGE → `--fs-base` 1 / 1.4 / 1.8; triggers `resizeCanvas`. |
-| CONSOLE LOG FILTERS | MOTION, INFO, STATUS, ERRORS. |
-| BEHAVIOUR | Clear screen on run (on); SPEED slider 0–4 (default 0). |
-| CANVAS STYLE / TURTLE STYLE | PARCHMENT / WHITE; ANIMATED / TRIANGLE. |
+| Save | Save canvas as PNG (device resolution). |
+| Font size | Small / Medium / Large → `--fs-base` 1 / 1.25 / 1.5. Scales the reading text (editor, console, direct input, overlays), not the buttons or the panel width. |
+| Console log | Motion, Info, Status, Errors. |
+| Behaviour | Clear screen on run (on); Speed slider 0–4 (default 0). |
+| Canvas / Turtle | Beige / White; Turtle / Triangle. |
 
 ### 4.7 Beautify
 
@@ -455,7 +464,7 @@ clearScreen(session, io) · clearProcs(session) · segment(drawing, i) → [x1,y
 
 // Rendering (browser)
 render() · rebuildTrailCanvas() · paintLine(x1,y1,x2,y2,w,r,g,b) · paintLabel(lab)
-toCanvas(x, y) → [cx, cy] · spriteCenter(turtle) → [x, y]
+toCanvas(x, y) → [cx, cy] · drawTurtleSprite(ctx, cx, cy, turtle, tick, moving)
 ```
 
 ---

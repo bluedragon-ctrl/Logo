@@ -4,19 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Blue Logo</title>
+<link rel="icon" type="image/svg+xml" href="/src/assets/logo.svg">
 <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
 
 <div id="panel">
-  <h1>🐢 BLUE LOGO <span style="color:#4a9;font-size:0.7em">v%APP_VERSION%</span></h1>
+  <h1><img class="logo" src="/src/assets/logo.svg" alt=""> BLUE LOGO <span class="version">v%APP_VERSION%</span></h1>
   <div id="split">
-    <div id="code-label"><span>▸ CODE</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">LOG</button><button id="btn-save-file" title="Save program to file">SAVE</button><button id="btn-load-file" title="Load program from file">LOAD</button><button id="opt-btn" title="Options">⚙</button></span></div>
+    <div id="code-label"><span>Code</span><span id="code-label-btns"><span id="ln-indicator" title="Current line number">L:1</span><button id="btn-fmt-code" title="Beautify / auto-indent code">≡</button><button id="btn-copy-code" title="Copy code to clipboard">⎘</button><button id="btn-console-toggle" class="active" title="Show / hide console log">Log</button><button id="btn-save-file" title="Save program to file">Save</button><button id="btn-load-file" title="Load program from file">Load</button><button id="opt-btn" title="Options">⚙</button></span></div>
     <div id="code-wrap">
       <div id="editor"></div> <!-- CodeMirror mounts here (src/editor/editor.ts) -->
     </div>
     <div id="splitter"></div>
-    <div id="console-label"><span>▸ CONSOLE</span></div>
+    <div id="console-label"><span>Console</span></div>
     <div id="console"></div>
     <!-- Direct-mode input (inside #split so flex layout is shared) -->
     <div id="direct-panel">
@@ -31,14 +32,14 @@
     </div>
   </div>
   <div class="btn-row">
-    <button id="btn-run">▶ RUN</button>
-    <button id="btn-stop">■ STOP</button>
-    <button id="btn-clear" title="Clear screen &amp; reset turtle">CLR</button>
-    <button id="btn-direct-toggle" title="Toggle direct command input mode">⌘ DIRECT</button>
+    <button id="btn-run">▶ Run</button>
+    <button id="btn-stop">■ Stop</button>
+    <button id="btn-clear" title="Clear screen, variables, procedures and console">Clear</button>
+    <button id="btn-direct-toggle" title="Toggle direct command input mode">Direct</button>
   </div>
   <div class="btn-row">
-    <button id="btn-ref">? COMMANDS</button>
-    <button id="btn-examples">✦ EXAMPLES</button>
+    <button id="btn-ref">Commands</button>
+    <button id="btn-examples">Examples</button>
   </div>
 </div>
 
@@ -47,54 +48,54 @@
 
   <div id="opt-overlay">
     <button class="close-btn" id="btn-opt-close">✕</button>
-    <h2>⚙ OPTIONS</h2>
+    <h2>Options</h2>
 
     <div class="opt-section">
-      <div class="opt-label">▸ SAVE</div>
-      <button id="save-btn" title="Save canvas as PNG">&#x2913; SAVE AS PNG</button>
+      <div class="opt-label">Save</div>
+      <button id="save-btn" title="Save canvas as PNG">&#x2913; Save as PNG</button>
     </div>
 
     <div class="opt-section">
-      <div class="opt-label">▸ FONT SIZE</div>
+      <div class="opt-label">Font size</div>
       <div class="opt-row">
-        <button class="opt-pill active" data-fs="1">SMALL</button>
-        <button class="opt-pill" data-fs="1.4">MEDIUM</button>
-        <button class="opt-pill" data-fs="1.8">LARGE</button>
+        <button class="opt-pill active" data-fs="1">Small</button>
+        <button class="opt-pill" data-fs="1.25">Medium</button>
+        <button class="opt-pill" data-fs="1.5">Large</button>
       </div>
     </div>
 
     <div class="opt-section">
-      <div class="opt-label">▸ CONSOLE LOG FILTERS</div>
-      <label class="opt-check"><input type="checkbox" id="log-op"><span>MOTION (FD, RT…)</span></label>
-      <label class="opt-check"><input type="checkbox" id="log-info"><span>INFO (MAKE, CALL…)</span></label>
-      <label class="opt-check"><input type="checkbox" id="log-ok" checked><span>STATUS (Done, Stop)</span></label>
-      <label class="opt-check"><input type="checkbox" id="log-err" checked><span>ERRORS</span></label>
+      <div class="opt-label">Console log</div>
+      <label class="opt-check"><input type="checkbox" id="log-op"><span>Motion (FD, RT…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-info"><span>Info (MAKE, calls…)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-ok" checked><span>Status (Done, Stop)</span></label>
+      <label class="opt-check"><input type="checkbox" id="log-err" checked><span>Errors</span></label>
     </div>
 
     <div class="opt-section">
-      <div class="opt-label">▸ BEHAVIOUR</div>
-      <label class="opt-check"><input type="checkbox" id="opt-clear-on-run" checked><span>CLEAR SCREEN ON RUN</span></label>
+      <div class="opt-label">Behaviour</div>
+      <label class="opt-check"><input type="checkbox" id="opt-clear-on-run" checked><span>Clear screen on run</span></label>
       <div class="opt-speed-row">
-        <span class="opt-speed-label">SPEED</span>
-        <span class="opt-speed-end">SLOW</span>
+        <span class="opt-speed-label">Speed</span>
+        <span class="opt-speed-end">Slow</span>
         <input type="range" id="opt-speed" min="0" max="4" value="0">
-        <span class="opt-speed-end">FAST</span>
+        <span class="opt-speed-end">Fast</span>
       </div>
     </div>
 
     <div class="opt-section">
-      <div class="opt-label">▸ CANVAS STYLE</div>
+      <div class="opt-label">Canvas</div>
       <div class="opt-row">
-        <button class="opt-pill active" data-canvas="parchment">PARCHMENT</button>
-        <button class="opt-pill" data-canvas="white">WHITE</button>
+        <button class="opt-pill active" data-canvas="beige">Beige</button>
+        <button class="opt-pill" data-canvas="white">White</button>
       </div>
     </div>
 
     <div class="opt-section">
-      <div class="opt-label">▸ TURTLE STYLE</div>
+      <div class="opt-label">Turtle</div>
       <div class="opt-row">
-        <button class="opt-pill active" data-turtle="animated">ANIMATED</button>
-        <button class="opt-pill" data-turtle="triangle">TRIANGLE</button>
+        <button class="opt-pill active" data-turtle="turtle">Turtle</button>
+        <button class="opt-pill" data-turtle="triangle">Triangle</button>
       </div>
     </div>
   </div>
@@ -102,11 +103,11 @@
   <div id="ref-overlay">
     <div id="ref-header">
       <button class="close-btn" id="btn-ref-close">✕</button>
-      <h2>📋 COMMANDS</h2>
+      <h2>Commands</h2>
     </div>
     <div id="ref-body">
 
-    <div class="section-head">▸ MOTION</div>
+    <div class="section-head">Motion</div>
     <table>
       <tr><td>FORWARD / FD n</td><td>move forward n pixels</td></tr>
       <tr><td>BACK / BK n</td><td>move backward n pixels</td></tr>
@@ -122,7 +123,7 @@
       <tr><td>SCRWIDTH / SCRHEIGHT</td><td>canvas width / height in Logo units (origin at centre)</td></tr>
     </table>
 
-    <div class="section-head">▸ DRAWING</div>
+    <div class="section-head">Drawing</div>
     <table>
       <tr><td>PENUP / PU</td><td>pen up — stop drawing</td></tr>
       <tr><td>PENDOWN / PD</td><td>pen down — start drawing</td></tr>
@@ -132,7 +133,7 @@
       <tr><td>DOT</td><td>filled dot at turtle position (size = pen width, color = pen color)</td></tr>
       <tr><td>DOT x y</td><td>filled dot at (x, y) — no turtle movement</td></tr>
       <tr><td>SETCOLOR / SC r g b</td><td>line color (0–255 each)</td></tr>
-      <tr><td>SETCOLOR / SC name</td><td>named colour — see ▸ COLORS section</td></tr>
+      <tr><td>SETCOLOR / SC name</td><td>named colour — see Colours below</td></tr>
       <tr><td>SETWIDTH / SW n</td><td>line width in pixels</td></tr>
       <tr><td>LABEL "text / LABEL value</td><td>draw text (case kept) or a number at turtle position  e.g. LABEL "Hello</td></tr>
       <tr><td>CLEARSCREEN / CS</td><td>clear screen, reset turtle</td></tr>
@@ -141,7 +142,7 @@
       <tr><td>SHOWTURTLE / ST</td><td>show turtle</td></tr>
     </table>
 
-    <div class="section-head">▸ LOOPS</div>
+    <div class="section-head">Loops</div>
     <table>
       <tr><td>REPEAT n [...]</td><td>repeat block n times</td></tr>
       <tr><td>REPCOUNT</td><td>current iteration index inside REPEAT (1 to n)</td></tr>
@@ -153,7 +154,7 @@
       <tr><td>CONTINUE</td><td>skip to the next iteration of the innermost loop</td></tr>
     </table>
 
-    <div class="section-head">▸ CONTROL</div>
+    <div class="section-head">Control</div>
     <table>
       <tr><td>IF cond [...]</td><td>run block if condition true</td></tr>
       <tr><td>IFELSE c [...] [...]</td><td>if/else branches</td></tr>
@@ -165,7 +166,7 @@
       <tr><td>; comment</td><td>rest of line is ignored</td></tr>
     </table>
 
-    <div class="section-head">▸ VARIABLES</div>
+    <div class="section-head">Variables</div>
     <table>
       <tr><td>MAKE :x val</td><td>set x — updates an existing x (also from inside a procedure), else creates a global</td></tr>
       <tr><td>MAKE "x val</td><td>same as MAKE :x</td></tr>
@@ -176,7 +177,7 @@
       <tr><td>PRINT "word</td><td>print a word</td></tr>
     </table>
 
-    <div class="section-head">▸ MATH FUNCTIONS</div>
+    <div class="section-head">Math functions</div>
     <table>
       <tr><td>+ - * /</td><td>arithmetic — * and / before + and -, left to right</td></tr>
       <tr><td>( … )</td><td>group: (2 + 3) * 4 = 20</td></tr>
@@ -205,7 +206,7 @@
       <tr><td>RANDOM n / RND n</td><td>random integer 0 to n-1</td></tr>
     </table>
 
-    <div class="section-head">▸ COLORS</div>
+    <div class="section-head">Colours</div>
     <table class="color-table">
       <tr>
         <td><span class="csw" style="background:rgb(220,50,50)"></span>RED</td>
@@ -246,7 +247,7 @@
 
   <div id="ex-overlay">
     <button class="close-btn" id="btn-ex-close">✕</button>
-    <h2>✦ EXAMPLES</h2>
+    <h2>Examples</h2>
     <div class="ex-hint">Click any example to load it into the editor</div>
     <br>
   </div>

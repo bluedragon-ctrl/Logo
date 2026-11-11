@@ -103,6 +103,15 @@ const UI_CHECKS = [
     const ok = typed === 'REPEAT 4 [ FD 10 ]\n  rt 90' && gutter && ln === 'L:2' && match && undone.trimEnd() === 'REPEAT 4 [ FD 10 ]';
     return [ok, JSON.stringify({ typed, gutter, ln, match, undone })];
   }, { currentOnly: true }],
+  ['canvas is plain beige by default, UI uses system fonts', async (page) => {
+    const [px, font] = await page.evaluate(() => {
+      const c = document.getElementById('c');
+      const d = c.getContext('2d').getImageData(2, 2, 1, 1).data;   // corner: background only
+      return [[d[0], d[1], d[2]], getComputedStyle(document.body).fontFamily];
+    });
+    const ok = px.join() === '244,238,223' && !font.includes('VT323');
+    return [ok, JSON.stringify({ px, font })];
+  }, { currentOnly: true }],
   ['page is titled Blue Logo', async (page) => {
     const [title, h1] = await page.evaluate(() => [document.title, document.querySelector('h1').textContent]);
     return [title === 'Blue Logo' && h1.includes('BLUE LOGO'), title + ' / ' + h1];

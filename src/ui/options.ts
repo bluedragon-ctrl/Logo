@@ -2,7 +2,6 @@ import { setCanvasStyle, setTurtleStyle, type CanvasStyle, type TurtleStyle } fr
 import { canvas } from '../render/canvas.ts';
 import { render } from '../render/render.ts';
 import { closeOverlay, openOverlay } from './overlays.ts';
-import { resizeCanvas } from './resize.ts';
 import { byId } from '../util.ts';
 
 // ── Options ───────────────────────────────────────────────────────────────────
@@ -27,12 +26,7 @@ import { byId } from '../util.ts';
       document.querySelectorAll('.opt-pill[data-fs]').forEach(p=>p.classList.remove('active'));
       pill.classList.add('active');
       document.documentElement.style.setProperty('--fs-base', pill.dataset.fs ?? '1');
-      // Clear any splitter-set inline width so the CSS calc() re-applies immediately
-      const _p = byId('panel');
-      if(_p){ _p.style.width = ''; _p.style.minWidth = ''; }
-      // Changing font size resizes the canvas panel — trigger a canvas relayout.
-      // setTimeout(0) defers until after the CSS has been applied and laid out.
-      setTimeout(resizeCanvas, 0);
+      // Only text sizes change (the panel width does not), so the canvas keeps its size.
     };
   });
 
