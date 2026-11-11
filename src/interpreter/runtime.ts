@@ -22,7 +22,7 @@ import type { Proc, RunContext, Scope, Token } from './types.ts';
 //     procBoundary marks a procedure body. stmtCall=true when the procedure was
 //     called as a command (its OUTPUT would be lost → error); false/absent when
 //     runExpr called it for its value (runExpr reads .outputVal afterwards).
-//   repeat frame { isRepeat, body, vars, remaining, iteration, total }
+//   repeat frame { isRepeat, body, vars, remaining, iteration, total }   (FOREVER: remaining = total = Infinity)
 //   while frame  { isWhile, cond, body, vars }
 //   for frame    { isFor, varName, end, step, body, vars, nextVal, eps }
 //
@@ -209,6 +209,15 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       const n = Math.round(count);
       if(n < 0) { rctx.io.log('REPEAT ' + n + ': count is negative, skipping', 'err'); }
       else { if(rctx.io.logs('info')) rctx.io.log('REPEAT ' + n, 'info'); if(n > 0) stack.push({ isRepeat:true, body, vars:frame.vars, remaining:n, iteration:1, total:n }); }
+      continue;
+    }
+
+    // ── FOREVER [ body ] — a REPEAT without end (REPCOUNT counts; BREAK / STOP leave) ─
+    if(cmd === 'FOREVER') {
+      const {body, nextIdx:ni} = extractBlock(frame.tokens, frame.idx);
+      frame.idx = ni;
+      if(rctx.io.logs('info')) rctx.io.log('FOREVER', 'info');
+      stack.push({ isRepeat:true, body, vars:frame.vars, remaining:Infinity, iteration:1, total:Infinity });
       continue;
     }
 

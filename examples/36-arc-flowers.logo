@@ -1,0 +1,37 @@
+;; title: Arc Flowers
+;; desc: ARC petals on a SETBG night sky; IFELSE as a value picks the petal count, FOREVER + BREAK adds stars
+
+; A petal: two 60° arcs; the turns bring the turtle back where it started.
+TO PETAL :R
+  ARC 60 :R
+  RT 120
+  ARC 60 :R
+  RT 120
+END
+
+TO FLOWER :X :Y :R
+  ; a curved stem, drawn down from the flower's centre
+  PU SETXY :X :Y PD
+  SETH 180 SETPC GREEN SETPENSIZE 4
+  ARC 25 380
+  ; the petals: 5 on the left half of the canvas, 8 on the right
+  LOCALMAKE "N IFELSE :X < 0 [ 5 ] [ 8 ]
+  PU SETXY :X :Y PD
+  SETH 0 SETPENSIZE 2
+  IFELSE :X < 0 [ SETPC ORANGE ] [ SETPC PINK ]
+  REPEAT :N [ PETAL :R  RT 360 / :N ]
+  SETPC GOLD SETPENSIZE 12 DOT
+END
+
+SETBG NAVY
+HT
+FLOWER -180 40 70
+FLOWER 30 90 60
+FLOWER 200 20 50
+
+; stars: FOREVER runs until BREAK; MOD scatters them without RANDOM
+SETPC WHITE SETPENSIZE 4
+FOREVER [
+  DOT (REPCOUNT * 97) MOD 600 - 300  220 - (REPCOUNT * REPCOUNT * 13) MOD 90
+  IF REPCOUNT = 14 [ BREAK ]
+]

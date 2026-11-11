@@ -4,6 +4,19 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.9  2026-11-11
+**LANGUAGE ADDITIONS, STEP 1 (SETXY, FOREVER, ARC, SETBG, IFELSE AS A VALUE, SHORT-CIRCUIT AND / OR)**
+- + ADDITION: `SETXY x y` (= `SETPOS`), `SETX x`, `SETY y` — draw like SETPOS, OUCH at the edge.
+- + ADDITION: `FOREVER [ … ]` — an endless REPEAT; leave with BREAK or STOP. REPCOUNT counts the rounds; REPCOUNTMAX is an error inside it.
+- + ADDITION: `ARC angle radius` — walks part of a CIRCLE (negative angle turns left, negative radius mirrors). Half-step turns put the chords on the true arc and the turtle ends on the exact end point (`ARC 90 100` from HOME ends at 100 100, heading 90). Unlike UCBLogo's ARC the turtle walks, like Blue Logo's CIRCLE.
+- + ADDITION: `SETBG` / `SETBACKGROUND` colour (name or r g b) — canvas background. CS keeps it (as in UCBLogo); RUN with "clear screen on run" and CLR go back to the Options canvas colour. New session field `background`; `clearScreen(session, io, { keepBackground })`. Example thumbnails show it.
+- + ADDITION: `PI`; `PENSIZE` (pen width as a value); aliases `SETPC` / `SETPENCOLOR` (= SETCOLOR) and `SETPENSIZE` (= SETWIDTH), so UCBLogo worksheets run. `PENCOLOR` waits for list values.
+- + ADDITION: `IFELSE cond [a] [b]` as a value: `OUTPUT IFELSE :N < 2 [1] [:N * FACT :N - 1]`. Only the chosen block is evaluated; each block must hold exactly one value.
+- ~ CHANGE: `AND` / `OR` short-circuit — when the left side decides, the right side is parsed and checked but not evaluated (no procedure runs, no variable is read), so `:X != 0 AND 10 / :X > 1` is safe. New skip mode in the expression parser.
+- ~ CHANGE: the new built-in words (ARC, PI, FOREVER, SETBG, …) can no longer be used as procedure names.
+- + ADDITION: example 36 "Arc Flowers" (ARC, SETBG, SETXY, IFELSE as a value, FOREVER + BREAK). Commands panel lists the new words.
+- ~ CHANGE: `TODO.md` lists the missing language features in three steps (this release is step 1; filled shapes, edge modes, input and multi-value PRINT next; words and lists for v9).
+
 ## v8.8  2026-11-11
 **REVIEW FIXES: INTERPRETER, LANGUAGE AND EXAMPLES** (`docs/review-v8.7.md`)
 

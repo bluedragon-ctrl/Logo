@@ -62,6 +62,8 @@ export interface Session {
   procs: ProcMap;
   walkTick: number;
   isMoving: boolean;
+  /** SETBG colour; null = the canvas style chosen in Options. */
+  background: [number, number, number] | null;
 }
 
 /** Console line classes: filtered in the page's console (see ui/console.ts). */

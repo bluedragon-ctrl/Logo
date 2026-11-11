@@ -74,6 +74,18 @@ const UI_CHECKS = [
     await page.evaluate(() => { optSpeed.value = 4; });
     return [afterRun === '2' && afterDirect === '1', JSON.stringify({ afterRun, afterDirect })];
   }],
+  ['SETBG colours the canvas, CS keeps it, the next RUN resets it', async (page) => {
+    const corner = () => page.evaluate(() => [...document.getElementById('c').getContext('2d').getImageData(2, 2, 1, 1).data.slice(0, 3)].join());
+    const runIt = async (src) => {
+      await page.evaluate(c => { document.getElementById('opt-clear-on-run').checked = true; editor.setValue(c); document.getElementById('btn-run').click(); }, src);
+      await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 });
+    };
+    await runIt('SETBG NAVY\nCS\nFD 10');
+    const navy = await corner();
+    await runIt('FD 10');
+    const after = await corner();
+    return [navy === '0,0,150' && after === '244,238,223', JSON.stringify({ navy, after })];
+  }, { currentOnly: true }],
   ['infinite WHILE can be stopped', async (page) => {
     await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE :I 1 ]'); document.getElementById('btn-run').click(); });
     await page.waitForTimeout(300);
@@ -140,7 +152,7 @@ const UI_CHECKS = [
       return { tables, all, focused, hits, none, direct, back: visibleRows().length === all };
     });
     await page.evaluate(() => { document.getElementById('btn-direct-toggle').click(); document.getElementById('direct-input').value = ''; document.getElementById('btn-ref-close').click(); });
-    const ok = r.tables === 1 && r.all > 60 && r.focused === 'ref-search' && r.hits.length === 1 && r.hits[0] === 'CIRCLE r'
+    const ok = r.tables === 1 && r.all > 60 && r.focused === 'ref-search' && r.hits.join() === 'CIRCLE r,ARC angle r'
             && r.none && r.direct === 'FD 100' && r.back;
     return [ok, JSON.stringify(r)];
   }, { currentOnly: true }],
