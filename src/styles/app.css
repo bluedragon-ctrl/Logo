@@ -98,23 +98,54 @@ h1 .version { color: var(--muted); font-size: 0.7em; }
   align-items: center;
   justify-content: space-between;
 }
-#code-label-btns { display: flex; gap: 4px; align-items: center; }
-#btn-copy-code, #btn-fmt-code, #btn-console-toggle, #btn-save-file, #btn-load-file, #opt-btn {
+/* Toolbar above the editor (#code-label): help buttons left, icon buttons right,
+   in small groups. Icons are inline SVG drawn with currentColor, so hover /
+   active colours apply to them too. */
+#code-label { gap: 6px; padding-bottom: 6px; }
+#split { container: code-tools / inline-size; }
+#code-label-btns { display: flex; gap: 6px; align-items: center; }
+.tb-group { display: flex; gap: 3px; align-items: center; }
+.tb-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   background: var(--raised);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 4px;
-  padding: 3px 7px;
+  padding: 0;
+  width: 28px; height: 28px;
   font-size: 13px;
-  font-weight: normal;
-  line-height: 1.2;
-  transition: background 0.1s, border-color 0.1s;
+  font-weight: 600;
+  line-height: 1;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-#btn-copy-code:hover, #btn-fmt-code:hover, #btn-console-toggle:hover, #btn-save-file:hover, #btn-load-file:hover, #opt-btn:hover {
-  background: var(--raised-hi); border-color: var(--border-hi);
+.tb-btn.tb-wide { width: auto; padding: 0 8px 0 6px; gap: 4px; }
+.tb-btn:hover { background: var(--raised-hi); border-color: var(--border-hi); }
+.ic {
+  width: 16px; height: 16px; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
 }
-#btn-copy-code.copied, #btn-fmt-code.fmted { color: #7fd99c; border-color: #3fa86d; }
-#btn-console-toggle.active { border-color: var(--accent); color: var(--accent); }
+/* Copy / Tidy flash a tick for a moment after they act */
+.tb-btn .ic-done { display: none; }
+.tb-btn.done .ic-main { display: none; }
+.tb-btn.done .ic-done { display: block; }
+.tb-btn.done { color: #7fd99c; border-color: #3fa86d; }
+/* Console header = a collapse toggle (chevron + title); the header stays when the console is hidden */
+.pane-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 1px solid transparent; color: var(--muted);
+  font-size: 13px; font-weight: 600; padding: 2px 6px 2px 2px; margin-left: -2px;
+}
+.pane-toggle:hover { background: var(--raised); border-color: var(--border); color: var(--text); }
+.pane-toggle .ic-chev { transition: transform 0.15s; }
+.pane-toggle[aria-expanded="false"] .ic-chev { transform: rotate(-90deg); }
+/* Title row: the app name centred, Options in the corner */
+#title-row { position: relative; flex-shrink: 0; }
+#opt-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+/* Narrow panel: the line number gives way first (the gutter highlights the line
+   too), then the help buttons drop their icons and keep their words. */
+@container code-tools (max-width: 400px) { #ln-indicator { display: none; } }
+@container code-tools (max-width: 350px) { .tb-wide .ic { display: none; } .tb-btn.tb-wide { padding: 0 9px; } }
 #ln-indicator {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -228,7 +259,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 }
 #btn-stop  { background: var(--stop-bg); border-color: var(--stop-border); color: #fff; flex: 1; }
 #btn-stop:hover  { background: var(--stop-bg-hi); }
-#btn-ref, #btn-examples { flex: 1; }
 
 #canvas-panel {
   flex: 1;
@@ -481,8 +511,8 @@ canvas { image-rendering: auto; display: block; }
 #direct-input::placeholder { color: var(--faint); }
 #btn-direct-run { padding: 5px 12px; }
 /* When terminal mode active: relabel the console header text */
-#console-label.dm-terminal > span { font-size: 0; }            /* hide "Console" text */
-#console-label.dm-terminal > span::before {
+#console-label.dm-terminal .pane-title { font-size: 0; }            /* hide "Console" text */
+#console-label.dm-terminal .pane-title::before {
   content: 'Terminal';
   font-size: 13px;
 }

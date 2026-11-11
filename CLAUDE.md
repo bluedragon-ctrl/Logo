@@ -47,7 +47,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.12** (`package.json` → `8.12.0`)
+Current version: **v8.13** (`package.json` → `8.13.0`)
 
 ---
 

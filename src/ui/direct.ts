@@ -48,10 +48,7 @@ btnDirect.onclick = function() {
   byId('direct-panel').classList.toggle('dm-open', directMode);
   // Switch console label text to "Terminal" in direct mode
   byId('console-label').classList.toggle('dm-terminal', directMode);
-  // Console-label is shown when consoleVisible OR directMode (terminal header always needed)
-  byId('console-label').style.display =
-    (consoleVisible || directMode) ? '' : 'none';
-  // Recalculate code height when console is hidden (label may have just appeared/disappeared)
+  // Recalculate code height when console is hidden (the direct panel takes room)
   if (!consoleVisible) {
     const wrap   = byId('split');
     const codeEl = byId('code-wrap');

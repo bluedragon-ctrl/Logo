@@ -4,6 +4,15 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.13  2026-11-11
+**CLEARER TOOLBAR; COMMANDS AND EXAMPLES MOVE UP**
+- ~ CHANGE: the buttons above the editor were a mix of hard-to-read symbols (≡ for beautify, ⎘ for copy — the latter missing from some fonts) and words (Log, Save, Load), with names only in tooltips. They are now drawn SVG icons in small groups — Tidy, Copy | Open, Save — each with an accessible name and a tooltip; Copy and Tidy flash a tick when done.
+- ~ CHANGE: Commands and Examples moved from their own row under Run into the toolbar above the editor (icon + word), next to the code they help with; the editor gains a row of height.
+- ~ CHANGE: the Log button is replaced by the Console header itself, a collapse toggle with a chevron. The header stays when the console is hidden, so it is clear where to reopen it.
+- ~ CHANGE: Options (⚙) moved to the right of the title, as a sliders icon.
+- ~ CHANGE: on a narrow panel the line indicator (L:n) hides first (the gutter already highlights the line), then the Commands / Examples icons, so the toolbar always fits.
+- + ADDITION: browser test — every toolbar button has a name, the toolbar fits the narrowest panel, the Console header collapses and reopens.
+
 ## v8.12  2026-11-11
 **SPEED SLIDER WORKS DURING A RUN**
 - * BUG: moving the speed slider while a program ran had no effect (the run used the speed it started with) and the slider jumped back when the run ended. Now the slider changes the running program's speed at once — also in the middle of a long FD or turn (switching to instant finishes it at once) — and stays where the user put it. `SPEED n` in a program still does not stick.
