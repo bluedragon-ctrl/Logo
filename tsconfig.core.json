@@ -1,0 +1,10 @@
+{
+  // The interpreter core without the DOM library: using document, window,
+  // requestAnimationFrame … there is a type error. Side effects go through rctx.io.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/interpreter", "src/turtle", "src/format", "types/core-globals.d.ts"]
+}

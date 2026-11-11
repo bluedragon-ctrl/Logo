@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.3 — November 2026
+## Version 8.4 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -7,27 +7,27 @@ This document covers the internal architecture, data structures, algorithms, and
 |---|---|
 | Target environment | Any modern browser (Chrome, Firefox, Safari, Edge). Served as a static site (GitHub Pages). |
 | Delivery | ES modules in `src/`, built by Vite into `dist/` (`index.html` + hashed JS/CSS/font). Module scripts do not load from `file://` — use `npm run dev` or `npm run preview` locally. Versions up to v8.1 are frozen single-file HTML in `versions/`. |
-| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: Vite, Vitest, ESLint, Playwright. |
+| External dependencies | None at runtime. VT323 is self-hosted (`src/assets/fonts/`, OFL, see `third-party/`); the page makes no third-party requests (checked by the tests). Dev tooling: TypeScript, Vite, Vitest, ESLint, Playwright. |
 | Max trail segments | 50 000 (`MAX_TRAIL_SEGS`). An animated move stores one segment. |
 | Procedure recursion | Tail calls unbounded; other statement-level recursion ≤ 10 000 frames (`MAX_STACK_FRAMES`). |
 | Expression nesting | ≤ 500 levels (`MAX_EXPR_DEPTH`): parentheses, unary chains and procedures used as values. |
-| Tests | `npm test` — Vitest unit tests (interpreter in Node, `tests/unit/`), Vite build, then headless Chromium via Playwright against `dist/`. `npm run lint` — ESLint, including the core boundary rule. |
+| Tests | `npm test` — Vitest unit tests (interpreter in Node, `tests/unit/`), Vite build, then headless Chromium via Playwright against `dist/`. `npm run lint` — two TypeScript checks (app + tests; core without the DOM), then ESLint. |
 
 ---
 
 ## 1. Architecture Overview
 
-The application is a set of ES modules (`src/`) bundled by Vite. There is no framework and no class hierarchy. Everything a Logo program can change lives in a **session** object; everything it shows goes through a **LogoIO** object; both travel in `rctx` (§1.3). UI-only state (canvas size, styles, console visibility) lives in module-level variables, each owned by one module (§1.2). Five logical layers:
+The application is a set of TypeScript ES modules (`src/`, strict mode) bundled by Vite, which strips the types; `tsc` only type-checks (`noEmit`). There is no framework and no class hierarchy. Everything a Logo program can change lives in a **session** object; everything it shows goes through a **LogoIO** object; both travel in `rctx` (§1.3). UI-only state (canvas size, styles, console visibility) lives in module-level variables, each owned by one module (§1.2). Five logical layers:
 
 | Layer | Responsibility |
 |---|---|
 | Rendering | Canvas compositing (HiDPI), sprite generation, background and trail painting. |
 | Turtle | `session.turtle` (position, heading, pen, colour, width), `session.drawing` (trail segments + labels), `move`/`rotate`/`circle`. |
 | Interpreter | Tokeniser → procedure extractor → trampoline executor ⇄ expression evaluator → motion. |
-| Editor | `contenteditable` editor (`editor/editor.js`): syntax highlighting, caret preservation, own undo/redo, tab/paste. |
+| Editor | `contenteditable` editor (`editor/editor.ts`): syntax highlighting, caret preservation, own undo/redo, tab/paste. |
 | UI shell | `runProgram`, buttons, direct mode, splitter, overlays, options, resize, file save/load. |
 
-**The core has no DOM.** `src/interpreter/`, `src/turtle/` and `src/format/` never touch the browser: they see no browser globals and may not import `render/`, `ui/`, `editor/`, `app.js` or `main.js` (ESLint enforces both, see `eslint.config.js`). The page wires the core to the browser in `src/app.js`; the unit tests use `headlessIO()` instead (§1.3).
+**The core has no DOM.** `src/interpreter/`, `src/turtle/` and `src/format/` never touch the browser: `tsconfig.core.json` type-checks them without the DOM library (the only host globals are `setTimeout` / `clearTimeout`, `types/core-globals.d.ts`), and ESLint forbids imports from `render/`, `ui/`, `editor/`, `app.ts` or `main.ts`. The page wires the core to the browser in `src/app.ts`; the unit tests use `headlessIO()` instead (§1.3).
 
 ### 1.1 Data Flow (RUN)
 
@@ -36,9 +36,9 @@ btn-run → parseProgram(editor.getValue(), io)
             → tokenize(src)               → token[]  (with LINE_SEN line sentinels)
             → extractProcedures(tokens)   → { topLevel, newProcs }
         → registerProcs(session, newProcs, io) → session.procs
-        → runProgram(topLevel)                                   (ui/program.js)
+        → runProgram(topLevel)                                   (ui/program.ts)
             → makeRunContext(speed, session, io) → rctx ; activeRctx = rctx
-            → execute(topLevel, rctx)                            (interpreter/execute.js)
+            → execute(topLevel, rctx)                            (interpreter/execute.ts)
                 → run(topLevel, 0, session.globals, rctx)
                     → runStack(stack, rctx)    → CMD handlers / control flow
                         → evalExpr(...)        → parseBinary / parseUnary / parsePrimary
@@ -54,46 +54,48 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | Path | Contents |
 |---|---|
 | `index.html` | Markup only: left panel, canvas panel, overlays, commands reference (`#ref-body`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
-| `src/app.js` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
-| `src/main.js` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
+| `src/app.ts` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
+| `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS, including the VT323 `@font-face`. |
 | `src/assets/fonts/` | `VT323-Regular.woff2` (latin subset). |
-| `src/util.js` | `escHtml()`. |
-| `src/examples.js` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
+| `src/util.ts` | `escHtml()`, `byId<T>(id)` (throws if `index.html` lacks the element), `context2d(canvas)`. |
+| `src/types/` | `file-system-access.d.ts` — the File System Access API (not in TypeScript's DOM library). |
+| `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
 | `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` lines are metadata; the rest is the code. The number prefix sets the order. |
 | **render/** | |
-| `render/canvas.js` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
-| `render/sprite.js` | Palette, `drawShell`/`drawLeg`/`drawHead`/`drawBelly`, `spr`, `buildSprite`, `SPRITE_OFFSET`. |
-| `render/background.js` | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`/`turtleStyle` + setters. |
-| `render/trail.js` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing`). |
-| `render/render.js` | `render()` (background → trail → sprite; reads `session.turtle`, `walkTick`, `isMoving`). |
+| `render/canvas.ts` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
+| `render/sprite.ts` | Palette, `drawShell`/`drawLeg`/`drawHead`/`drawBelly`, `spr`, `buildSprite`, `SPRITE_OFFSET`. |
+| `render/background.ts` | `buildGrains`, `buildBgCache`, `drawBackground`, `canvasStyle`/`turtleStyle` + setters. |
+| `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas` (paints `session.drawing`). |
+| `render/render.ts` | `render()` (background → trail → sprite; reads `session.turtle`, `walkTick`, `isMoving`). |
 | **turtle/** | |
-| `turtle/state.js` | `mkTurtle`, `resetTurtle(t)` (in place). |
-| `turtle/drawing.js` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `MAX_TRAIL_SEGS`, `MAX_LABELS`. |
-| `turtle/motion.js` | `clipToCanvas`, `clipForRun`, `ouch`, `move`, `rotate`, `circle`. |
+| `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
+| `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `MAX_TRAIL_SEGS`, `MAX_LABELS`. |
+| `turtle/motion.ts` | `clipToCanvas`, `clipForRun`, `ouch`, `move`, `rotate`, `circle`. |
 | **interpreter/** | |
-| `interpreter/session.js` | `createSession`, `clearScreen(session, io)`, `clearProcs`. |
-| `interpreter/io.js` | The LogoIO contract (header comment) and `headlessIO()`. |
-| `interpreter/context.js` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
-| `interpreter/execute.js` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
-| `interpreter/scope.js` | INTERPRETER header comment, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
-| `interpreter/tokenizer.js` | `LINE_SEN`, `tokenize`. |
-| `interpreter/procedures.js` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
-| `interpreter/expr.js` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `skipSen`, `noteLine`. |
-| `interpreter/signals.js` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
-| `interpreter/pacing.js` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
-| `interpreter/commands.js` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
-| `interpreter/runtime.js` | `runExpr`, `runStack`, `run`. |
+| `interpreter/session.ts` | `createSession`, `clearScreen(session, io)`, `clearProcs`. |
+| `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Drawing`, `Proc`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
+| `interpreter/io.ts` | The LogoIO contract (header comment) and `headlessIO()` (`HeadlessIO`). |
+| `interpreter/context.ts` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
+| `interpreter/execute.ts` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
+| `interpreter/scope.ts` | INTERPRETER header comment, `REPEAT_SCOPE`, `PROC_SCOPE`, `setVar`, `procScopeOf`, `repeatInfo`, `varName`, `isVarTok`, `hasOwn`, `formatNum`. |
+| `interpreter/tokenizer.ts` | `LINE_SEN`, `tokenize`. |
+| `interpreter/procedures.ts` | `extractBlock`, `CONTROL_WORDS`, `extractProcedures`. |
+| `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, `evalExpr` and the precedence parser, `skipSen`, `noteLine`. |
+| `interpreter/signals.ts` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
+| `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `tick`, `STEPS_PER_FRAME`, `INSTANT_FLUSH`. |
+| `interpreter/commands.ts` | `CMD` and all leaf handlers, `COLOR_NAMES`. |
+| `interpreter/runtime.ts` | `runExpr`, `runStack`, `run`. |
 | **editor/, format/** | |
-| `editor/editor.js` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`), undo history, line indicator. |
-| `format/beautify.js` | `beautify(src)` — pure. |
+| `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`), undo history, line indicator. |
+| `format/beautify.ts` | `beautify(src)` — pure. |
 | **ui/** | |
-| `ui/console.js` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
-| `ui/program.js` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
-| `ui/direct.js` | Direct-mode state, `runDirectCommand`, direct-mode handlers. |
-| `ui/examples-overlay.js`, `ui/overlays.js`, `ui/options.js` | Examples list, `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
-| `ui/splitter.js`, `ui/code-buttons.js`, `ui/files.js`, `ui/resize.js` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
-| `ui/autosave.js` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
+| `ui/console.ts` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
+| `ui/program.ts` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
+| `ui/direct.ts` | Direct-mode state, `runDirectCommand`, direct-mode handlers. |
+| `ui/examples-overlay.ts`, `ui/overlays.ts`, `ui/options.ts` | Examples list, `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
+| `ui/splitter.ts`, `ui/code-buttons.ts`, `ui/files.ts`, `ui/resize.ts` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
+| `ui/autosave.ts` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
 **State ownership.** Program state is in the session object; modules change its fields (`session.globals = {}`, `session.turtle.x = 0`) and never replace the object. `session.turtle` and `session.procs` are also never replaced (they are reset in place) so references held during a run stay valid. UI state that is a module-level variable is written only by the module that declares it, through a small setter (`setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`) — an ES module cannot assign to a variable it imports; ESLint's `no-import-assign` catches violations.
 
@@ -101,13 +103,13 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 ### 1.3 Session and LogoIO
 
-`createSession()` (`interpreter/session.js`) → `{ turtle, drawing, globals, procs, walkTick, isMoving }`. The page has one (`src/app.js`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)`; RUN and CLR also set `session.globals = {}` and `clearProcs(session)`.
+`createSession()` (`interpreter/session.ts`) → `{ turtle, drawing, globals, procs, walkTick, isMoving }`. The page has one (`src/app.ts`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)`; RUN and CLR also set `session.globals = {}` and `clearProcs(session)`.
 
-`rctx.io` is the interpreter's only way out (`interpreter/io.js`):
+`rctx.io` is the interpreter's only way out (`interpreter/io.ts`):
 
-| Method | Browser (`src/app.js`) | `headlessIO()` |
+| Method | Browser (`src/app.ts`) | `headlessIO()` |
 |---|---|---|
-| `log(msg, cls)` | `ui/console.js` `log` | collects `{msg, cls}` in `.lines`; `.text()` joins them |
+| `log(msg, cls)` | `ui/console.ts` `log` | collects `{msg, cls}` in `.lines`; `.text()` joins them |
 | `render()` | `render()` | no-op |
 | `paintLine(x1,y1,x2,y2,w,r,g,b)` / `paintLabel(lab)` | paint on `trailCanvas` | no-op |
 | `redraw()` | `rebuildTrailCanvas()` | no-op |
@@ -204,12 +206,12 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 
 | Frame | Fields | Handler |
 |---|---|---|
-| Exec | `tokens, idx, vars` [+ `procBoundary, procName, stmtCall, outputVal, stopFired`] | Reads the next token; dispatches. Popped when exhausted. |
+| Exec | `tokens, idx, vars` [+ `procBoundary, procName, stmtCall, outputVal`] | Reads the next token; dispatches. Popped when exhausted. |
 | Repeat | `isRepeat, body, vars, remaining, iteration, total` | Pushes a body frame with a fresh iteration scope carrying `[REPEAT_SCOPE] = { count, max }`, or pops. |
 | While | `isWhile, cond, body, vars` | Evaluates `cond` (token array) each time; pushes body or pops. |
 | For | `isFor, varName, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal`, or pops. `eps = |step| × 1e-9` absorbs float drift. |
 
-`procBoundary` marks a procedure body. `stmtCall: true` when called as a command (pushed by `runStack`), absent when called by `runExpr`.
+`procBoundary` marks a procedure body. `stmtCall: true` when called as a command (pushed by `runStack`), absent when called by `runExpr`. In `runtime.ts` the frames are a TypeScript union (`ExecFrame | RepeatFrame | WhileFrame | ForFrame`): testing `frame.isRepeat` / `isWhile` / `isFor` narrows the type, and `isLoopFrame` is a type guard. A new loop frame type goes into that union.
 
 #### 2.5.2 Flow Control
 
@@ -300,16 +302,16 @@ Radial gradient with 1 600 random grain dots (`buildGrains`, logical coordinates
 
 ### 3.4 Trail Storage
 
-`session.drawing` (`turtle/drawing.js`) holds two pre-allocated typed arrays: `f32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `u8` (r, g, b), plus `len`, `capWarned`, `labels`, `labelCapWarned`. ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
+`session.drawing` (`turtle/drawing.ts`) holds two pre-allocated typed arrays: `f32` (x1, y1, x2, y2, w per segment, Logo coordinates) and `u8` (r, g, b), plus `len`, `capWarned`, `labels`, `labelCapWarned`. ~1.1 MB at cap. A zero-length segment is a DOT (filled circle, diameter w).
 
 | Function | Purpose |
 |---|---|
 | `trailPushIfRoom(rctx, …)` | Cap check + store + `io.paintLine`. Used by instant moves, SETPOS, DOT. |
 | `trailPushQuiet(rctx, …)` | Cap check + store, no paint — for segments already painted step by step. |
 | `segment(drawing, i)` | Read one segment as `[x1, y1, x2, y2, w, r, g, b]` (tests). |
-| `paintLine(...)` (`render/trail.js`) | Paint a segment/dot onto `trailCanvas` without storing it. |
-| `rebuildTrailCanvas()` (`render/trail.js`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
-| `clearScreen(session, io)` (`interpreter/session.js`) | Reset drawing and turtle; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
+| `paintLine(...)` (`render/trail.ts`) | Paint a segment/dot onto `trailCanvas` without storing it. |
+| `rebuildTrailCanvas()` (`render/trail.ts`) | Resize `trailCanvas` to the backing size, replay all segments (style changes batched) and labels. |
+| `clearScreen(session, io)` (`interpreter/session.ts`) | Reset drawing and turtle; `io.redraw()`. Used by CS, RUN-with-clear and CLR. |
 
 `0 ≤ len ≤ MAX_TRAIL_SEGS`; the cap warning is logged once (`capWarned`).
 
@@ -348,7 +350,7 @@ Horizontal flex: left panel `#panel` (`calc(384px × --fs-base)`) with title, co
 
 ### 4.2 Code Editor
 
-`contenteditable` editor created by an IIFE in `editor/editor.js`. Public API `{ getValue, setValue, initValue, onChange, focus }`.
+`contenteditable` editor created by an IIFE in `editor/editor.ts`. Public API `{ getValue, setValue, initValue, onChange, focus }`.
 
 - **getValue()** walks child nodes (DIV / P / BR / text models), joins with `\n`, strips trailing empty lines.
 - **Highlighting:** every `input` event re-renders all lines (`renderLines`, comments in `<span class="comment">`, `escHtml`) and restores the caret by character offset (`getCaretOffset` / `setCaretOffset`, div by div).
@@ -487,11 +489,11 @@ Push a typed frame (`{ isMyLoop: true, body, vars, … }`) from the exec-frame d
 
 ### 6.4 Canvas / Turtle Styles
 
-Add a pill in the options markup (`index.html`), a `case` in `drawBackground()` or `render()`, and wire the pill (`ui/options.js`) to call `setCanvasStyle` / `setTurtleStyle` and `render()`.
+Add a pill in the options markup (`index.html`), a `case` in `drawBackground()` or `render()`, and wire the pill (`ui/options.ts`) to call `setCanvasStyle` / `setTurtleStyle` and `render()`.
 
 ### 6.5 Adding a Module
 
-Put it in the folder of its layer, `export` only what other modules use, and import it from `main.js` if it wires DOM handlers. Program state belongs in the session (§1.3); UI state that other modules must change gets a setter (§1.2). Code in `interpreter/`, `turtle/` or `format/` must stay DOM-free. Run `npm run lint` — `no-undef` reports missing imports, `no-unused-vars` reports stale ones.
+Put it in the folder of its layer, `export` only what other modules use, and import it from `main.ts` if it wires DOM handlers. Program state belongs in the session (§1.3); UI state that other modules must change gets a setter (§1.2). Code in `interpreter/`, `turtle/` or `format/` must stay DOM-free. Import with the `.ts` file name; use `import type` for types. Run `npm run lint` — `tsc` reports missing imports and type errors (in the core also any browser API), ESLint stale imports.
 
 ### 6.6 Adding an Example
 

@@ -11,7 +11,7 @@ export default defineConfig({
   base: './',
   build: { outDir: 'dist', emptyOutDir: true },
   // Vitest: unit tests of the interpreter core, in Node (no browser).
-  test: { include: ['tests/unit/**/*.test.js'], environment: 'node' },
+  test: { include: ['tests/unit/**/*.test.ts'], environment: 'node' },
   plugins: [{
     name: 'app-version',
     transformIndexHtml: html => html.replaceAll('%APP_VERSION%', appVersion),

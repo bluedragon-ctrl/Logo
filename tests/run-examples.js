@@ -7,6 +7,7 @@
 // Runs every EXAMPLES entry at instant speed, checks for "✓ Done!", checks beautify
 // idempotency, runs the language cases (tests/cases.js, shared with Vitest) and the
 // UI checks below. Exit code 1 on any failure.
+/* global editor, EXAMPLES, beautify, optSpeed, runDirectCommand, activeRctx, labelStore */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
