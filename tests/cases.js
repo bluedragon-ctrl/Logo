@@ -98,7 +98,7 @@ export const CASES = [
   ['skipped side is still checked',  'PRINT 0 AND RT', 'RT is a command, not a value'],
   ['AND / OR precedence kept',       'PRINT 1 AND 0 OR 1', 'PRINT → 1'],
 
-  // v8.10 language additions (step 2 of the missing-features list in TODO.md)
+  // v8.11 language additions (step 2 of the missing-features list in TODO.md)
   ['WRAP: SETX past the edge comes back on the other side', 'WRAP\nSETX SCRWIDTH / 2 + 10\nPRINT XCOR + SCRWIDTH / 2', 'PRINT → 10'],
   ['WRAP: FD round the canvas three times', 'WRAP\nRT 90\nFD SCRWIDTH * 3 + 5\nPRINT XCOR', 'PRINT → 5'],
   ['WRAP: a diagonal wraps on both axes', 'WRAP\nSETH 45\nFD 10000\nPRINT ABS XCOR <= SCRWIDTH / 2 AND ABS YCOR <= SCRHEIGHT / 2', 'PRINT → 1'],

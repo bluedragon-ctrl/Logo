@@ -1,5 +1,7 @@
 ;; title: WHILE — Unwinding Spiral
 ;; desc: WHILE loop runs until a condition becomes false
+;; topic: Loops
+;; shows: WHILE
 ; Colour sweeps blue -> purple -> red as spiral grows
 MAKE "R 0
 WHILE [ :R < 60 ] [

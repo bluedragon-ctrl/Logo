@@ -1,3 +1,5 @@
 ;; title: Triangle
 ;; desc: Three sides, 120 degrees each turn
+;; topic: First steps
+;; shows: REPEAT, RT
 REPEAT 3 [ FD 160 RT 120 ]

@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.10 — November 2026
+## Version 8.11 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -61,9 +61,9 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `src/assets/logo.svg` | The app logo (favicon and header): the canvas turtle without the pen dot. Keep it in sync with `render/sprite.ts`. |
 | `src/util.ts` | `escHtml()`, `byId<T>(id)` (throws if `index.html` lacks the element), `context2d(canvas)`. |
 | `src/types/` | `file-system-access.d.ts` — the File System Access API (not in TypeScript's DOM library). |
-| `src/reference.ts` | `REFERENCE` — the Commands panel content as data (sections of `{ syntax, desc, try? }`), `syntaxWords`. `tests/unit/reference.test.ts` checks it lists every built-in word and nothing else, and runs every `try` line. |
-| `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES`. |
-| `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` lines are metadata; the rest is the code. The number prefix sets the order. |
+| `src/reference.ts` | `REFERENCE` — the Commands panel content as data: sections `{ id, title, entries }` of `{ syntax, desc, more?, forms?, examples?, see?, tags? }` (field rules in the file's header). `syntaxWords`, `entryWords` (the Logo words of an entry), `findEntry(word)` (for See also / F1), `scoreEntry(entry, query)` (search ranking). `tests/unit/reference.test.ts` checks it lists every built-in word once and nothing else, that every entry has an example and every example runs, that every See also link resolves, and the search ranking. |
+| `src/examples.ts` | Loads `examples/*.logo` (Vite `import.meta.glob`, `?raw`), `parseExample`, `EXAMPLES` (`{ title, desc, topic, shows, uses, code }`), `EXAMPLE_TOPICS`, `usedWords(code)` (built-in words, found with `tokenize`), `examplesUsing(words)` (examples that use a command; those that `shows` it first). |
+| `examples/NN-name.logo` | One example per file. Leading `;; title:` / `;; desc:` / `;; topic:` / `;; shows:` lines are metadata; the rest is the code. The number prefix sets the order. |
 | **render/** | |
 | `render/canvas.ts` | `canvas`, `ctx`, `CW`/`CH`/`DPR` + `setCanvasSize`. |
 | `render/sprite.ts` | `drawTurtleSprite` — the flat vector turtle, drawn each frame. |
@@ -98,9 +98,11 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `ui/console.ts` | `con`, `log`, `optSpeed`, `consoleVisible` + `setConsoleVisible`, `setShowConsole`. |
 | `ui/program.ts` | `setRunning`, `runProgram`; RUN / STOP / CLR handlers (`resetAll`). |
 | `ui/direct.ts` | Direct-mode state, `runDirectCommand`, `tryInDirect` (open direct mode with a line ready to run), direct-mode handlers. |
-| `ui/examples-overlay.ts` | Examples panel: a card per example with a picture (`runForThumbnail` runs it headlessly, `paintDrawing` scales it into the card). |
-| `ui/reference-panel.ts` | Commands panel: builds one table from `REFERENCE` plus colour swatches from `COLOR_NAMES`; search filter; Try buttons. |
-| `ui/overlays.ts`, `ui/options.ts` | `openOverlay`/`closeOverlay`/`OVERLAYS`, options panel. |
+| `ui/examples-overlay.ts` | Examples panel: search, topic chips, "uses" filter, a card per example with a picture, the preview (picture, commands used, code, Open in editor). |
+| `ui/reference-panel.ts` | Commands panel: one table from `REFERENCE` (a `<tbody>` per command: row + card built on first open) plus colour swatches from `COLOR_NAMES`; group chips, ranked search, keyboard; Try / Insert / See also / Used in. |
+| `ui/thumbs.ts` | Example pictures: `runForThumbnail` (run headlessly), `exampleSession(n)` (queued, cached), `paintExample(canvas, n, w, h)` (`paintDrawing` scaled to fit). |
+| `ui/help-nav.ts` | `helpNav` — `showCommand`, `showExample`, `showExamplesUsing`: links between the two panels (and F1), filled in by each panel so they need not import each other. |
+| `ui/overlays.ts`, `ui/options.ts` | `openOverlay` (toggles) / `showOverlay` (opens) / `closeOverlay` / `OVERLAYS`, options panel. |
 | `ui/splitter.ts`, `ui/code-buttons.ts`, `ui/files.ts`, `ui/resize.ts` | Splitter + LOG toggle, copy / beautify buttons, file save/load, `resizeCanvas`. |
 | `ui/autosave.ts` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
@@ -365,7 +367,7 @@ Both styles are centred on the pen position and show the pen state as a dot ther
 
 - **Edge modes.** `edgePath(rctx, sx, sy, ex, ey)` → `{ pieces, endX, endY, hit }` splits a straight path by `session.edge` against `io.canvasSize()`: FENCE clips it with `clipToCanvas` (exact segment/rectangle intersection; `hit` → OUCH); WINDOW leaves it whole; WRAP walks to the edge, jumps to the opposite edge on every axis it left through (a corner wraps both), and goes on with the rest of the vector — at most `MAX_WRAP_PIECES` (1 000) pieces, after which the end point is folded onto the canvas with `wrapCoord` and the rest is not drawn. Hit points within 10⁻⁹ of an edge are put exactly on it. `WRAP` / `FENCE` fold an off-canvas turtle (left by WINDOW) back onto the canvas with `wrapCoord`.
 - **`move(dist, rctx)`** computes the end point (snapped to a 10⁻⁹ grid with `snap`, so closed shapes return exactly to their start) and its `edgePath`. Animated: each piece is walked by `walk()` — `round(len × 1.2)` sub-steps (none for a zero-length piece) interpolated from the piece's start, each painted with `paintLine` and paid for with `spendFrame(rctx, 1 / STEPS_PER_FRAME[speed])`; after each piece one segment for the distance actually walked is stored (`trailPushQuiet`); between pieces the turtle jumps to the next piece's start. Instant: one `trailPushIfRoom` per piece, `macroYield` every `INSTANT_FLUSH` moves. Then `notePoint` (fills); if FENCE clipped the path: `ouch(rctx)` (log OUCH, throw `STOP_SIGNAL`).
-- **`SETPOS` / `SETXY` / `SETX` / `SETY` / `HOME`** share `goTo` (`commands.ts`): the same `edgePath`, one stored segment per piece (not animated), `notePoint`, `ouch(rctx)` on a FENCE hit, then `tick()`. `HOME` then sets heading 0 (since v8.10 it draws with the pen down, as in UCBLogo).
+- **`SETPOS` / `SETXY` / `SETX` / `SETY` / `HOME`** share `goTo` (`commands.ts`): the same `edgePath`, one stored segment per piece (not animated), `notePoint`, `ouch(rctx)` on a FENCE hit, then `tick()`. `HOME` then sets heading 0 (since v8.11 it draws with the pen down, as in UCBLogo).
 - **`rotate(deg, rctx)`** turns in pieces that fill the current frame's remaining budget (`DEG_PER_FRAME[speed]` degrees per frame, `spendFrame`); at the end, unless stopped, the heading is `normAngle(start + deg)` — normalised to [0, 360) and snapped to 10⁻⁹. Instant: `normAngle(angle + deg)` at once.
 - **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
 - **`arc(deg, r, rctx)`** — the same step density (`ceil(max(36, round|r|) × |deg| / 360)` steps), but placed on the true arc: `rotate(step/2)`, then chords `2r·sin(step/2)` separated by full-step turns, a half-step turn at the end. Unless stopped the turtle is then put on the exactly computed end point (centre = start + k·n(h₀), end = centre − k·n(h₀ + deg), n(h) = (cos h, −sin h), k = r·sign(deg)), removing the 10⁻⁹ drift of the snapped steps. In WRAP mode the exact end point is folded onto the canvas with `wrapCoord`. `r = 0` only turns. (CIRCLE keeps its older polygon so existing drawings do not move.)
@@ -387,12 +389,13 @@ Horizontal flex: left panel `#panel` (`clamp(360px, 32vw, 520px)` — it follows
 
 ### 4.2 Code Editor
 
-CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`. Public API `{ getValue, setValue, initValue, onChange, focus }` — the rest of the app never touches CodeMirror directly.
+CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`. Public API `{ getValue, setValue, initValue, onChange, focus, insert, onHelp }` — the rest of the app never touches CodeMirror directly.
 
-- **Extensions:** `lineNumbers`, `highlightActiveLineGutter`, `history`, `bracketMatching`, `logoLanguage`, `syntaxHighlighting(logoHighlight)`, `lineWrapping`, a placeholder (the welcome text, shown while empty), and a keymap: Tab inserts two spaces, Shift+Tab un-indents, Ctrl/Cmd+/ toggles `;` comments, then CodeMirror's history and default keymaps.
+- **Extensions:** `lineNumbers`, `highlightActiveLineGutter`, `history`, `bracketMatching`, `logoLanguage`, `syntaxHighlighting(logoHighlight)`, `lineWrapping`, a placeholder (the welcome text, shown while empty), and a keymap: Tab inserts two spaces, Shift+Tab un-indents, Ctrl/Cmd+/ toggles `;` comments, F1 asks for help on the word at the caret (`onHelp` listeners; `wordAt` uses the tokenizer's word characters), then CodeMirror's history and default keymaps.
 - **Highlighting:** `logoLanguage` (`editor/logo-language.ts`) is a `StreamLanguage` that mirrors `tokenize()`'s word / operator split and tags comments, `"words`, `:variables`, numbers, operators, brackets, `TO`/`END`, control words, commands and functions. Token colours are in `logoHighlight` (`editor.ts`): commands blue, control words and `TO`/`END` purple, functions cyan, `:variables` yellow, numbers orange, `"words` green, comments grey; all at least 4.5:1 on the editor background. Editor chrome: `#editor .cm-…` rules in `app.css`.
 - **getValue()** is the document text, exactly.
 - **setValue(src)** replaces the whole document as its own undo step (`isolateHistory`), so loading an example, LOAD or beautify can be undone; the caret goes to the start.
+- **insert(text)** puts text at the caret on a line of its own, as its own undo step (the Commands panel's Insert).
 - **initValue(src)** creates a fresh `EditorState`: empty undo history and no change event (autosave restore).
 - **onChange(fn)** is called from an `updateListener` whenever the document changes (typing, setValue, undo / redo). The same listener updates the **L:N indicator** on every change and selection move.
 
@@ -427,9 +430,13 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 
 One overlay at a time (`openOverlay` toggles, Escape closes all): Commands, Examples, Options.
 
-**Commands** (`ui/reference-panel.ts`): one table built from `REFERENCE` (`src/reference.ts`), so the columns line up across sections, then the colour swatches (from `COLOR_NAMES`; aliases with the same colour are folded: GRAY / GREY). Opening it focuses the search box, which filters rows by syntax and description (Escape clears it). **Try** (and a click on a swatch) opens direct mode with the example line in the input, ready to run with Enter; nothing runs by itself.
+**Commands** (`ui/reference-panel.ts`): one table built from `REFERENCE` (`src/reference.ts`), so the columns line up, with a `<tbody>` per command holding its row (syntax, description) and its card; then the colour swatches (from `COLOR_NAMES`; aliases with the same colour are folded: GRAY / GREY).
+- **Chips** under the search box show one section, or only the colours; All shows everything.
+- **Search** (opening the panel focuses it) ranks with `scoreEntry`: an exact Logo word (`fd` → FORWARD) 100, a word prefix 50, other syntax text 30, a tag 20 (prefix 15), the description 10; every query word must match. While searching, the hits are one flat list, best first (the `<tbody>`s are re-ordered; section heads hidden). Escape clears; ↓ moves into the list, ↑ ↓ between rows, Enter opens / closes a card (Enter in the search box opens the best hit).
+- **Cards** open on a click or Enter and are built on first open: `more`, `forms` ("Also written"), `examples` — **Try** (one-line examples, and a click on a swatch) opens direct mode with the line in the input, ready to run with Enter, nothing runs by itself; **Insert** puts the example into the editor at the caret (`editor.insert`) — **See also** links (open that card) and **Used in**: the first four examples from `examplesUsing(entry words)` as small pictures (click → the example's preview) and "All n examples →" (the Examples panel filtered to them).
+- **F1** in the editor opens the card of the word at the caret (or searches for it).
 
-**Examples** (`ui/examples-overlay.ts`): a grid of cards (picture, title, description); a click loads the code into the editor. The pictures are made the first time the panel opens, one example at a time: `runForThumbnail` runs the example headlessly in its own session (`headlessIO` on an 800 × 600 world, yields resolved at once, 1.5 s cap), and the drawing is scaled to fit the card (at most 1.5×, lines at least 1 px). The page's session is never touched.
+**Examples** (`ui/examples-overlay.ts`): a search box (title, description, topic, or a command the example uses), topic chips (`EXAMPLE_TOPICS`, with counts), an optional "Examples that use FOR ✕" filter (set from a command card), and a grid of cards (picture, title, description). A click on a card opens its **preview**: a larger picture, title, description, topic, "Commands used" (links to their cards; the ones the example `shows` are outlined) and the code; **Open in editor** loads it (one undo step) and closes the panel, "← All examples" goes back. The pictures (`ui/thumbs.ts`) are made the first time they are needed, one example at a time: `runForThumbnail` runs the example headlessly in its own session (`headlessIO` on an 800 × 600 world, yields resolved at once, 1.5 s cap); the session is cached, and `paintExample` scales the drawing to any canvas (at most 1.5×, lines at least 1 px). The page's session is never touched.
 
 Options:
 
@@ -520,7 +527,7 @@ CMD['MYCOMMAND'] = CMD['MC'] = async (t, i, v, rctx) => {
 - Read and change state through `rctx.session` (`turtle`, `drawing`); produce output only through `rctx.io` (`log`, `render`, …). Never import from `render/` or `ui/` — lint fails.
 - If it draws without moving through `move()`, store via `trailPushIfRoom(rctx, …)` / `addLabel(rctx, …)` and finish with `await tick(rctx)` so pacing and responsiveness match other commands.
 - If it reads a word argument, use `wordArg`; if an argument is optional, use `isValueStart`.
-- Add it to `REFERENCE` (`src/reference.ts`; the unit test fails until it is listed) and, if it shows something new, to `EXAMPLES`. Built-in names are automatically protected from `TO` redefinition.
+- Add it to `REFERENCE` (`src/reference.ts`; the unit test fails until it is listed) with at least one runnable example, related commands in `see` and search synonyms in `tags`; and, if it shows something new, add an example file (`;; shows:` the command). "Used in" on its card then follows automatically. Built-in names are automatically protected from `TO` redefinition.
 
 ### 6.2 Adding a Loop Construct
 
@@ -543,4 +550,4 @@ Put it in the folder of its layer, `export` only what other modules use, and imp
 
 ### 6.6 Adding an Example
 
-Add `examples/NN-name.logo` with `;; title:` and `;; desc:` lines at the top. It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically, headless and in the browser (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in `tests/cases.js` if it is meant to stop at the edge). It must also fit a 640 × 480 canvas (no OUCH), and its drawing is snapshotted (`tests/unit/__snapshots__/examples.test.ts.snap`: a character picture of the canvas, counts, bounds and a hash of every segment) unless it uses `RND` / `RANDOM`. A new example writes its snapshot on the first run; after an intended change to an example or to the drawing code, run `npx vitest run -u` and review the snapshot diff. The Examples panel shows its picture automatically.
+Add `examples/NN-name.logo` with `;; title:`, `;; desc:` and `;; topic:` lines at the top (the topic is one of `EXAMPLE_TOPICS` in `src/examples.ts`; a unit test checks it), and optionally `;; shows: FOR, SETCOLOR` — the commands it is about: it is listed first in those commands' "Used in" (a unit test checks the example uses them). It appears in the EXAMPLES overlay in file-name order, and `npm test` runs it automatically, headless and in the browser (it must end with `✓ Done!`; list it in `ENDS_WITH_OUCH` in `tests/cases.js` if it is meant to stop at the edge). It must also fit a 640 × 480 canvas (no OUCH), and its drawing is snapshotted (`tests/unit/__snapshots__/examples.test.ts.snap`: a character picture of the canvas, counts, bounds and a hash of every segment) unless it uses `RND` / `RANDOM`. A new example writes its snapshot on the first run; after an intended change to an example or to the drawing code, run `npx vitest run -u` and review the snapshot diff. The Examples panel shows its picture automatically.

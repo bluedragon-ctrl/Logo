@@ -1,5 +1,7 @@
 ;; title: Filled Shapes
 ;; desc: BEGINFILL … ENDFILL fills the path the turtle walks; STAR has an optional input; (LABEL …) writes words and numbers together
+;; topic: Colour
+;; shows: BEGINFILL, ENDFILL, TO, LABEL
 
 ; STAR :SIZE [:POINTS 5] — POINTS is optional: STAR 40 has 5 points,
 ; (STAR 40 7) has 7. An odd number of points makes the star close.

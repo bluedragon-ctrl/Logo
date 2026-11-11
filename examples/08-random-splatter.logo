@@ -1,5 +1,7 @@
 ;; title: Random Splatter
 ;; desc: RND for random colours and lengths — a new pattern each run
+;; topic: Colour
+;; shows: RND, SETCOLOR
 ; RND n returns a random integer 0 to n-1
 HT
 SETWIDTH 2

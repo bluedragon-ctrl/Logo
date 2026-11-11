@@ -1,5 +1,6 @@
 ;; title: Compass Rose
 ;; desc: 24 spokes radiate from the origin, each slightly longer than the last
+;; topic: Loops
 MAKE "ANGLE 0
 SETWIDTH 2
 REPEAT 24 [

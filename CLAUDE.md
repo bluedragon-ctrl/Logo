@@ -24,8 +24,8 @@ Specification is split into two files:
 |---|---|
 | `index.html` | The app's markup (Vite entry). `%APP_VERSION%` is filled in at build time. |
 | `src/` | The app: `main.ts` (entry), `app.ts` (the page's session + browser IO), `render/`, `turtle/`, `interpreter/`, `editor/`, `format/`, `ui/`, `styles/app.css`, `assets/fonts/`, `assets/logo.svg` (app logo = the turtle; keep in sync with `render/sprite.ts`). Module map: impl-spec §1.2. |
-| `examples/` | One `.logo` file per example (`;; title:` / `;; desc:` header lines). Loaded at build time; the number prefix sets the order. Each must fit a 640 × 480 canvas; its drawing is snapshotted. |
-| `src/reference.ts` | The Commands panel content as data (`REFERENCE`). A unit test checks it lists every built-in word. |
+| `examples/` | One `.logo` file per example (`;; title:` / `;; desc:` / `;; topic:` / optional `;; shows:` header lines). Loaded at build time; the number prefix sets the order. Each must fit a 640 × 480 canvas; its drawing is snapshotted. |
+| `src/reference.ts` | The Commands panel content as data (`REFERENCE`: per command syntax, description, longer text, examples, see-also, search tags). A unit test checks it lists every built-in word and runs every example. |
 | `versions/` | Frozen single-file HTML versions up to v8.1 (from when the project was called "Claude Logo"; file names kept so old links work). Deployed to Pages at `/versions/…` and at the root (old links keep working). Never edited. |
 | `blue-logo-lang-spec.md` | Language specification. |
 | `blue-logo-impl-spec.md` | Implementation specification. |
@@ -46,7 +46,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.10** (`package.json` → `8.10.0`)
+Current version: **v8.11** (`package.json` → `8.11.0`)
 
 ---
 
@@ -130,8 +130,8 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label + fill store, `beginFill` / `notePoint` / `endFill`) · `motion.ts` (`move`, `rotate`, `circle`, `arc`, `edgePath` for FENCE / WRAP / WINDOW, `clipToCanvas`, `ouch`) |
 | `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`, `PAREN_CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
 | `editor/editor.ts`, `editor/logo-language.ts`, `format/beautify.ts` | CodeMirror setup behind the `Editor` interface; Logo highlighting tokenizer; pure formatter |
-| `ui/` | `console.ts` (`log`) · `input.ts` (key queue + mouse for KEYP / READKEY / MOUSEX …) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` (`tryInDirect`) · `splitter.ts` · `overlays.ts` · `reference-panel.ts` (Commands, from `REFERENCE`) · `examples-overlay.ts` (cards with pictures) · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
-| `examples.ts` | Loads `examples/*.logo` |
+| `ui/` | `console.ts` (`log`) · `input.ts` (key queue + mouse for KEYP / READKEY / MOUSEX …) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` (`tryInDirect`) · `splitter.ts` · `overlays.ts` · `reference-panel.ts` (Commands, from `REFERENCE`: chips, ranked search, cards) · `examples-overlay.ts` (search, topics, cards, preview) · `thumbs.ts` (example pictures) · `help-nav.ts` (links between the panels, F1) · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
+| `examples.ts` | Loads `examples/*.logo`; `uses` (built-in words per example), `examplesUsing` |
 | `reference.ts` | `REFERENCE` — Commands panel data |
 
 ---
@@ -152,8 +152,8 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 | Change trail storage / rendering | `turtle/drawing.ts` (data) · `render/trail.ts` + `render/render.ts` (painting) |
 | Change editor / highlighting / undo | `editor/editor.ts` (extensions, colours) · `editor/logo-language.ts` (token classes) · `#editor .cm-…` in `app.css` |
 | Change beautify formatting | `format/beautify.ts` — pure function, safe to edit in isolation |
-| Add or edit an example | `examples/NN-name.logo`; impl-spec §6.6; then `npx vitest run -u` and review the snapshot diff |
-| Change the Commands panel | `src/reference.ts` (data) · `ui/reference-panel.ts` (rendering) |
+| Add or edit an example | `examples/NN-name.logo` (with `;; topic:`, optional `;; shows:`); impl-spec §6.6; then `npx vitest run -u` and review the snapshot diff |
+| Change the Commands panel | `src/reference.ts` (data, `scoreEntry` search ranking) · `ui/reference-panel.ts` (rendering); impl-spec §4.6 |
 
 ---
 
@@ -223,7 +223,7 @@ Severity markers in reviews use 🔴 (bug) / 🟡 (design) / 🟢 (polish). Use 
 2. Validate input; clamp + warn or throw, consistent with lang-spec §8.
 3. State via `rctx.session`, output via `rctx.io` — no imports from `render/` / `ui/` (lint fails).
 4. If it draws without `move()`, store via `trailPushIfRoom(rctx, …)` / `addLabel(rctx, …)` and end with `await tick(rctx)`.
-5. Add it to `REFERENCE` in `src/reference.ts` (the unit test fails until you do; give it a `try` line) and to lang-spec §2.
+5. Add it to `REFERENCE` in `src/reference.ts` (the unit test fails until you do; give it `examples`, `see` and `tags`) and to lang-spec §2.
 6. Add an example file to `examples/` if it shows something new, and a case to `tests/cases.js`.
 
 ### Adding a math function
@@ -249,9 +249,9 @@ npm run typecheck                     # tsc for the app + tests, and for the cor
 npm run lint                          # typecheck, then ESLint (unused code, type-only imports, core import boundary)
 ```
 
-**Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH; must fit 640 × 480; drawing snapshot — a 64 × 24 character picture, bounds and a hash — for every example without `RND`/`RANDOM`; update with `npx vitest run -u` only for intended changes), the commands reference (every built-in word listed, nothing extra, every Try line runs), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.ts` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
+**Unit tests** (`tests/unit/`, Vitest, Node): the language cases from `tests/cases.js`, every example (must reach `✓ Done!`, the endless spiral OUCH; must fit 640 × 480; drawing snapshot — a 64 × 24 character picture, bounds and a hash — for every example without `RND`/`RANDOM`; update with `npx vitest run -u` only for intended changes), the commands reference (every built-in word listed once, nothing extra, every example runs, See also links resolve, search ranking), example metadata (topics, `shows`, `uses`), interpreter state (segments, turtle pose, labels, canvas-size edge, sessions persisting like direct mode), tokenizer, procedure extraction, `formatNum`, `clipToCanvas`, beautify. `tests/unit/run-logo.ts` → `runLogo(src, {speed, width, height, session})` returns `{ out, session, io }`; assert on `out` (console text) or on `session.drawing` / `session.turtle`.
 
-**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore, editor typing / Tab / undo / bracket match, Commands search + Try, Examples pictures + click to load, SETBG, keys reaching READKEY, the mouse, fills painted and repainted). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
+**Browser test** (`tests/run-examples.js`, ~20 s with the pre-installed Playwright/Chromium): drives the built page through hooks that `src/main.ts` puts on `window` (`editor`, `EXAMPLES`, `beautify`, `optSpeed`, `runDirectCommand`, `activeRctx`, `labelStore`, `session`) — keep them when refactoring. Runs all examples, beautify idempotency, the shared cases, and the UI checks (STOP during WAIT, direct mode while running, labels cleared on run, infinite loop stoppable, autosave restore, editor typing / Tab / undo / bracket match, Commands chips / search / cards / Try / Insert / See also / Used in, F1 help, Examples pictures / search / topics / preview / Open in editor, SETBG, keys reaching READKEY, the mouse, fills painted and repainted). **Add a case for every bug fixed or rule changed** — `tests/cases.js` for language behaviour, `tests/unit/` for interpreter state, `UI_CHECKS` for page behaviour.
 
 Manual checks still worth doing for UI changes: animated runs at speed 0 look right, STOP mid-animation, resize while idle and while running, font sizes, console toggle, HiDPI sharpness, Ctrl+Z in the editor.
 
@@ -301,9 +301,9 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Look:** colours and font stacks are CSS variables in `:root` of `app.css` (impl-spec §4.1a); syntax colours are in `editor.ts`. Keep text at ≥ 4.5:1 contrast, buttons neutral (only Run / Stop coloured), sentence case except Logo commands.
 - **Editor = CodeMirror 6** (`src/editor/`): it owns text, caret, undo, IME and paste. The rest of the app uses only the `Editor` interface (`getValue`, `setValue`, `initValue`, `onChange`, `focus`). `document.execCommand('copy')` remains only as the copy-button fallback.
 - **Short-circuit `AND` / `OR`** (v8.9) and IFELSE-as-a-value use the parser's skip mode (`p.skip`): the skipped tokens are parsed and checked but nothing is computed or run.
-- **Edge modes** (v8.10): `move` and `goTo` (SETPOS, SETXY, SETX, SETY, HOME) split their path with `edgePath` — FENCE clips + OUCH, WRAP splits into pieces across the edges, WINDOW leaves it whole. `HOME` draws with the pen down (since v8.10).
-- **Fills** (v8.10): `BEGINFILL` records the turtle's end points (`notePoint` after every move / goTo); `ENDFILL` stores a polygon `{at, …}` painted just before segment `at`, i.e. under the outline. Fill colour = pen colour at BEGINFILL.
-- **Parentheses at statement level** (v8.10): `(PRINT …)` / `(LABEL …)` take several inputs (`PAREN_CMD`), `(PROC a b c)` passes optional inputs (`TO P :A [:B 1]`). Without parentheses a procedure takes only its required inputs.
-- **Keyboard / mouse** (v8.10): `KEYP`, `READKEY` (waits; key codes A = 65, arrows 37–40), `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER` — through `io.keyWaiting` / `readKey` / `mouse`. Keys are queued only while a program runs and not typed into a text field.
+- **Edge modes** (v8.11): `move` and `goTo` (SETPOS, SETXY, SETX, SETY, HOME) split their path with `edgePath` — FENCE clips + OUCH, WRAP splits into pieces across the edges, WINDOW leaves it whole. `HOME` draws with the pen down (since v8.11).
+- **Fills** (v8.11): `BEGINFILL` records the turtle's end points (`notePoint` after every move / goTo); `ENDFILL` stores a polygon `{at, …}` painted just before segment `at`, i.e. under the outline. Fill colour = pen colour at BEGINFILL.
+- **Parentheses at statement level** (v8.11): `(PRINT …)` / `(LABEL …)` take several inputs (`PAREN_CMD`), `(PROC a b c)` passes optional inputs (`TO P :A [:B 1]`). Without parentheses a procedure takes only its required inputs.
+- **Keyboard / mouse** (v8.11): `KEYP`, `READKEY` (waits; key codes A = 65, arrows 37–40), `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER` — through `io.keyWaiting` / `readKey` / `mouse`. Keys are queued only while a program runs and not typed into a text field.
 - **`ARC`** walks the true arc (half-step turns, exact end point); **`CIRCLE`** keeps its older polygon so existing drawings do not move.
 - **Not implemented:** flood `FILL`, list/string values (and so `PENCOLOR`). Planned order: `TODO.md` → Language.

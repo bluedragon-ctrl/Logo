@@ -1,3 +1,5 @@
 ;; title: Circle
 ;; desc: Draw a circle with radius 120 pixels
+;; topic: First steps
+;; shows: CIRCLE
 CIRCLE 120

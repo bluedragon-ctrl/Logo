@@ -1,5 +1,7 @@
 ;; title: BREAK, CONTINUE and a Test
 ;; desc: A procedure that OUTPUTs 1 or 0 answers a question; CONTINUE skips a round, BREAK ends the loop
+;; topic: Variables and decisions
+;; shows: OUTPUT, BREAK, CONTINUE
 ; EVEN? answers "is :N even?" with 1 (yes) or 0 (no)
 TO EVEN? :N
   OUTPUT :N MOD 2 = 0

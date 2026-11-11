@@ -1,5 +1,7 @@
 ;; title: DOT — Sine Wave Scatter
 ;; desc: DOT plots filled points; SCRWIDTH/SCRHEIGHT scale the graph to the canvas
+;; topic: Maths and curves
+;; shows: DOT, SCRWIDTH, SCRHEIGHT
 ; Scales to any window size with SCRWIDTH / SCRHEIGHT
 SPEED 4
 MAKE "W SCRWIDTH / 2 - 10

@@ -34,7 +34,7 @@ Missing language features (review of Nov 2026), in the agreed order:
 - [x] `IFELSE` as a value: `OUTPUT IFELSE :N < 2 [1] [:N * FACT :N - 1]`
 - [x] Short-circuit `AND` / `OR`
 
-**Step 2 — v8.10: medium effort**
+**Step 2 — v8.11: medium effort**
 - [x] Filled shapes: `BEGINFILL` … `ENDFILL` (path recorded as a polygon, drawing-store `fills`, painted under the outline); a flood `FILL` is not planned
 - [x] Edge modes `WRAP` / `WINDOW` / `FENCE` (FENCE + OUCH stays the default)
 - [x] Interaction: `TIMER` / `RESETTIMER`, `KEYP` / `READKEY` (key codes), `MOUSEX` / `MOUSEY` / `BUTTONP` — io methods `keyWaiting`, `readKey`, `mouse`
@@ -61,6 +61,8 @@ Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and dete
 - [x] Part 1 (v8.6): system fonts, contrast, calm colours, syntax highlighting, sentence case, flat beige canvas, flat vector turtle
 - [ ] Part 2 — canvas: optional grid with x/y axes; readable font for LABEL text (currently VT323 16 px); turtle size / pen-point review
 - [x] Part 2a (v8.7): Commands panel as one aligned, searchable table with Try buttons; Examples as a grid of cards with pictures; examples resized for the beige canvas; examples fit + drawing snapshots in the unit tests
+- [x] Part 2b (v8.10): Commands as separate commands with cards (longer text, several examples, Try / Insert, See also, Used in examples), group chips, ranked search with synonyms, keyboard; Examples with search, topics, "uses" filter and a preview before loading; F1 in the editor opens the command's card
+- [ ] Optional: hover tooltip in the editor with the one-line description (CodeMirror `hoverTooltip`, from `REFERENCE`)
 - [ ] Part 2 — layout: labelled toolbar (≡ ⎘ ⚙ → text or icon + text, "L:1" → "Ln 1"); Save as PNG next to Save / Load; move the version out of the header
 - [ ] Commands panel docked beside the canvas instead of floating over it — needs `resizeCanvas()` to keep the turtle's position (today it re-centres the turtle when idle)
 - [ ] Optional: light theme; "Retro" theme (VT323, sand, the old cartoon turtle)

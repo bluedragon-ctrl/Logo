@@ -1,5 +1,7 @@
 ;; title: Tree — Recursion
 ;; desc: Every branch grows two smaller branches, then walks back to where it started
+;; topic: Recursion
+;; shows: TO
 TO TREE :LEN :DEPTH
   IF :DEPTH = 0 [ STOP ]
   FD :LEN

@@ -104,8 +104,9 @@
     <div id="ref-header">
       <button class="close-btn" id="btn-ref-close">✕</button>
       <h2>Commands</h2>
-      <input id="ref-search" type="search" placeholder="Search commands…" aria-label="Search commands"
+      <input id="ref-search" class="panel-search" type="search" placeholder="Search commands… (try: turn, colour, loop)" aria-label="Search commands"
              autocomplete="off" spellcheck="false">
+      <div class="chips" id="ref-chips" role="group" aria-label="Command groups"></div> <!-- built by ui/reference-panel.ts -->
     </div>
     <div id="ref-body"></div> <!-- built from src/reference.ts by ui/reference-panel.ts -->
   </div>
@@ -114,9 +115,31 @@
     <div id="ex-header">
       <button class="close-btn" id="btn-ex-close">✕</button>
       <h2>Examples</h2>
-      <div class="ex-hint">Pick one to load it into the editor, then press Run</div>
+      <div class="ex-hint">Pick one to see it, then open it in the editor and press Run</div>
+      <input id="ex-search" class="panel-search" type="search" placeholder="Search examples… (title, idea or command)" aria-label="Search examples"
+             autocomplete="off" spellcheck="false">
+      <div class="chips" id="ex-chips" role="group" aria-label="Example topics"></div> <!-- built by ui/examples-overlay.ts -->
+      <div id="ex-uses" hidden>Examples that use <b id="ex-uses-word"></b> <button type="button" id="ex-uses-clear" title="Show all examples">✕</button></div>
     </div>
     <div id="ex-grid"></div> <!-- cards built by ui/examples-overlay.ts -->
+    <div id="ex-none" class="ref-none" hidden>No example matches.</div>
+    <div id="ex-preview" hidden>
+      <div class="exp-bar">
+        <button type="button" id="ex-back">← All examples</button>
+        <button type="button" id="ex-open">Open in editor</button>
+      </div>
+      <div class="exp-main">
+        <canvas id="exp-pic" class="ex-thumb"></canvas>
+        <div class="exp-info">
+          <div class="ex-title" id="exp-title"></div>
+          <div class="ex-desc" id="exp-desc"></div>
+          <div class="exp-topic" id="exp-topic"></div>
+          <div class="ref-label">Commands used</div>
+          <div class="exp-cmds" id="exp-cmds"></div>
+        </div>
+      </div>
+      <pre class="exp-code" id="exp-code"></pre>
+    </div>
   </div>
 </div>
 </body>

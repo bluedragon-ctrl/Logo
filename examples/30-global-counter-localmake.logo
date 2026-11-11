@@ -1,5 +1,7 @@
 ;; title: Global Counter & LOCALMAKE
 ;; desc: MAKE inside a procedure updates the global; LOCALMAKE keeps a variable private
+;; topic: Variables and decisions
+;; shows: MAKE, LOCALMAKE
 MAKE "COUNT 0
 MAKE "ANGLE 60             ; the main program turns by :ANGLE between stars
 TO STAR :SIZE

@@ -1,11 +1,11 @@
 # Blue Logo — Language Specification
-## Version 8.10 — November 2026
+## Version 8.11 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
 This document covers everything a **programmer** needs to write, understand, and debug Logo programs. Implementation internals are in `blue-logo-impl-spec.md`.
 
-> **New in v8.10:** filled shapes `BEGINFILL` … `ENDFILL` (§2.2), edge modes `WRAP` / `WINDOW` / `FENCE` (§2.1), keyboard, mouse and time — `KEYP`, `READKEY`, `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER`, `RESETTIMER` (§2.7), several inputs in `(PRINT …)` / `(LABEL …)` (§2.2, §2.6), optional procedure inputs `TO BOX :W [:H 50]` (§2.5). **Changed:** `HOME` draws a line when the pen is down, as in UCBLogo (§2.1); the new words are built-in and can no longer be procedure names.
+> **New in v8.11:** filled shapes `BEGINFILL` … `ENDFILL` (§2.2), edge modes `WRAP` / `WINDOW` / `FENCE` (§2.1), keyboard, mouse and time — `KEYP`, `READKEY`, `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER`, `RESETTIMER` (§2.7), several inputs in `(PRINT …)` / `(LABEL …)` (§2.2, §2.6), optional procedure inputs `TO BOX :W [:H 50]` (§2.5). **Changed:** `HOME` draws a line when the pen is down, as in UCBLogo (§2.1); the new words are built-in and can no longer be procedure names.
 >
 > **New in v8.9** (no changes to existing programs, except that `AND` / `OR` no longer evaluate a right side the left side already decides, and new built-in words can no longer be procedure names): `SETXY` / `SETX` / `SETY`, `ARC`, `SETBG`, `FOREVER`, `PI`, `PENSIZE`, the aliases `SETPC` / `SETPENCOLOR` / `SETPENSIZE`, `IFELSE` as a value (§2.4), short-circuit `AND` / `OR` (§3.2).
 >
@@ -85,7 +85,7 @@ See §6 for scoping rules.
 | `RIGHT n` / `RT n` | Turn clockwise n degrees. |
 | `LEFT n` / `LT n` | Turn counter-clockwise n degrees. |
 | `SETHEADING n` / `SETH n` | Set absolute heading. 0 = north (up), 90 = east, 180 = south, 270 = west. Animates via the shorter arc (≤ 180°). |
-| `HOME` | Go straight back to the origin (0, 0) — drawing a line if the pen is down, like `SETPOS 0 0` — then heading 0°. Not animated. (Before v8.10 `HOME` never drew.) |
+| `HOME` | Go straight back to the origin (0, 0) — drawing a line if the pen is down, like `SETPOS 0 0` — then heading 0°. Not animated. (Before v8.11 `HOME` never drew.) |
 | `SETPOS x y` / `SETXY x y` | Move straight to (x, y) without changing heading. Draws a line if the pen is down. |
 | `SETX x` / `SETY y` | Move straight to a new x (or y); the other coordinate stays. Draws like `SETPOS`. |
 
