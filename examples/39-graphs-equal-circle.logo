@@ -1,0 +1,30 @@
+;; title: Graphs — A Round Circle
+;; desc: (SETPLOT … "EQUAL) gives x and y the same scale, so the circle x² + y² = 4 stays round and its square stays square
+;; topic: Maths and curves
+;; shows: SETPLOT, GRID, PLOT
+SPEED 4
+; "EQUAL: one step in x is as long as one step in y.
+; The canvas is wider than it is tall, so it shows more of x.
+(SETPLOT -3 3 -3 3 "EQUAL)
+SETCOLOR 215 210 195        ; light graph paper
+GRID 0.5 0.5
+SETCOLOR GRAY
+AXES 1 1
+
+; Circle with radius 2: x = 2 cos a, y = 2 sin a
+SETCOLOR BLUE SETWIDTH 2
+PU
+FOR :A 0 360 5 [
+  PLOT 2 * COS :A 2 * SIN :A
+  PD
+]
+
+; A square inside it: its corners lie on the circle
+MAKE "C SQRT 2              ; 1.41…, because C² + C² = 4
+SETCOLOR RED
+PU PLOT :C :C
+PD PLOT -:C :C
+PLOT -:C -:C
+PLOT :C -:C
+PLOT :C :C
+PU HOME HT
