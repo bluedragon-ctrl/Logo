@@ -16,7 +16,7 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] Next: remaining technical work (see below), then a visual / interface pass, then phase 4 teaching features
 
 ### Repo
-- [ ] Tag releases on `main` — waiting for the versioning decision (three-part numbers; tag names follow it)
+- [x] Three-part version numbers (v8.16.0); releases tagged on `main` from v8.15.0 on (older ones not tagged)
 - [ ] Optional: rename the GitHub repository to match the new name (the Pages URL follows the repo name; old URLs redirect only for the repo, not for Pages)
 
 ### Language

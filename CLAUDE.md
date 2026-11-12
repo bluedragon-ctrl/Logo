@@ -48,7 +48,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.16** (`package.json` → `8.16.0`)
+Current version: **v8.16.0** (`package.json` → `8.16.0`)
 
 ---
 
@@ -180,18 +180,21 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 
 ## Versioning
 
-Format: `MAJOR.MINOR`
+Format: `MAJOR.MINOR.PATCH` (since v8.16.0; earlier releases were numbered `MAJOR.MINOR`, e.g. v8.15 = 8.15.0). The numbers continue from the old ones — never renumber.
 
-- Bump **MINOR** for bug fixes, polish, small additions (v8.0 → v8.1).
-- Bump **MAJOR** for releases with breaking language changes or after a full review pass.
+| Part | Bump when | Example |
+|---|---|---|
+| **MAJOR** | A breaking language change (a program that worked may stop working or draw differently) | 9.0.0 = words and lists |
+| **MINOR** | New commands, features, UI additions — old programs keep working | 8.15.0 → 8.16.0 |
+| **PATCH** | Bug fixes and polish only, no new words | 8.16.0 → 8.16.1 |
 
 Release steps:
-1. Bump `version` in `package.json` (`8.3.0` → `8.4.0`; the app shows `v8.4`). Run `npm install` so `package-lock.json` follows.
+1. Bump `version` in `package.json` (the app shows it whole: `v8.16.0`). Run `npm install` so `package-lock.json` follows.
 2. Add a `CHANGELOG.md` entry, and update "Current version" above and the version header in both spec files if they changed.
 3. `npm run lint` and `npm test` — must pass.
-4. After merging to `main` (CI deploys it), tag the release: `git tag vX.Y`.
+4. After merging to `main` (CI deploys it), tag the merge commit: `git tag -a vX.Y.Z -m "vX.Y.Z" <commit>` and `git push origin vX.Y.Z`.
 
-`versions/` is frozen at v8.1 — releases are no longer copied there; the git tags are the archive.
+`versions/` is frozen at v8.1 — releases are no longer copied there; the git tags are the archive (the first tag is v8.15.0).
 
 ---
 
@@ -199,10 +202,10 @@ Release steps:
 
 The changelog lives in **`CHANGELOG.md`**.
 
-Add a new `## vX.Y` block at the top for every version bump:
+Add a new `## vX.Y.Z` block at the top for every version bump (older entries keep their `vX.Y` headings):
 
 ```
-## vX.Y  YYYY-MM-DD
+## vX.Y.Z  YYYY-MM-DD
 **SHORT TITLE**
 - * BUG: description — what was wrong, what the fix is.
 - ~ CHANGE: description of behaviour or design change.

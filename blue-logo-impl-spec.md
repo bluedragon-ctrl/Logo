@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.16 — November 2026
+## Version 8.16.0 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -53,7 +53,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 | Path | Contents |
 |---|---|
-| `index.html` | Markup only: left panel, canvas panel, overlays (their content is built by `ui/`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
+| `index.html` | Markup only: left panel, canvas panel, overlays (their content is built by `ui/`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR.PATCH from `package.json`). |
 | `src/app.ts` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
 | `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS: design tokens (colours, font stacks, `--fs-base`), the VT323 `@font-face`. |

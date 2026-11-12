@@ -1,5 +1,5 @@
 # Blue Logo — Language Specification
-## Version 8.16 — November 2026
+## Version 8.16.0 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
