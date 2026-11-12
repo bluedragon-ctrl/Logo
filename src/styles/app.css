@@ -143,9 +143,11 @@ h1 .version { color: var(--muted); font-size: 0.7em; }
 #title-row { position: relative; flex-shrink: 0; }
 #opt-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 /* Narrow panel: the line number gives way first (the gutter highlights the line
-   too), then the help buttons drop their icons and keep their words. */
+   too), then the help buttons keep only their icons (their title and aria-label
+   still name them). Icons have a fixed size, so the toolbar fits whatever fonts
+   the computer has — words would not (they made it overflow on CI in v8.16.0). */
 @container code-tools (max-width: 400px) { #ln-indicator { display: none; } }
-@container code-tools (max-width: 350px) { .tb-wide .ic { display: none; } .tb-btn.tb-wide { padding: 0 9px; } }
+@container code-tools (max-width: 350px) { .tb-wide span { display: none; } .tb-btn.tb-wide { width: 28px; padding: 0; } }
 #ln-indicator {
   font-family: var(--font-mono);
   font-size: 12px;

@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.16.0 — November 2026
+## Version 8.16.1 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -436,7 +436,7 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 | STOP | `haltRun()` (sets `stopped`, ends a WAIT) and logs "■ Stopped." The run unwinds within a frame; `runProgram` re-enables RUN. |
 | Clear (CLR) | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
 | Direct | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
-| Toolbar above the editor (`#code-label`) | Left: **Commands** and **Examples** (icon + word; the icons drop out when the panel is at its narrowest). Right, icon buttons in groups: Tidy (beautify) and Copy — both flash a tick (`.tb-btn.done`) — then Open and Save `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes) and Save picture (`pictureCanvas()` → PNG named like the program, same picker / download fallback; the turtle is left out). `L:n` (current line) shows when the panel is wide enough (container query on `#split`). |
+| Toolbar above the editor (`#code-label`) | Left: **Commands** and **Examples** (icon + word; at the narrowest panel only the icon, so the width does not depend on the fonts). Right, icon buttons in groups: Tidy (beautify) and Copy — both flash a tick (`.tb-btn.done`) — then Open and Save `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes) and Save picture (`pictureCanvas()` → PNG named like the program, same picker / download fallback; the turtle is left out). `L:n` (current line) shows when the panel is wide enough (container query on `#split`). |
 | Options (title row, right) | Opens the Options overlay. |
 | Icons | Inline SVG in `index.html` (`.ic`: 24-unit view box, 2 px stroke in `currentColor`, so hover / active / done colours apply). Every icon-only button has an `aria-label` and a `title`; the browser test checks that every toolbar button has a name and that the toolbar fits the 360 px panel. |
 
