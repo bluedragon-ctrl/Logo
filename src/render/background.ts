@@ -10,8 +10,9 @@ let canvasStyle: CanvasStyle = 'beige';             // set by OPTIONS panel
 export let turtleStyle: TurtleStyle = 'turtle';     // set by OPTIONS panel
 export function setCanvasStyle(s: CanvasStyle): void { canvasStyle = s; }
 export function setTurtleStyle(s: TurtleStyle): void { turtleStyle = s; }
-// drawBackground(bg): the SETBG colour if a program set one, else the canvas style.
-export function drawBackground(bg: [number, number, number] | null){
-  ctx.fillStyle = bg ? 'rgb(' + bg.join(',') + ')' : BG_COLOUR[canvasStyle];
-  ctx.fillRect(0,0,CW,CH);
+// drawBackground(bg, c): the SETBG colour if a program set one, else the canvas style
+// (on the main canvas, or on c — the saved picture).
+export function drawBackground(bg: [number, number, number] | null, c: CanvasRenderingContext2D = ctx){
+  c.fillStyle = bg ? 'rgb(' + bg.join(',') + ')' : BG_COLOUR[canvasStyle];
+  c.fillRect(0,0,CW,CH);
 }

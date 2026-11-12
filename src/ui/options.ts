@@ -1,5 +1,4 @@
 import { setCanvasStyle, setTurtleStyle, type CanvasStyle, type TurtleStyle } from '../render/background.ts';
-import { canvas } from '../render/canvas.ts';
 import { render } from '../render/render.ts';
 import { closeOverlay, openOverlay } from './overlays.ts';
 import { byId } from '../util.ts';
@@ -11,14 +10,6 @@ import { byId } from '../util.ts';
 
   btn.onclick   = ()=>openOverlay('opt-overlay');
   closeBtn.onclick = ()=>closeOverlay('opt-overlay');
-
-  // Save PNG button — composites current canvas state and triggers browser download
-  byId('save-btn').onclick = () => {
-    const a=document.createElement('a');
-    a.download='logo-drawing.png';
-    a.href=canvas.toDataURL('image/png');
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  };
 
   // Font size pills
   document.querySelectorAll<HTMLElement>('.opt-pill[data-fs]').forEach(function(pill){

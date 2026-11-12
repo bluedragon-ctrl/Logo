@@ -4,6 +4,11 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.16  2026-11-12
+**GRID AND SAVE PICTURE**
+- + ADDITION: GRID xstep ystep draws graph paper for the SETPLOT range: a line across the range at every multiple of the step, in the pen colour and width, no numbers. The graphs example now draws a light grid under the axes.
+- ~ CHANGE: Save picture moved from the Options panel to the toolbar, next to Open / Save. The PNG leaves the turtle out, is named after the program (like Save), and uses the save dialog where the browser has one.
+
 ## v8.15  2026-11-12
 **GRAPHS: SETPLOT, PLOT, AXES**
 - + ADDITION: SETPLOT xmin xmax ymin ymax chooses a graph range shown on the canvas (inside a 40-step margin for the axis numbers, at any window size); (SETPLOT … "EQUAL) gives x and y the same scale. The turtle's own coordinates do not change: only the new words use the range. CS keeps it; RUN and CLR remove it; RESETPLOT forgets it.

@@ -456,7 +456,6 @@ canvas { image-rendering: auto; display: block; }
 #opt-overlay.open { display: block; }
 #opt-overlay h2 { margin-bottom: 10px; }
 
-#save-btn { font-size: 13px; padding: 4px 10px; }
 
 .opt-section { margin-bottom: 14px; }
 .opt-label { color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 6px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }

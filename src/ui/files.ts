@@ -1,8 +1,9 @@
 import { editor } from '../editor/editor.ts';
+import { pictureCanvas } from '../render/render.ts';
 import { log } from './console.ts';
 import { byId } from '../util.ts';
 
-// ── File save / load ───────────────────────────────────────────────────────────
+// ── File save / load (program) and Save picture (PNG) ───────────────────────────────────────────────────────────
 // Uses File System Access API (Chrome/Edge) with fallback to <a download> / <input type="file">.
 // Files are only written on explicit user action. (The editor text is also autosaved to
 // localStorage — see ui/autosave.ts.)
@@ -75,5 +76,29 @@ async function loadFromFile(){
   pickFileWithInput(loaded);
 }
 
+// savePicture: the canvas as a PNG (background + drawing, no turtle), named after
+// the program like Save. Same picker / download fallback as saveToFile.
+const PNG_FILE_TYPES = [{ description: 'PNG picture', accept: {'image/png': ['.png']} }];
+async function savePicture(){
+  const blob = await new Promise<Blob | null>(res => pictureCanvas().toBlob(res, 'image/png'));
+  if(!blob){ log('Could not make the picture', 'err'); return; }
+  const name = defaultFileName() + '.png';
+  if(window.showSaveFilePicker){
+    try{
+      const fh = await window.showSaveFilePicker({ suggestedName: name, types: PNG_FILE_TYPES });
+      const w = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+      log('Saved picture: ' + fh.name, 'ok');
+      return;
+    } catch(e){
+      if(isAbort(e)) return; // user cancelled
+    }
+  }
+  downloadBlob(blob, name);
+  log('Downloaded picture: ' + name, 'ok');
+}
+
 byId('btn-save-file').onclick = saveToFile;
+byId('btn-save-pic').onclick = savePicture;
 byId('btn-load-file').onclick = loadFromFile;

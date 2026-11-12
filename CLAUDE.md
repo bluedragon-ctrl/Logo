@@ -48,7 +48,7 @@ Specification is split into two files:
 | `tsconfig.core.json` | Second type check of `interpreter/`, `turtle/`, `format/` **without the DOM library**: a browser API there is a type error. Host globals allowed in the core: `types/core-globals.d.ts`. |
 | `src/types/` | Declarations for browser APIs missing from TypeScript's DOM library (File System Access API). |
 
-Current version: **v8.15** (`package.json` → `8.15.0`)
+Current version: **v8.16** (`package.json` → `8.16.0`)
 
 ---
 
@@ -113,11 +113,11 @@ setVar(vars, name, value, rctx) · procScopeOf(vars, rctx) · repeatInfo(vars)
 createSession() → session · headlessIO({width, height}?) → io · makeRunContext(speed, session, io) → rctx · haltRun()
 parseProgram(src, io) → {topLevel, newProcs} | null · registerProcs(session, newProcs, io) · execute(tokens, rctx) · runProgram(tokens)
 move(dist, rctx) · rotate(deg, rctx) · circle(r, rctx) · arc(deg, r, rctx) · clipToCanvas(x0,y0,x1,y1, w,h) → null | [x,y] · edgePath(rctx, sx,sy,ex,ey) → {pieces, endX, endY, hit}
-plotMapping(frame, {w,h}) → PlotMapping · toCanvas(m, x,y) / fromCanvas(m, px,py) → [x,y] · plotStep(rctx, x,y) → {jump?, to?, exit?} · drawAxes(rctx, xstep, ystep)
+plotMapping(frame, {w,h}) → PlotMapping · toCanvas(m, x,y) / fromCanvas(m, px,py) → [x,y] · plotStep(rctx, x,y) → {jump?, to?, exit?} · drawAxes(rctx, xstep, ystep) · drawGrid(rctx, xstep, ystep)
 tick(rctx) · spendFrame(rctx, part) · nextFrame(rctx) · macroYield(rctx) · sleep(ms, rctx)
 trailPushIfRoom(rctx, …) → bool · trailPushQuiet(rctx, …) → bool · addLabel(rctx, lab) → bool · beginFill(session) · notePoint(session) · endFill(rctx) → bool · clearScreen(session, io, {keepSettings}?) · clearProcs(session)
 procInputs(tokens, idx(), name, proc, parens, read) → count · bindDefaults(name, proc, got, scope, rctx)   (Proc = {params, required, defaults, body})
-render() · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab) · paintFill(fill)        (browser only)
+render() · pictureCanvas() → canvas · rebuildTrailCanvas() · paintLine(…) · paintLabel(lab) · paintFill(fill)        (browser only)
 ```
 
 ---
@@ -130,7 +130,7 @@ Full table with the contents of each file: impl-spec §1.2. Each module keeps th
 |---|---|
 | `app.ts` | The page's `session` and browser `io` |
 | `render/` | `canvas.ts` (CW/CH/DPR) · `sprite.ts` · `background.ts` · `paint.ts` (`paintDrawing` — pure, any 2D context) · `trail.ts` (`trailCanvas`, `paintLine`, `paintLabel`, `rebuildTrailCanvas`) · `render.ts` |
-| `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label + fill store, `beginFill` / `notePoint` / `endFill`) · `motion.ts` (`move`, `rotate`, `circle`, `arc`, `edgePath` for FENCE / WRAP / WINDOW, `clipToCanvas`, `ouch`) · `plot.ts` (SETPLOT graph range: `plotMapping`, `plotStep`, `drawAxes`) |
+| `turtle/` | `state.ts` (`mkTurtle`, `resetTurtle`) · `drawing.ts` (segment + label + fill store, `beginFill` / `notePoint` / `endFill`) · `motion.ts` (`move`, `rotate`, `circle`, `arc`, `edgePath` for FENCE / WRAP / WINDOW, `clipToCanvas`, `ouch`) · `plot.ts` (SETPLOT graph range: `plotMapping`, `plotStep`, `drawAxes`, `drawGrid`) |
 | `interpreter/` | `types.ts` (shared types: `Session`, `Turtle`, `Drawing`, `LogoIO`, `RunContext`, `Scope`, `Proc`, `CommandHandler`, …) · `session.ts` · `io.ts` (LogoIO, `headlessIO`) · `context.ts` (`makeRunContext`, `haltRun`) · `execute.ts` (`parseProgram`, `registerProcs`, `execute`) · `scope.ts` · `tokenizer.ts` · `procedures.ts` · `expr.ts` · `signals.ts` · `pacing.ts` · `commands.ts` (`CMD`, `PAREN_CMD`) · `runtime.ts` (`runStack`, `run`, `runExpr`) |
 | `editor/editor.ts`, `editor/logo-language.ts`, `format/beautify.ts` | CodeMirror setup behind the `Editor` interface; Logo highlighting tokenizer; pure formatter |
 | `ui/` | `console.ts` (`log`) · `input.ts` (key queue + mouse for KEYP / READKEY / MOUSEX …) · `program.ts` (`runProgram`, RUN/STOP/CLR) · `direct.ts` (`tryInDirect`) · `splitter.ts` · `overlays.ts` · `reference-panel.ts` (Commands, from `REFERENCE`: chips, ranked search, cards) · `examples-overlay.ts` (search, topics, cards, preview) · `thumbs.ts` (example pictures) · `help-nav.ts` (links between the panels, F1) · `options.ts` · `files.ts` · `autosave.ts` · `resize.ts` · `code-buttons.ts` |
@@ -309,6 +309,6 @@ See `blue-logo-lang-spec.md` for full detail.
 - **Fills** (v8.11): `BEGINFILL` records the turtle's end points (`notePoint` after every move / goTo); `ENDFILL` stores a polygon `{at, …}` painted just before segment `at`, i.e. under the outline. Fill colour = pen colour at BEGINFILL.
 - **Parentheses at statement level** (v8.11): `(PRINT …)` / `(LABEL …)` take several inputs (`PAREN_CMD`), `(PROC a b c)` passes optional inputs (`TO P :A [:B 1]`). Without parentheses a procedure takes only its required inputs.
 - **Keyboard / mouse** (v8.11): `KEYP`, `READKEY` (waits; key codes A = 65, arrows 37–40), `MOUSEX`, `MOUSEY`, `BUTTONP`, `TIMER` — through `io.keyWaiting` / `readKey` / `mouse`. Keys are queued only while a program runs and not typed into a text field.
-- **Graphs** (v8.15): `SETPLOT xmin xmax ymin ymax` (or `(SETPLOT … "EQUAL)`) stores a graph range in `session.plot`; it does **not** change turtle coordinates — only `PLOT`, `AXES`, `PLOTX` / `PLOTY` use it (`turtle/plot.ts`). The range fills the canvas minus a 40-step margin, recomputed from `io.canvasSize()` on every use. `PLOT` breaks the line at points outside the range (drawn to the edge, restarted where the curve comes back). `FOR` counts `start + k × step` (v8.15), so fractional steps meet 0 exactly.
+- **Graphs** (v8.15): `SETPLOT xmin xmax ymin ymax` (or `(SETPLOT … "EQUAL)`) stores a graph range in `session.plot`; it does **not** change turtle coordinates — only `PLOT`, `AXES`, `GRID`, `PLOTX` / `PLOTY` use it (`turtle/plot.ts`). The range fills the canvas minus a 40-step margin, recomputed from `io.canvasSize()` on every use. `PLOT` breaks the line at points outside the range (drawn to the edge, restarted where the curve comes back). `FOR` counts `start + k × step` (v8.15), so fractional steps meet 0 exactly.
 - **`ARC`** walks the true arc (half-step turns, exact end point); **`CIRCLE`** keeps its older polygon so existing drawings do not move.
 - **Not implemented:** flood `FILL`, list/string values (and so `PENCOLOR`). Planned order: `TODO.md` → Language.
