@@ -44,7 +44,7 @@ const PLACEHOLDER = [
   '; Move:    FD 100   BK 50   RT 90   LT 45',
   '; Draw:    CIRCLE 80   SETCOLOR 200 50 50',
   '; Repeat:  REPEAT 4 [ FD 100 RT 90 ]',
-  '; Vars:    MAKE :n 10   FD :n',
+  '; Vars:    MAKE "n 10   FD :n',
   '; Procs:   TO SQUARE',
   ';            REPEAT 4 [FD 80 RT 90]  END',
   ';',

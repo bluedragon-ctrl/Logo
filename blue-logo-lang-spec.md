@@ -1,5 +1,5 @@
 # Blue Logo — Language Specification
-## Version 8.16.0 — November 2026
+## Version 8.16.2 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -61,7 +61,9 @@ FD 100 -10         ; error: -10 is an extra value. Subtraction needs spaces: FD 
 
 ### 1.3 Variables
 
-Variables are assigned with `MAKE "name value` and read with `:name` ("the value of name"). Names are case-insensitive. This is the standard Logo form and the one the examples use. `MAKE :name value` is accepted as a shortcut, as are `LOCALMAKE :name` / `LOCAL :name` (in UCBLogo, `MAKE :x` means something else — it assigns to the variable *named by* `:x` — so prefer `"`).
+Variables are **named** with a quote and **read** with a colon: `MAKE "name value` sets a variable, `:name` is "the value of name". Names are case-insensitive. The same rule holds wherever a command takes a variable name — `MAKE "x`, `LOCALMAKE "x`, `LOCAL "x "y`, `FOR "i …` — and the examples, the Commands panel and this specification all write it that way. Procedure parameters in `TO` are written `:name` (`TO SQUARE :SIZE`), as in every Logo.
+
+`:name` in a naming position is accepted as a shortcut (`MAKE :x 5`, `FOR :i 1 10 […]`) and does the same. Prefer `"`: in UCBLogo, `MAKE :x` means something else — it assigns to the variable *named by* the value of `:x`.
 
 ```logo
 MAKE "x 42
@@ -144,8 +146,8 @@ See §6 for scoping rules.
 | `REPCOUNTMAX` | Total iteration count n of that `REPEAT`. |
 | `FOREVER [body]` | Run body again and again. Leave it with `BREAK` (or `STOP` inside a procedure); the STOP button always works. `REPCOUNT` counts the rounds (1, 2, …); `REPCOUNTMAX` is an error inside `FOREVER`. |
 | `WHILE [cond] [body]` | Run body while cond is non-zero; cond is checked before each iteration. |
-| `FOR :v start end [body]` | Count `:v` from start to end in steps of ±1 (direction automatic). |
-| `FOR :v start end step [body]` | As above with an explicit step. Step 0 is an error. Fractional steps are safe (`FOR :i 0 1 0.1` runs 11 times): the k-th value is `start + k × step`, rounded to 15 digits, so `FOR :x -1 1 0.01` meets 0 and 1 exactly. |
+| `FOR "v start end [body]` | Count `:v` from start to end in steps of ±1 (direction automatic). |
+| `FOR "v start end step [body]` | As above with an explicit step. Step 0 is an error. Fractional steps are safe (`FOR "i 0 1 0.1` runs 11 times): the k-th value is `start + k × step`, rounded to 15 digits, so `FOR "x -1 1 0.01` meets 0 and 1 exactly. |
 | `BREAK` | Leave the innermost `REPEAT` / `FOR` / `WHILE`. Error outside a loop or across a procedure boundary. |
 | `CONTINUE` | Skip to the next iteration of the innermost loop. Same restrictions as `BREAK`. |
 
@@ -207,7 +209,7 @@ FD DOUBLE 50    ; forward 100
 
 | Command | Description |
 |---|---|
-| `MAKE "name val` | Set a variable (see §6 for which one). `MAKE :name val` also works. |
+| `MAKE "name val` | Set a variable (see §6 for which one). `MAKE :name val` also works (§1.3). |
 | `LOCALMAKE "name val` | Create a variable private to the current procedure and set it. |
 | `LOCAL "a "b …` | Declare variables private to the current procedure; give them values later with `MAKE`. Reading one before it has a value is an error. |
 | `PRINT val` / `PR val` | Print a value to the console (`0.1 + 0.2` prints `0.3`). Always shown, opens the console if hidden. |
@@ -265,10 +267,10 @@ SETCOLOR 215 210 195 GRID 0.5 1     ; light graph paper
 SETCOLOR GRAY AXES 0.5 1
 SETCOLOR BLUE SETWIDTH 2
 PU                              ; jump to the first point
-FOR :X -2 2 0.01 [ PLOT :X :X * :X PD ]
+FOR "X -2 2 0.01 [ PLOT :X :X * :X PD ]
 ```
 
-Division by zero stays an error in a graph: for `y = 1 / x`, skip x = 0 (`IF :X <> 0 [ PLOT :X 1 / :X PD ]`). `FOR` counts `start + k × step`, so with `FOR :X -1 1 0.01` the value 0 really is 0.
+Division by zero stays an error in a graph: for `y = 1 / x`, skip x = 0 (`IF :X <> 0 [ PLOT :X 1 / :X PD ]`). `FOR` counts `start + k × step`, so with `FOR "X -1 1 0.01` the value 0 really is 0.
 
 ---
 
@@ -370,7 +372,7 @@ Blue Logo uses **dynamic scoping**, like UCBLogo: a procedure can read the varia
 | `MAKE "x …` | Updates the nearest existing `:x` — a parameter or `LOCAL` of the current procedure, of a calling procedure, a `FOR` variable, or a global. If no `:x` exists, a **global** is created. |
 | `LOCALMAKE "x …` / `LOCAL "x` | Creates `:x` in the current procedure (at top level: a global). It shadows outer variables of the same name until the procedure returns. |
 | Procedure parameters | Private to each call. `MAKE` of a parameter changes only that call's copy. |
-| `FOR :v …` | `:v` exists only inside the loop. Everything else behaves as outside the loop (a `MAKE` in the body updates outer variables). |
+| `FOR "v …` | `:v` exists only inside the loop. Everything else behaves as outside the loop (a `MAKE` in the body updates outer variables). |
 | `REPEAT` / `WHILE` / `IF` bodies | No new scope. |
 
 ```logo

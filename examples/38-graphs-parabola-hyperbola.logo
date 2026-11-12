@@ -12,7 +12,7 @@ AXES 1 1                    ; a tick and a number every 1
 ; Parabola y = x * x - 2
 SETCOLOR BLUE SETWIDTH 2
 PU                          ; jump to the first point
-FOR :X -4 4 0.05 [
+FOR "X -4 4 0.05 [
   PLOT :X :X * :X - 2
   PD                        ; draw from the second point on
 ]
@@ -21,7 +21,7 @@ FOR :X -4 4 0.05 [
 ; Points outside the range break the line, so the two halves stay apart.
 SETCOLOR RED
 PU
-FOR :X -4 4 0.05 [
+FOR "X -4 4 0.05 [
   IF :X <> 0 [ PLOT :X 1 / :X PD ]
 ]
 PU HOME HT

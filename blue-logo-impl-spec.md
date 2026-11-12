@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.16.1 — November 2026
+## Version 8.16.2 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -232,7 +232,7 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 | Exec | `tokens, idx, vars` [+ `procBoundary, procName, stmtCall, outputVal`] | Reads the next token; dispatches. Popped when exhausted. |
 | Repeat | `isRepeat, body, vars, remaining, iteration, total` | Pushes a body frame with a fresh iteration scope carrying `[REPEAT_SCOPE] = { count, max }`, or pops. `FOREVER` pushes one with `remaining = total = Infinity` (REPCOUNTMAX then throws). |
 | While | `isWhile, cond, body, vars` | Evaluates `cond` (token array) each time; pushes body or pops. |
-| For | `isFor, varName, start, k, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal` to `start + k × step` (k counts the rounds; rounded to 15 significant digits, so `FOR :x -1 1 0.01` meets 0 and 1 exactly — adding the step each round drifted), or pops. `eps = |step| × 1e-9` absorbs what drift remains in the end test. |
+| For | `isFor, varName, start, k, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal` to `start + k × step` (k counts the rounds; rounded to 15 significant digits, so `FOR "x -1 1 0.01` meets 0 and 1 exactly — adding the step each round drifted), or pops. `eps = |step| × 1e-9` absorbs what drift remains in the end test. |
 
 `procBoundary` marks a procedure body. `stmtCall: true` when called as a command (pushed by `runStack`), absent when called by `runExpr`. In `runtime.ts` the frames are a TypeScript union (`ExecFrame | RepeatFrame | WhileFrame | ForFrame`): testing `frame.isRepeat` / `isWhile` / `isFor` narrows the type, and `isLoopFrame` is a type guard. A new loop frame type goes into that union.
 

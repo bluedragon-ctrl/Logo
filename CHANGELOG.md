@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.16.2  2026-11-12
+**ONE WAY TO NAME A VARIABLE**
+- ~ CHANGE: variables are now written the same way everywhere — a quote names a variable, a colon reads its value: MAKE "x, LOCALMAKE "x, LOCAL "x "y, FOR "i … (procedure parameters stay TO P :x). Before, the examples used MAKE "x but FOR :x, and the Commands panel used MAKE :x, LOCALMAKE :x and LOCAL :x. Changed in the examples, the Commands panel, the editor's welcome text, both specs, the tests, and the "expected a variable name like …" errors and MAKE / LOCALMAKE info lines. :x in a naming position still works and does the same (lang-spec §1.3); new test cases keep it covered.
+
 ## v8.16.1  2026-11-12
 **TOOLBAR FITS WITH ANY FONTS**
 - * BUG: v8.16.0 was not deployed — with the new Save picture button, the toolbar above the editor overflowed the narrowest panel when the computer's fonts were a little wider (as on the CI machine), so the browser test failed. At the narrowest width, Commands and Examples now show only their icons (named by title and aria-label), which do not depend on fonts; the browser test now requires at least 40 px of room to spare.

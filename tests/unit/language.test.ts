@@ -33,7 +33,7 @@ describe('interpreter state', () => {
     expect(session.drawing.len).toBe(1);
   });
   test('CS clears the drawing but keeps variables', async () => {
-    const { session, out } = await runLogo('MAKE :A 5\nFD 10\nCS\nPRINT :A');
+    const { session, out } = await runLogo('MAKE "A 5\nFD 10\nCS\nPRINT :A');
     expect(session.drawing.len).toBe(0);
     expect(out).toContain('PRINT → 5');
   });
@@ -50,7 +50,7 @@ describe('interpreter state', () => {
     expect(big.out).toContain('✓ Done!');
   });
   test('variables and procedures persist in a session (direct mode)', async () => {
-    const first = await runLogo('MAKE :N 3\nTO TRI\n REPEAT :N [ FD 10 RT 120 ]\nEND');
+    const first = await runLogo('MAKE "N 3\nTO TRI\n REPEAT :N [ FD 10 RT 120 ]\nEND');
     const { out, session } = await runLogo('TRI\nPRINT :N', { session: first.session });
     expect(out).toContain('PRINT → 3');
     expect(session.drawing.len).toBe(3);
@@ -146,7 +146,7 @@ describe('interpreter state', () => {
   });
   test('PLOT breaks the line outside the range: drawn to the edge, restarted where it comes back', async () => {
     // 1 / x at -1.5 -0.5 0.5 1.5: in, out below (line to the bottom edge), out above, back in from the top edge
-    const { session } = await runLogo('SETPLOT -4 4 -1 1\nPU\nFOR :X -1.5 1.5 1 [ PLOT :X 1 / :X PD ]', { width: 480, height: 480 });
+    const { session } = await runLogo('SETPLOT -4 4 -1 1\nPU\nFOR "X -1.5 1.5 1 [ PLOT :X 1 / :X PD ]', { width: 480, height: 480 });
     const segs = Array.from({ length: session.drawing.len }, (_, i) => segment(session.drawing, i));
     expect(segs.length).toBe(2);
     expect(segs.every(([, y1, , y2]) => Math.abs(y1) <= 200 && Math.abs(y2) <= 200)).toBe(true);
@@ -201,7 +201,7 @@ describe('interpreter state', () => {
   test('STOP (rctx.stopped) ends the run without an error', async () => {
     const io = headlessIO();
     const rctx = makeRunContext(4, createSession(), io);
-    const parsed = parseProgram('WHILE [ 1 = 1 ] [ MAKE :I 1 ]', io);
+    const parsed = parseProgram('WHILE [ 1 = 1 ] [ MAKE "I 1 ]', io);
     if (!parsed) throw new Error('parse failed');
     const run = execute(parsed.topLevel, rctx);
     setTimeout(() => { rctx.stopped = true; }, 50);

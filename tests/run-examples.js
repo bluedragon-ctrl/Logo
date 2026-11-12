@@ -151,7 +151,7 @@ const UI_CHECKS = [
     return [ok, JSON.stringify({ name: dl.suggestedFilename(), ...r })];
   }, { currentOnly: true }],
   ['infinite WHILE can be stopped', async (page) => {
-    await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE :I 1 ]'); document.getElementById('btn-run').click(); });
+    await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE "I 1 ]'); document.getElementById('btn-run').click(); });
     await page.waitForTimeout(300);
     await page.evaluate(() => document.getElementById('btn-stop').click());
     const ok = await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 }).then(() => true, () => false);

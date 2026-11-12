@@ -3,7 +3,7 @@
 ;; topic: Loops
 ;; shows: FOR
 ; Spokes at every 15 degrees, length grows with angle
-FOR :A 0 345 15 [
+FOR "A 0 345 15 [
   SETCOLOR 80 :A * 0.7 220
   MAKE "LEN :A * 0.5
   MAKE "LEN :LEN + 20
