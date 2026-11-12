@@ -24,7 +24,7 @@ import type { Proc, RunContext, Scope, Token } from './types.ts';
 //     runExpr called it for its value (runExpr reads .outputVal afterwards).
 //   repeat frame { isRepeat, body, vars, remaining, iteration, total }   (FOREVER: remaining = total = Infinity)
 //   while frame  { isWhile, cond, body, vars }
-//   for frame    { isFor, varName, end, step, body, vars, nextVal, eps }
+//   for frame    { isFor, varName, start, k, end, step, body, vars, nextVal, eps }
 //
 // Scopes — dynamic scoping, as in UCBLogo. Plain objects linked by prototype:
 //   rctx.globals        root scope (session.globals)
@@ -67,7 +67,7 @@ interface ExecFrame {
 interface LoopFrameBase { procBoundary?: never; vars: Scope; body: Token[] }
 interface RepeatFrame extends LoopFrameBase { isRepeat: true; isWhile?: never; isFor?: never; remaining: number; iteration: number; total: number }
 interface WhileFrame  extends LoopFrameBase { isWhile: true; isRepeat?: never; isFor?: never; cond: Token[] }
-interface ForFrame    extends LoopFrameBase { isFor: true; isRepeat?: never; isWhile?: never; varName: string; end: number; step: number; nextVal: number; eps: number }
+interface ForFrame    extends LoopFrameBase { isFor: true; isRepeat?: never; isWhile?: never; varName: string; start: number; k: number; end: number; step: number; nextVal: number; eps: number }
 type LoopFrame = RepeatFrame | WhileFrame | ForFrame;
 type Frame = ExecFrame | LoopFrame;
 
@@ -131,7 +131,9 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       const active = frame.step > 0 ? cur <= frame.end + frame.eps : cur >= frame.end - frame.eps;
       if(active) {
         frame.vars[frame.varName] = cur;          // body sees current value
-        frame.nextVal             = cur + frame.step;
+        // start + k × step, not cur + step: adding 0.01 a hundred times to -1 gives
+        // 7.5e-16, not 0. Rounding to 15 digits also removes 0.1 × 3 = 0.30000000000000004.
+        frame.nextVal             = Number((frame.start + ++frame.k * frame.step).toPrecision(15));
         stack.push({ tokens: frame.body, idx: 0, vars: frame.vars });
       } else {
         stack.pop();
@@ -252,7 +254,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       const forVars: Scope = Object.create(frame.vars);
       forVars[name] = start;
       // eps: tolerance for IEEE-754 drift with fractional steps (FOR :i 0 1 0.1).
-      stack.push({ isFor:true, varName:name, end, step, body, vars:forVars, nextVal:start, eps:Math.abs(step) * 1e-9 });
+      stack.push({ isFor:true, varName:name, start, k:0, end, step, body, vars:forVars, nextVal:start, eps:Math.abs(step) * 1e-9 });
       continue;
     }
 

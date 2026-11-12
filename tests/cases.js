@@ -135,5 +135,21 @@ export const CASES = [
   // v8.14: numbers in error messages are shown like PRINT shows them (no float drift)
   ['domain error shows a rounded number', 'PRINT ARCSIN 1.0000000000000002', 'ARCSIN: argument 1 out of range'],
   ['POWER error shows rounded numbers',   'PRINT POWER -0.1 - 0.2 0.5', 'POWER -0.3 0.5 is not a real number'],
+  // v8.15: FOR counts start + k × step (no drift); SETPLOT / PLOT / AXES / PLOTX / PLOTY
+  ['FOR with a fractional step hits 0 exactly', 'FOR :X -1 1 0.01 [ IF :X = 0 [ PRINT 1 / (:X + 1) ] ]', 'PRINT → 1'],
+  ['FOR with a fractional step ends exactly',   'MAKE "L 0\nFOR :X -1 1 0.01 [ MAKE "L :X ]\n(PRINT :L = 1 :L)', 'PRINT → 1 1'],
+  ['FOR 0.1 steps are clean',        'FOR :X 0 0.3 0.1 [ PRINT :X * 10 ]', 'PRINT → 3'],
+  ['1 / x in FOR divides by zero at 0', 'SETPLOT -5 5 -5 5\nPU\nFOR :X -1 1 0.5 [ PLOT :X 1 / :X PD ]', 'Division by zero'],
+  ['PLOT then PLOTX / PLOTY',        'SETPLOT -1 1 -1 1\nPU PLOT 0.5 -0.25\n(PRINT PLOTX PLOTY)', 'PRINT → 0.5 -0.25'],
+  ['PLOT outside the range keeps the turtle in', 'SETPLOT -1 1 -1 1\nPLOT 0.5 0\nPLOT 0.5 100\nPRINT PLOTY', 'PRINT → 1'],
+  ['(SETPLOT … "EQUAL)',             '(SETPLOT -1 1 -1 1 "EQUAL)\nPU PLOT 1 1\nPRINT PLOTX = PLOTY', 'PRINT → 1'],
+  ['SETPLOT checks its range',       'SETPLOT 1 -1 0 1', 'SETPLOT: xmin (1) must be less than xmax (-1)'],
+  ['SETPLOT unknown option',         '(SETPLOT -1 1 -1 1 "ROUND)', 'the only option is "EQUAL'],
+  ['PLOT needs SETPLOT',             'PLOT 1 2', 'PLOT: no graph range yet — start with SETPLOT'],
+  ['PLOTX needs SETPLOT',            'PRINT PLOTX', 'PLOTX: no graph range yet'],
+  ['RESETPLOT forgets the range',    'SETPLOT -1 1 -1 1\nRESETPLOT\nPLOT 0 0', 'PLOT: no graph range yet'],
+  ['AXES draws without moving the turtle', 'SETPLOT 0 10 0 10\nAXES 1 1\nPRINT XCOR + YCOR', 'PRINT → 0'],
+  ['AXES step must be > 0',          'SETPLOT -1 1 -1 1\nAXES 0 1', 'AXES: a step must be a number > 0'],
+  ['AXES step too small',            'SETPLOT -1 1 -1 1\nAXES 0.001 0.1', 'puts the ticks too close together'],
 ];
 

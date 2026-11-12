@@ -5,6 +5,7 @@ import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, beginFill, endFill, notePoint, trailPushIfRoom } from '../turtle/drawing.ts';
 import { arc, circle, edgePath, move, normAngle, ouch, rotate, wrapCoord } from '../turtle/motion.ts';
+import { drawAxes, makePlotFrame, plotStep } from '../turtle/plot.ts';
 import type { CommandHandler, EdgeMode, RunContext, Scope, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
@@ -209,6 +210,53 @@ CMD['DOT'] = async (t,i,v,rctx) => {
   await tick(rctx);
   return i;
 };
+// ▸ Graphs (turtle/plot.ts) — SETPLOT sets a graph range; PLOT, AXES, PLOTX / PLOTY
+// use it. The turtle's own coordinates (FD, SETPOS, XCOR …) do not change.
+// SETPLOT xmin xmax ymin ymax / (SETPLOT xmin xmax ymin ymax "EQUAL).
+async function setPlot(t: Token[], i: number, v: Scope, rctx: RunContext, parens: boolean): Promise<number> {
+  const vals: number[] = [];
+  for(let k = 0; k < 4; k++) { const r = await evalExpr(t, i, v, rctx); vals.push(r.value); i = r.nextIdx; }
+  let equal = false;
+  if(parens) {
+    const w = wordArg(t, i);
+    if(w) {
+      if(w.text.toUpperCase() !== 'EQUAL') throw new Error('SETPLOT: unknown option "' + w.text + ' — the only option is "EQUAL');
+      equal = true; i = w.nextIdx;
+    }
+    if(t[i]?.text !== ')') throw new Error('Missing ) — (SETPLOT xmin xmax ymin ymax "EQUAL) takes one option at most');
+    i++;
+  }
+  const [xmin, xmax, ymin, ymax] = vals;
+  rctx.session.plot = makePlotFrame(xmin, xmax, ymin, ymax, equal);
+  rctx.io.log('SETPLOT ' + vals.map(formatNum).join(' ') + (equal ? ' EQUAL' : ''), 'info');
+  return i;
+}
+CMD['SETPLOT'] = (t,i,v,rctx) => setPlot(t, i, v, rctx, false);
+PAREN_CMD['SETPLOT'] = (t,i,v,rctx) => setPlot(t, i, v, rctx, true);
+CMD['RESETPLOT'] = async (_t,i,_v,rctx) => { rctx.session.plot = null; rctx.io.log('RESETPLOT','info'); return i; };
+// PLOT x y: go to graph point (x, y) like SETPOS — a line if the pen is down. A point
+// outside the range breaks the line (plotStep).
+CMD['PLOT'] = async (t,i,v,rctx) => {
+  const {value:x, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:y, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  const what = 'PLOT ' + formatNum(x) + ' ' + formatNum(y);
+  const step = plotStep(rctx, x, y), tt = rctx.session.turtle;
+  if(step.jump) { tt.x = step.jump[0]; tt.y = step.jump[1]; }
+  if(step.to) await goTo(step.to[0], step.to[1], what, rctx);
+  else if(step.exit) await goTo(step.exit[0], step.exit[1], what + ' (outside the range)', rctx);
+  else { if(rctx.io.logs('op')) rctx.io.log(what + ' (outside the range)', 'op'); await tick(rctx); }
+  return i2;
+};
+// AXES xstep ystep: draw both axes with ticks and numbers for the SETPLOT range.
+CMD['AXES'] = async (t,i,v,rctx) => {
+  const {value:xs, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:ys, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  drawAxes(rctx, xs, ys);
+  rctx.io.log('AXES ' + formatNum(xs) + ' ' + formatNum(ys), 'op');
+  await tick(rctx);
+  return i2;
+};
+
 // XCOR / YCOR / HEADING as standalone statements: log current value, no-op otherwise.
 CMD['XCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('XCOR = '   +formatNum(rctx.session.turtle.x),'info');                        return i; };
 CMD['YCOR']    = async (_t,i,_v,rctx) => { rctx.io.log('YCOR = '   +formatNum(rctx.session.turtle.y),'info');                        return i; };

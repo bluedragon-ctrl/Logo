@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.14 — November 2026
+## Version 8.15 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -75,9 +75,10 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
 | `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `beginFill` / `notePoint` / `endFill` (BEGINFILL … ENDFILL), `MAX_TRAIL_SEGS`, `MAX_LABELS`, `MAX_FILLS`, `MAX_FILL_POINTS`. |
 | `turtle/motion.ts` | `clipToCanvas`, `edgePath` (FENCE / WRAP / WINDOW), `wrapCoord`, `ouch`, `move`, `rotate`, `circle`, `arc`. |
+| `turtle/plot.ts` | SETPLOT graph range (§3.8): `PLOT_MARGIN`, `plotMapping`, `toCanvas` / `fromCanvas`, `inPlotArea`, `requirePlot`, `makePlotFrame`, `plotStep` (PLOT's line breaking), `drawAxes`. |
 | **interpreter/** | |
 | `interpreter/session.ts` | `createSession`, `clearScreen(session, io, { keepSettings? })`, `clearProcs`. |
-| `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Fill`, `Drawing`, `Proc`, `EdgeMode`, `FillPath`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
+| `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Fill`, `Drawing`, `Proc`, `EdgeMode`, `FillPath`, `PlotFrame`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
 | `interpreter/io.ts` | The LogoIO contract (header comment) and `headlessIO()` (`HeadlessIO`). |
 | `interpreter/context.ts` | `makeRunContext`, `activeRctx` + `setActiveRctx`, `haltRun`. |
 | `interpreter/execute.ts` | `parseProgram`, `registerProcs`, `execute` — shared by RUN, direct mode and the unit tests. |
@@ -87,7 +88,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `interpreter/expr.ts` | `QUERY_TOKENS`, `resolveToken`, operator tables, word classes (`isReporterWord`, `isCommandWord`, `isBuiltinWord`), `checkProcInput`, `procInputs` / `bindDefaults` / `paramList` (procedure inputs, optional ones), `READKEY`, `approxEq`, `evalExpr` and the precedence parser, `noteTok`. |
 | `interpreter/signals.ts` | `STOP_SIGNAL`, `MAX_STACK_FRAMES`. |
 | `interpreter/pacing.ts` | `nextFrame`, `macroYield`, `sleep`, `spendFrame`, `tick`, `STEPS_PER_FRAME`, `DEG_PER_FRAME`, `INSTANT_FLUSH`. |
-| `interpreter/commands.ts` | `CMD` and all leaf handlers, `PAREN_CMD` (`(PRINT …)`, `(LABEL …)`), `COLOR_NAMES`. |
+| `interpreter/commands.ts` | `CMD` and all leaf handlers, `PAREN_CMD` (`(PRINT …)`, `(LABEL …)`, `(SETPLOT … "EQUAL)`), `COLOR_NAMES`. |
 | `interpreter/runtime.ts` | INTERPRETER header comment (frames, scopes, flow control, tail calls), `runExpr`, `runStack`, `run`. |
 | **editor/, format/** | |
 | `editor/editor.ts` | `editor` (`getValue`, `setValue`, `initValue`, `onChange`, `focus`): the CodeMirror view, its extensions and highlight style, line indicator. |
@@ -112,7 +113,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 ### 1.3 Session and LogoIO
 
-`createSession()` (`interpreter/session.ts`) → `{ turtle, drawing, globals, procs, walkTick, isMoving, background, edge, fillPath }`. The page has one (`src/app.ts`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)` (CS with `{ keepSettings: true }`: it keeps `background` and `edge`); RUN and CLR also set `session.globals = {}` and `clearProcs(session)`. A RUN without clearing drops an unfinished `fillPath`.
+`createSession()` (`interpreter/session.ts`) → `{ turtle, drawing, globals, procs, walkTick, isMoving, background, edge, fillPath, plot }`. The page has one (`src/app.ts`); tests make one per case. CS / RUN-with-clear / CLR call `clearScreen(session, io)` (CS with `{ keepSettings: true }`: it keeps `background`, `edge` and `plot`); RUN and CLR also set `session.globals = {}` and `clearProcs(session)`. A RUN without clearing drops an unfinished `fillPath`.
 
 `rctx.io` is the interpreter's only way out (`interpreter/io.ts`):
 
@@ -231,7 +232,7 @@ Precedence (`BINOP_PREC`): `OR` 1 < `AND` 2 < comparisons 3 < `+ -` 4 < `* / MOD
 | Exec | `tokens, idx, vars` [+ `procBoundary, procName, stmtCall, outputVal`] | Reads the next token; dispatches. Popped when exhausted. |
 | Repeat | `isRepeat, body, vars, remaining, iteration, total` | Pushes a body frame with a fresh iteration scope carrying `[REPEAT_SCOPE] = { count, max }`, or pops. `FOREVER` pushes one with `remaining = total = Infinity` (REPCOUNTMAX then throws). |
 | While | `isWhile, cond, body, vars` | Evaluates `cond` (token array) each time; pushes body or pops. |
-| For | `isFor, varName, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal`, or pops. `eps = |step| × 1e-9` absorbs float drift. |
+| For | `isFor, varName, start, k, end, step, body, vars, nextVal, eps` | Writes the loop variable into its FOR scope, pushes body, advances `nextVal` to `start + k × step` (k counts the rounds; rounded to 15 significant digits, so `FOR :x -1 1 0.01` meets 0 and 1 exactly — adding the step each round drifted), or pops. `eps = |step| × 1e-9` absorbs what drift remains in the end test. |
 
 `procBoundary` marks a procedure body. `stmtCall: true` when called as a command (pushed by `runStack`), absent when called by `runExpr`. In `runtime.ts` the frames are a TypeScript union (`ExecFrame | RepeatFrame | WhileFrame | ForFrame`): testing `frame.isRepeat` / `isWhile` / `isFor` narrows the type, and `isLoopFrame` is a type guard. A new loop frame type goes into that union.
 
@@ -372,6 +373,16 @@ Both styles are centred on the pen position and show the pen state as a dot ther
 - **`circle(r, rctx)`** — polygon with `max(36, round(|r|))` sides: `move(2πr/steps)` + `rotate(360/steps)`. Negative r mirrors.
 - **`arc(deg, r, rctx)`** — the same step density (`ceil(max(36, round|r|) × |deg| / 360)` steps), but placed on the true arc: `rotate(step/2)`, then chords `2r·sin(step/2)` separated by full-step turns, a half-step turn at the end. Unless stopped the turtle is then put on the exactly computed end point (centre = start + k·n(h₀), end = centre − k·n(h₀ + deg), n(h) = (cos h, −sin h), k = r·sign(deg)), removing the 10⁻⁹ drift of the snapped steps. In WRAP mode the exact end point is folded onto the canvas with `wrapCoord`. `r = 0` only turns. (CIRCLE keeps its older polygon so existing drawings do not move.)
 
+
+### 3.8 Graph range (SETPLOT)
+
+`turtle/plot.ts`. `session.plot` is `null` or a `PlotFrame { xmin, xmax, ymin, ymax, equal, outside }`; it never changes the turtle's coordinates — only `PLOT`, `AXES`, `PLOTX` / `PLOTY` read it. `plotMapping(frame, io.canvasSize())` is worked out on every use: the plot area is the canvas minus `PLOT_MARGIN` (40) on each side (half-sizes `hw`, `hh`), `sx = 2hw / (xmax − xmin)`, `sy = 2hh / (ymax − ymin)` (both the smaller one when `equal`), and canvas = (graph − centre) × scale, snapped to 10⁻⁹. Because the area is centred on the canvas origin, a point inside it never meets the canvas edge (no OUCH).
+
+- **`PLOT x y`** asks `plotStep` what to do, then uses `goTo` (so fills, logging and pacing are those of SETPOS). Inside the area: if the previous PLOT was outside (`frame.outside`) and the pen is down, the turtle first jumps (no line) to where the segment outside → here enters the area (`clipToCanvas` from the inside point towards the outside one); then `goTo` the point. Outside (or not finite): if the previous PLOT was inside and the turtle is in the area, `goTo` the point where the segment leaves the area; the turtle stays there and `frame.outside` remembers the canvas point. Two outside points in a row draw nothing — that is what keeps `1 / x` from drawing its asymptote. `SETPLOT` and `CS` reset `outside`.
+- **`AXES xstep ystep`** (`drawAxes`): the axes cross at (0, 0) when 0 is in the shown range, otherwise at its bottom / left edge; ticks at every multiple `k × step` (k from `ceil(lo / step)` to `floor(hi / step)`, the value rounded to 12 digits), labels every 1st, 2nd, 5th, 10th … tick so they are at least 45 (x) / 22 (y) steps apart, positioned with an estimated 7 steps per character; "0" once at the origin. All with `trailPushIfRoom` / `addLabel` in the pen colour and width, then one `tick()`. Steps ≤ 0, or ticks closer than 4 steps, are errors.
+- **`PLOTX` / `PLOTY`** (`QUERY_TOKENS`): `fromCanvas` of the turtle position, rounded to 12 digits.
+- **`(SETPLOT … "EQUAL)`** is a `PAREN_CMD` handler sharing `setPlot` with `SETPLOT`.
+
 ---
 
 ## 4. User Interface
@@ -497,6 +508,7 @@ runProgram(tokens)                               → async void  (page: activeRc
 move(dist, rctx) / rotate(deg, rctx) / circle(r, rctx) / arc(deg, r, rctx) → async void
 clipToCanvas(x0, y0, x1, y1, w, h)               → null | [x, y]
 edgePath(rctx, sx, sy, ex, ey)                   → {pieces, endX, endY, hit} · wrapCoord(v, half) → number
+plotMapping(frame, {w, h}) → PlotMapping · toCanvas(m, x, y) / fromCanvas(m, px, py) → [x, y] · plotStep(rctx, x, y) → {jump?, to?, exit?} · drawAxes(rctx, xstep, ystep)
 tick(rctx) / nextFrame(rctx) / macroYield(rctx) / sleep(ms, rctx) → Promise
 
 // Drawing store (core)
