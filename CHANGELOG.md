@@ -4,6 +4,10 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.16.1  2026-11-12
+**TOOLBAR FITS WITH ANY FONTS**
+- * BUG: v8.16.0 was not deployed — with the new Save picture button, the toolbar above the editor overflowed the narrowest panel when the computer's fonts were a little wider (as on the CI machine), so the browser test failed. At the narrowest width, Commands and Examples now show only their icons (named by title and aria-label), which do not depend on fonts; the browser test now requires at least 40 px of room to spare.
+
 ## v8.16.0  2026-11-12
 **GRID AND SAVE PICTURE; THREE-PART VERSION NUMBERS**
 - + ADDITION: GRID xstep ystep draws graph paper for the SETPLOT range: a line across the range at every multiple of the step, in the pen colour and width, no numbers. The graphs example now draws a light grid under the axes.

@@ -1,6 +1,6 @@
 {
   "name": "blue-logo",
-  "version": "8.16.0",
+  "version": "8.16.1",
   "private": true,
   "type": "module",
   "description": "Browser-based Logo turtle graphics for teaching",

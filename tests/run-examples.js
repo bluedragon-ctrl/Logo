@@ -329,14 +329,18 @@ const UI_CHECKS = [
       .filter(b => !(b.getAttribute('aria-label') || b.textContent.trim())).map(b => b.id));
     await page.setViewportSize({ width: 900, height: 900 });          // panel at its 360 px minimum
     await page.waitForTimeout(100);
-    const fits = await page.evaluate(() => { const l = document.getElementById('code-label'); return l.scrollWidth <= l.clientWidth; });
+    // Fits with room to spare (≥ 40 px), so other fonts (CI, Windows, Mac) cannot push it over.
+    const spare = await page.evaluate(() => { const l = document.getElementById('code-label');
+      const used = [...l.children].reduce((w, c) => w + c.getBoundingClientRect().width, 0) + parseFloat(getComputedStyle(l).columnGap) * (l.children.length - 1);
+      return Math.round(l.clientWidth - used) - Math.max(0, l.scrollWidth - l.clientWidth); });
+    const fits = spare >= 40;
     await page.setViewportSize({ width: 1400, height: 900 });
     const state = () => page.evaluate(() => [document.getElementById('btn-console-toggle').getAttribute('aria-expanded'),
       getComputedStyle(document.getElementById('console')).display, getComputedStyle(document.getElementById('console-label')).display]);
     await page.click('#btn-console-toggle'); const hidden = await state();
     await page.click('#btn-console-toggle'); const shown = await state();
     const ok = named.length === 0 && fits && hidden.join() === 'false,none,flex' && shown.join() === 'true,block,flex';
-    return [ok, JSON.stringify({ named, fits, hidden, shown })];
+    return [ok, JSON.stringify({ named, spare, hidden, shown })];
   }, { currentOnly: true }],
 ];
 
