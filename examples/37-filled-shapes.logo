@@ -55,7 +55,7 @@ HOUSE -230 -120 120
 HOUSE 20 -120 90
 
 ; A row of stars: 5 points (the default), then 7 and 9
-FOR :I 0 2 [
+FOR "I 0 2 [
   LOCALMAKE "N 5 + 2 * :I
   PU SETXY -260 + 110 * :I 205 SETH 90 PD
   SETCOLOR ORANGE

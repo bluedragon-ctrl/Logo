@@ -232,13 +232,13 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       continue;
     }
 
-    // ── FOR :var start end [step] [ body ] ──────────────────────────────────
+    // ── FOR "var start end [step] [ body ] ──────────────────────────────────
     // Step is optional (±1 towards end). The loop variable lives in a FOR scope
     // that inherits everything visible outside; it disappears after the loop.
     if(cmd === 'FOR') {
       const rawVar = frame.tokens[frame.idx++]?.text;
       if(!isVarTok(rawVar))
-        throw new Error('FOR: expected a variable name like :i, got: ' + (rawVar || 'nothing'));
+        throw new Error('FOR: expected a variable name like "i, got: ' + (rawVar || 'nothing'));
       const name = varName(rawVar);
       const {value:start, nextIdx:i1} = await evalExpr(frame.tokens, frame.idx, frame.vars, rctx);
       const {value:end,   nextIdx:i2} = await evalExpr(frame.tokens, i1, frame.vars, rctx);
@@ -253,7 +253,7 @@ async function runStack(stack: Frame[], rctx: RunContext): Promise<void> {
       frame.idx = ni;
       const forVars: Scope = Object.create(frame.vars);
       forVars[name] = start;
-      // eps: tolerance for IEEE-754 drift with fractional steps (FOR :i 0 1 0.1).
+      // eps: tolerance for IEEE-754 drift with fractional steps (FOR "i 0 1 0.1).
       stack.push({ isFor:true, varName:name, start, k:0, end, step, body, vars:forVars, nextVal:start, eps:Math.abs(step) * 1e-9 });
       continue;
     }

@@ -8,4 +8,4 @@ PRINT 10 - 2 - 3     ; 5
 TO POLY :N
   REPEAT :N [ FD 900 / (:N + 2) RT 360 / :N ]
 END
-FOR :N 3 8 [ POLY :N ]
+FOR "N 3 8 [ POLY :N ]

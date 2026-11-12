@@ -25,28 +25,28 @@ export const CMD: Record<string, CommandHandler> = {};
 CMD['MAKE'] = async (t,i,v,rctx) => {
   const rawName = t[i++]?.text;
   if(!isVarTok(rawName))
-    throw new Error('MAKE: expected a variable name like :x or "x, got: ' + (rawName || 'nothing'));
+    throw new Error('MAKE: expected a variable name like "x, got: ' + (rawName || 'nothing'));
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   setVar(v, name, value, rctx);
-  if(rctx.io.logs('info')) rctx.io.log('MAKE :' + name + ' = ' + formatNum(value), 'info');
+  if(rctx.io.logs('info')) rctx.io.log('MAKE "' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
-// LOCAL :a :b …  — declare variables local to the current procedure (no value yet).
+// LOCAL "a "b …  — declare variables local to the current procedure (no value yet).
 CMD['LOCAL'] = async (t,i,v,rctx) => {
-  if(!isVarTok(t[i]?.text)) throw new Error('LOCAL: expected a variable name like :x, got: ' + (t[i]?.text || 'nothing'));
+  if(!isVarTok(t[i]?.text)) throw new Error('LOCAL: expected a variable name like "x, got: ' + (t[i]?.text || 'nothing'));
   const scope = procScopeOf(v, rctx);
   for(let w = t[i]?.text; isVarTok(w); w = t[++i]?.text) { const name = varName(w); if(!hasOwn(scope, name)) scope[name] = undefined; }
   return i;
 };
-// LOCALMAKE :x value  — LOCAL + MAKE in one step.
+// LOCALMAKE "x value  — LOCAL + MAKE in one step.
 CMD['LOCALMAKE'] = async (t,i,v,rctx) => {
   const rawName = t[i++]?.text;
-  if(!isVarTok(rawName)) throw new Error('LOCALMAKE: expected a variable name like :x, got: ' + (rawName || 'nothing'));
+  if(!isVarTok(rawName)) throw new Error('LOCALMAKE: expected a variable name like "x, got: ' + (rawName || 'nothing'));
   const name = varName(rawName);
   const {value, nextIdx} = await evalExpr(t, i, v, rctx);
   procScopeOf(v, rctx)[name] = value;
-  if(rctx.io.logs('info')) rctx.io.log('LOCALMAKE :' + name + ' = ' + formatNum(value), 'info');
+  if(rctx.io.logs('info')) rctx.io.log('LOCALMAKE "' + name + ' = ' + formatNum(value), 'info');
   return nextIdx;
 };
 

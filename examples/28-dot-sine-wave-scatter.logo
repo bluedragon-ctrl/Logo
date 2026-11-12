@@ -7,7 +7,7 @@ SPEED 4
 MAKE "W SCRWIDTH / 2 - 10
 MAKE "H SCRHEIGHT / 2 - 10
 SETWIDTH 5
-FOR :A 0 360 3 [
+FOR "A 0 360 3 [
   MAKE "X (:A / 180 - 1) * :W
   MAKE "Y SIN :A * :H
   SETCOLOR :A * 0.7 80 255 - :A * 0.7

@@ -8,7 +8,7 @@ TO EVEN? :N
 END
 ; A bar for every even number — stop at the first one that is a multiple of 7
 SETWIDTH 12
-FOR :I 1 30 [
+FOR "I 1 30 [
   IF NOT EVEN? :I [ CONTINUE ]           ; odd: skip to the next :I
   PU SETPOS -220 + :I * 30 -150
   IF :I MOD 7 = 0 [ LABEL :I BREAK ]     ; found it: write it and leave the loop

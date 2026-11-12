@@ -4,7 +4,7 @@
 ;; shows: SPEED
 ; Each pass through the loop increases speed 1→4
 SETWIDTH 2
-FOR :S 1 4 [
+FOR "S 1 4 [
   SPEED :S
   REPEAT 4 [ FD 120 RT 90 ]
   RT 20
