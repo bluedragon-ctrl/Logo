@@ -71,6 +71,12 @@ export type EdgeMode = 'fence' | 'wrap' | 'window';
 /** A BEGINFILL in progress: the path so far (x, y pairs), its colour, Fill.at. */
 export interface FillPath { at: number; pts: number[]; rgb: [number, number, number] }
 
+/** SETPLOT's frame (turtle/plot.ts): the graph range shown on the canvas, inside a
+ *  margin. equal: one scale for x and y (the range is widened to fill the area).
+ *  outside: the canvas point of the last PLOT that fell outside the plot area
+ *  (the line is broken there), or null. */
+export interface PlotFrame { xmin: number; xmax: number; ymin: number; ymax: number; equal: boolean; outside: [number, number] | null }
+
 /** Everything a Logo program can change (session.ts). */
 export interface Session {
   turtle: Turtle;
@@ -85,6 +91,8 @@ export interface Session {
   edge: EdgeMode;
   /** Set between BEGINFILL and ENDFILL. */
   fillPath: FillPath | null;
+  /** SETPLOT frame for PLOT / AXES / PLOTX / PLOTY, or null. Kept by CS, like the edge mode. */
+  plot: PlotFrame | null;
 }
 
 /** Console line classes: filtered in the page's console (see ui/console.ts). */

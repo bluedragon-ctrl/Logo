@@ -138,6 +138,31 @@ describe('interpreter state', () => {
     clearScreen(session, headlessIO());
     expect(session.edge).toBe('fence');
   });
+  test('SETPLOT maps the range into the canvas minus the margin; EQUAL uses one scale', async () => {
+    const { session } = await runLogo('SETPLOT -1 1 0 10\nPU PLOT 1 10', { width: 480, height: 280 });
+    expect([session.turtle.x, session.turtle.y]).toEqual([200, 100]);   // 480 / 2 - 40, 280 / 2 - 40
+    const eq = await runLogo('(SETPLOT -1 1 -1 1 "EQUAL)\nPU PLOT 1 1', { width: 480, height: 280 });
+    expect([eq.session.turtle.x, eq.session.turtle.y]).toEqual([100, 100]);
+  });
+  test('PLOT breaks the line outside the range: drawn to the edge, restarted where it comes back', async () => {
+    // 1 / x at -1.5 -0.5 0.5 1.5: in, out below (line to the bottom edge), out above, back in from the top edge
+    const { session } = await runLogo('SETPLOT -4 4 -1 1\nPU\nFOR :X -1.5 1.5 1 [ PLOT :X 1 / :X PD ]', { width: 480, height: 480 });
+    const segs = Array.from({ length: session.drawing.len }, (_, i) => segment(session.drawing, i));
+    expect(segs.length).toBe(2);
+    expect(segs.every(([, y1, , y2]) => Math.abs(y1) <= 200 && Math.abs(y2) <= 200)).toBe(true);
+    expect(segs[0][3]).toBe(-200);   // ends on the bottom edge of the plot area
+    expect(segs[1][1]).toBe(200);    // starts again on the top edge
+    expect(segs.some(([x1, , x2]) => Math.sign(x1) !== Math.sign(x2))).toBe(false);   // no line across x = 0
+  });
+  test('AXES draws two axes, ticks and labels; CS keeps the range, clearScreen removes it', async () => {
+    const { session } = await runLogo('SETPLOT -1 1 -1 1\nAXES 0.5 0.5', { width: 480, height: 480 });
+    expect(session.drawing.len).toBe(2 + 5 + 5);
+    expect(session.drawing.labels.map(l => l.text).sort()).toEqual(['-0.5', '-0.5', '-1', '-1', '0', '0.5', '0.5', '1', '1']);
+    const cs = await runLogo('SETPLOT -1 1 -1 1\nCS');
+    expect(cs.session.plot).not.toBeNull();
+    clearScreen(cs.session, cs.io);
+    expect(cs.session.plot).toBeNull();
+  });
   test('(LABEL …) joins its inputs with spaces', async () => {
     const { session } = await runLogo('MAKE "N 3\n(LABEL "n: :N * 2 "cm)');
     expect(session.drawing.labels.map(l => l.text)).toEqual(['n: 6 cm']);

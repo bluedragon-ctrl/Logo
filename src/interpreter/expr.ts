@@ -5,6 +5,7 @@ import { nextFrame } from './pacing.ts';
 import { PROC_SCOPE, formatNum, hasOwn, isVarTok, repeatInfo, varName } from './scope.ts';
 import { STOP_SIGNAL } from './signals.ts';
 import { newLine } from './tokenizer.ts';
+import { fromCanvas, plotMapping, requirePlot } from '../turtle/plot.ts';
 import type { Proc, RunContext, Scope, Token, Turtle } from './types.ts';
 
 // ── Token resolution ──────────────────────────────────────────────────────────
@@ -23,6 +24,9 @@ export const QUERY_TOKENS = new Map<string, (ts: Turtle, rctx: RunContext) => nu
   ['SCRHEIGHT', (ts, rctx) => rctx.io.canvasSize().h],   // canvas height in Logo units
   ['PENSIZE',   ts => ts.width],
   ['PI',        () => Math.PI],
+  // The turtle's position in the SETPLOT graph range (turtle/plot.ts).
+  ['PLOTX',     (ts, rctx) => plotXY(ts, rctx, 'PLOTX')[0]],
+  ['PLOTY',     (ts, rctx) => plotXY(ts, rctx, 'PLOTY')[1]],
   // Interaction (io.ts): keyboard, mouse, time.
   ['KEYP',      (ts, rctx) => rctx.io.keyWaiting() ? 1 : 0],
   ['MOUSEX',    (ts, rctx) => rctx.io.mouse().x],
@@ -30,6 +34,10 @@ export const QUERY_TOKENS = new Map<string, (ts: Turtle, rctx: RunContext) => nu
   ['BUTTONP',   (ts, rctx) => rctx.io.mouse().down ? 1 : 0],
   ['TIMER',     (ts, rctx) => (Date.now() - rctx.timerStart) / 1000],   // seconds since the run started or RESETTIMER
 ]);
+function plotXY(ts: Turtle, rctx: RunContext, what: string): [number, number] {
+  const [x, y] = fromCanvas(plotMapping(requirePlot(rctx, what), rctx.io.canvasSize()), ts.x, ts.y);
+  return [Number(x.toPrecision(12)), Number(y.toPrecision(12))];
+}
 // READKEY: a value that waits — the next key press (io.ts, KEY CODES). Parsed in parsePrimary.
 export const READKEY = 'READKEY';
 

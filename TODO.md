@@ -43,6 +43,10 @@ Missing language features (review of Nov 2026), in the agreed order:
 - [x] `HOME` drawing a line when the pen is down (UCBLogo behaviour)
 - [ ] Maybe later: an interactive example (it cannot be in `examples/` while every example must finish on its own in the tests); a click queue (`CLICKP`) if polling `BUTTONP` proves too coarse
 
+**Graphs — v8.15**
+- [x] `SETPLOT xmin xmax ymin ymax` / `(SETPLOT … "EQUAL)`, `PLOT x y` (breaks the line outside the range), `AXES xstep ystep`, `PLOTX` / `PLOTY`, `RESETPLOT`; `FOR` without float drift
+- [ ] Maybe later: `MOUSEX` / `MOUSEY` in graph units; a light `GRID xstep ystep`; with lists (v9.0) a one-line function plot (`PLOTFN "F -2 2 0.01` or `GRAPH [:X * :X] …`)
+
 **Step 3 — v9.0: words and lists (MAJOR, breaking)**
 - [x] Design written: `docs/design-v9-lists.md` (value model, list literals, primitives, binding change, phases A–D, open questions). Implementation later, as its own release series.
 - [ ] Values become number | word | list: `FIRST` `BUTFIRST` `LAST` `ITEM` `COUNT` `EMPTY?` `SENTENCE` `FPUT` `LPUT` `WORD` `PICK`, `RUN [list]`, `PENCOLOR` as `[r g b]`, string comparison. Touches the expression parser, PRINT, comparisons, error messages, both specs. See the design document; lists cannot be changed in place.
@@ -60,7 +64,7 @@ Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and dete
 
 ### Visual / interface pass
 - [x] Part 1 (v8.6): system fonts, contrast, calm colours, syntax highlighting, sentence case, flat beige canvas, flat vector turtle
-- [ ] Part 2 — canvas: optional grid with x/y axes; readable font for LABEL text (currently VT323 16 px); turtle size / pen-point review
+- [ ] Part 2 — canvas: optional grid with x/y axes (a program can draw them with SETPLOT + AXES since v8.15; a background grid toggle in Options is still open); readable font for LABEL text (currently VT323 16 px); turtle size / pen-point review
 - [x] Part 2a (v8.7): Commands panel as one aligned, searchable table with Try buttons; Examples as a grid of cards with pictures; examples resized for the beige canvas; examples fit + drawing snapshots in the unit tests
 - [x] Part 2b (v8.10): Commands as separate commands with cards (longer text, several examples, Try / Insert, See also, Used in examples), group chips, ranked search with synonyms, keyboard; Examples with search, topics, "uses" filter and a preview before loading; F1 in the editor opens the command's card
 - [ ] Optional: hover tooltip in the editor with the one-line description (CodeMirror `hoverTooltip`, from `REFERENCE`)

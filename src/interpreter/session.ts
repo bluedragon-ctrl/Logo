@@ -14,6 +14,7 @@ import type { LogoIO, Session } from './types.ts';
 //   background  SETBG colour, or null for the Options canvas style
 //   edge      WRAP / WINDOW / FENCE — what the canvas edge does
 //   fillPath  the path recorded since BEGINFILL, or null
+//   plot      the SETPLOT frame (turtle/plot.ts), or null
 export function createSession(): Session {
   return {
     turtle:   mkTurtle(),
@@ -25,17 +26,20 @@ export function createSession(): Session {
     background: null,
     edge:     'fence',
     fillPath: null,
+    plot:     null,
   };
 }
 
 // clearScreen(session, io): erase trail + labels and reset the turtle. Shared by CS,
 // RUN-with-"clear screen on run", and the CLR button. Variables and procedures stay.
-// The SETBG background and the edge mode (WRAP / WINDOW / FENCE) are reset too,
-// except by CS (keepSettings), as in UCBLogo. A BEGINFILL in progress is dropped.
+// The SETBG background, the edge mode (WRAP / WINDOW / FENCE) and the SETPLOT frame
+// are reset too, except by CS (keepSettings), as in UCBLogo. A BEGINFILL in progress
+// is dropped; a broken PLOT line starts afresh.
 export function clearScreen(session: Session, io: LogoIO, opts: { keepSettings?: boolean } = {}): void {
   clearDrawing(session.drawing);
   session.fillPath = null;
-  if(!opts.keepSettings){ session.background = null; session.edge = 'fence'; }
+  if(!opts.keepSettings){ session.background = null; session.edge = 'fence'; session.plot = null; }
+  else if(session.plot) session.plot.outside = null;
   resetTurtle(session.turtle);
   io.redraw();
 }

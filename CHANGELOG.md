@@ -4,6 +4,16 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.15  2026-11-12
+**GRAPHS: SETPLOT, PLOT, AXES**
+- + ADDITION: SETPLOT xmin xmax ymin ymax chooses a graph range shown on the canvas (inside a 40-step margin for the axis numbers, at any window size); (SETPLOT … "EQUAL) gives x and y the same scale. The turtle's own coordinates do not change: only the new words use the range. CS keeps it; RUN and CLR remove it; RESETPLOT forgets it.
+- + ADDITION: PLOT x y goes to a graph point like SETPOS. A point outside the range breaks the line (drawn up to the edge, restarted where the curve comes back), so y = 1 / x draws no line along its asymptote.
+- + ADDITION: AXES xstep ystep draws both axes with a tick at every step and numbers (thinned when they would crowd), in the pen colour. PLOTX / PLOTY give the turtle's position in the graph range.
+- + ADDITION: example "Graphs — Parabola and Hyperbola"; a Graphs section in the Commands panel.
+- * BUG: FOR with a fractional step added the step each round, so the values drifted: FOR :X -1 1 0.01 gave 7.5e-16 instead of 0 (and 1.0000000000000013 at the end). FOR now counts start + k × step, rounded to 15 digits.
+
+---
+
 ## v8.14  2026-11-11
 **SMALL POLISH FROM THE v8.13 CODE REVIEW**
 - * BUG: the Errors checkbox in Options did nothing, because errors are always shown. It is removed (review 1.1).
