@@ -163,6 +163,17 @@ describe('interpreter state', () => {
     clearScreen(cs.session, cs.io);
     expect(cs.session.plot).toBeNull();
   });
+  test('GRID draws a full-height line per x step and a full-width line per y step, no labels', async () => {
+    const { session } = await runLogo('SETPLOT -1 1 0 2\nGRID 0.5 1', { width: 480, height: 480 });
+    const d = session.drawing, segs = [];
+    for (let k = 0; k < d.len; k++) segs.push(Array.from(d.f32.slice(k * 5, k * 5 + 4)));
+    expect(d.len).toBe(5 + 3);
+    expect(d.labels).toEqual([]);
+    expect(segs.slice(0, 5).map(([x1, y1, x2, y2]) => [x1, x1 === x2, y1, y2])).toEqual(
+      [-200, -100, 0, 100, 200].map(x => [x, true, -200, 200]));
+    expect(segs.slice(5).map(([x1, y1, x2, y2]) => [y1, y1 === y2, x1, x2])).toEqual(
+      [-200, 0, 200].map(y => [y, true, -200, 200]));
+  });
   test('(LABEL …) joins its inputs with spaces', async () => {
     const { session } = await runLogo('MAKE "N 3\n(LABEL "n: :N * 2 "cm)');
     expect(session.drawing.labels.map(l => l.text)).toEqual(['n: 6 cm']);

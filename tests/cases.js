@@ -151,5 +151,9 @@ export const CASES = [
   ['AXES draws without moving the turtle', 'SETPLOT 0 10 0 10\nAXES 1 1\nPRINT XCOR + YCOR', 'PRINT → 0'],
   ['AXES step must be > 0',          'SETPLOT -1 1 -1 1\nAXES 0 1', 'AXES: a step must be a number > 0'],
   ['AXES step too small',            'SETPLOT -1 1 -1 1\nAXES 0.001 0.1', 'puts the ticks too close together'],
+  ['GRID draws without moving the turtle', 'SETPLOT 0 10 0 10\nPU GRID 1 2\nPRINT XCOR + YCOR', 'PRINT → 0'],
+  ['GRID needs SETPLOT',             'GRID 1 1', 'GRID: no graph range yet'],
+  ['GRID step must be > 0',          'SETPLOT -1 1 -1 1\nGRID 1 -1', 'GRID: a step must be a number > 0, got -1'],
+  ['GRID step too small',            'SETPLOT 0 1000 0 1 GRID 1 0.1', 'GRID: a step of 1 puts the lines too close together'],
 ];
 

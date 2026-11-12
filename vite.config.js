@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 
-// The version lives in package.json ("8.2.0"); the app shows MAJOR.MINOR ("v8.2").
+// The version lives in package.json ("8.16.0"); the app shows all three parts ("v8.16.0").
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
-const appVersion = pkg.version.split('.').slice(0, 2).join('.');
+const appVersion = pkg.version;
 
 export default defineConfig({
   // Relative asset URLs: the built site works under any path

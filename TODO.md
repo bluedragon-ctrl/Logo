@@ -16,7 +16,7 @@ Roadmap for making this a classroom tool: `docs/architecture-proposal.md` (phase
 - [ ] Next: remaining technical work (see below), then a visual / interface pass, then phase 4 teaching features
 
 ### Repo
-- [ ] Tag releases on `main` (`v8.1`, `v8.2`, `v8.3`; optionally older ones from history)
+- [x] Three-part version numbers (v8.16.0); releases tagged on `main` from v8.15.0 on (older ones not tagged)
 - [ ] Optional: rename the GitHub repository to match the new name (the Pages URL follows the repo name; old URLs redirect only for the repo, not for Pages)
 
 ### Language
@@ -45,7 +45,8 @@ Missing language features (review of Nov 2026), in the agreed order:
 
 **Graphs — v8.15**
 - [x] `SETPLOT xmin xmax ymin ymax` / `(SETPLOT … "EQUAL)`, `PLOT x y` (breaks the line outside the range), `AXES xstep ystep`, `PLOTX` / `PLOTY`, `RESETPLOT`; `FOR` without float drift
-- [ ] Maybe later: `MOUSEX` / `MOUSEY` in graph units; a light `GRID xstep ystep`; with lists (v9.0) a one-line function plot (`PLOTFN "F -2 2 0.01` or `GRAPH [:X * :X] …`)
+- [x] v8.16: `GRID xstep ystep` (graph paper, in the pen colour)
+- [ ] Maybe later: `MOUSEX` / `MOUSEY` in graph units; with lists (v9.0) a one-line function plot (`PLOTFN "F -2 2 0.01` or `GRAPH [:X * :X] …`)
 
 **Step 3 — v9.0: words and lists (MAJOR, breaking)**
 - [x] Design written: `docs/design-v9-lists.md` (value model, list literals, primitives, binding change, phases A–D, open questions). Implementation later, as its own release series.
@@ -68,7 +69,7 @@ Keep every step behaviour-preserving: `npm run lint` + `npm test` pass, and dete
 - [x] Part 2a (v8.7): Commands panel as one aligned, searchable table with Try buttons; Examples as a grid of cards with pictures; examples resized for the beige canvas; examples fit + drawing snapshots in the unit tests
 - [x] Part 2b (v8.10): Commands as separate commands with cards (longer text, several examples, Try / Insert, See also, Used in examples), group chips, ranked search with synonyms, keyboard; Examples with search, topics, "uses" filter and a preview before loading; F1 in the editor opens the command's card
 - [ ] Optional: hover tooltip in the editor with the one-line description (CodeMirror `hoverTooltip`, from `REFERENCE`)
-- [ ] Part 2 — layout: labelled toolbar (≡ ⎘ ⚙ → text or icon + text, "L:1" → "Ln 1"); Save as PNG next to Save / Load; move the version out of the header
+- [ ] Part 2 — layout: labelled toolbar (≡ ⎘ ⚙ → text or icon + text, "L:1" → "Ln 1"); ~~Save as PNG next to Save / Load~~ (v8.16: Save picture in the toolbar); move the version out of the header
 - [ ] Commands panel docked beside the canvas instead of floating over it — needs `resizeCanvas()` to keep the turtle's position (today it re-centres the turtle when idle)
 - [ ] Optional: light theme; "Retro" theme (VT323, sand, the old cartoon turtle)
 

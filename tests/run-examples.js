@@ -131,6 +131,25 @@ const UI_CHECKS = [
     const rebuilt = await centre();
     return [live === '220,50,50' && rebuilt === live, JSON.stringify({ live, rebuilt })];
   }, { currentOnly: true }],
+  ['Save picture downloads a PNG of the canvas without the turtle', async (page) => {
+    await page.evaluate(() => { document.getElementById('opt-clear-on-run').checked = true; editor.setValue('SETBG NAVY\nST'); document.getElementById('btn-run').click(); });
+    await page.waitForFunction(() => activeRctx === null, null, { timeout: 3000 });
+    const picker = await page.evaluate(() => { const p = window.showSaveFilePicker; window.showSaveFilePicker = undefined; return p; });
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btn-save-pic')]);
+    await page.evaluate(p => { if (p) window.showSaveFilePicker = p; }, picker);
+    const png = (await readFile(await dl.path())).toString('base64');
+    const r = await page.evaluate(async b64 => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const screen = document.getElementById('c');
+      const at = (ctx, w, h) => [...ctx.getImageData(w >> 1, h >> 1, 1, 1).data.slice(0, 3)].join();
+      return { size: img.width + 'x' + img.height, screenSize: screen.width + 'x' + screen.height,
+               centre: at(x, img.width, img.height), screenCentre: at(screen.getContext('2d'), screen.width, screen.height) };
+    }, png);
+    const ok = dl.suggestedFilename() === 'SETBG-NAVY.png' && r.size === r.screenSize && r.centre === '0,0,150' && r.screenCentre !== '0,0,150';
+    return [ok, JSON.stringify({ name: dl.suggestedFilename(), ...r })];
+  }, { currentOnly: true }],
   ['infinite WHILE can be stopped', async (page) => {
     await page.evaluate(() => { editor.setValue('WHILE [ 1 = 1 ] [ MAKE :I 1 ]'); document.getElementById('btn-run').click(); });
     await page.waitForTimeout(300);

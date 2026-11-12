@@ -4,6 +4,13 @@ Severity markers: `+` new feature · `~` change/fix · `-` removed · `*` bug fi
 
 ---
 
+## v8.16.0  2026-11-12
+**GRID AND SAVE PICTURE; THREE-PART VERSION NUMBERS**
+- + ADDITION: GRID xstep ystep draws graph paper for the SETPLOT range: a line across the range at every multiple of the step, in the pen colour and width, no numbers. The graphs example now draws a light grid under the axes.
+- + ADDITION: example "Graphs — A Round Circle": (SETPLOT … "EQUAL) with graph paper, the circle x² + y² = 4 and a square with its corners on it.
+- ~ CHANGE: Save picture moved from the Options panel to the toolbar, next to Open / Save. The PNG leaves the turtle out, is named after the program (like Save), and uses the save dialog where the browser has one.
+- ~ CHANGE: versions now have three parts, MAJOR.MINOR.PATCH, continuing from the old numbers (v8.15 = 8.15.0): MAJOR for breaking language changes, MINOR for new commands and features, PATCH for fixes only. The app shows the full number. Releases are tagged on main from v8.15.0 on.
+
 ## v8.15  2026-11-12
 **GRAPHS: SETPLOT, PLOT, AXES**
 - + ADDITION: SETPLOT xmin xmax ymin ymax chooses a graph range shown on the canvas (inside a 40-step margin for the axis numbers, at any window size); (SETPLOT … "EQUAL) gives x and y the same scale. The turtle's own coordinates do not change: only the new words use the range. CS keeps it; RUN and CLR remove it; RESETPLOT forgets it.

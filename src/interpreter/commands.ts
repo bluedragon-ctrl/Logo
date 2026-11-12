@@ -5,7 +5,7 @@ import { newLine } from './tokenizer.ts';
 import { clearScreen } from './session.ts';
 import { addLabel, beginFill, endFill, notePoint, trailPushIfRoom } from '../turtle/drawing.ts';
 import { arc, circle, edgePath, move, normAngle, ouch, rotate, wrapCoord } from '../turtle/motion.ts';
-import { drawAxes, makePlotFrame, plotStep } from '../turtle/plot.ts';
+import { drawAxes, drawGrid, makePlotFrame, plotStep } from '../turtle/plot.ts';
 import type { CommandHandler, EdgeMode, RunContext, Scope, Token } from './types.ts';
 
 // ── Command dispatch table ────────────────────────────────────────────────────
@@ -253,6 +253,15 @@ CMD['AXES'] = async (t,i,v,rctx) => {
   const {value:ys, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
   drawAxes(rctx, xs, ys);
   rctx.io.log('AXES ' + formatNum(xs) + ' ' + formatNum(ys), 'op');
+  await tick(rctx);
+  return i2;
+};
+// GRID xstep ystep: grid lines across the SETPLOT range (no numbers).
+CMD['GRID'] = async (t,i,v,rctx) => {
+  const {value:xs, nextIdx:i1} = await evalExpr(t,i,v,rctx);
+  const {value:ys, nextIdx:i2} = await evalExpr(t,i1,v,rctx);
+  drawGrid(rctx, xs, ys);
+  rctx.io.log('GRID ' + formatNum(xs) + ' ' + formatNum(ys), 'op');
   await tick(rctx);
   return i2;
 };

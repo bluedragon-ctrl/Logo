@@ -4,6 +4,7 @@ import { drawTurtleSprite } from './sprite.ts';
 import { toCanvas, trailCanvas } from './trail.ts';
 import { session } from '../app.ts';
 import type { Turtle } from '../interpreter/types.ts';
+import { context2d } from '../util.ts';
 
 // ── Render pipeline ───────────────────────────────────────────────────────────
 // render() composites three layers every frame via painter's algorithm:
@@ -46,4 +47,17 @@ export function render(){
       drawTurtleSprite(ctx,cx,cy,turtle,session.walkTick,session.isMoving);
     }
   }
+}
+
+// pictureCanvas(): the picture for "Save picture" — background + drawing, without
+// the turtle, at device resolution (like the screen).
+export function pictureCanvas(): HTMLCanvasElement {
+  const pic = document.createElement('canvas');
+  pic.width = Math.max(1, Math.round(CW * DPR)); pic.height = Math.max(1, Math.round(CH * DPR));
+  const c = context2d(pic);
+  c.setTransform(DPR,0,0,DPR,0,0);
+  c.imageSmoothingEnabled = false;
+  drawBackground(session.background, c);
+  c.drawImage(trailCanvas,0,0,CW,CH);
+  return pic;
 }

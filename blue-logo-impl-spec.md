@@ -1,5 +1,5 @@
 # Blue Logo — Implementation Specification
-## Version 8.15 — November 2026
+## Version 8.16.0 — November 2026
 
 This document covers the internal architecture, data structures, algorithms, and extension points for developers maintaining or extending Blue Logo. Language behaviour visible to programmers is in `blue-logo-lang-spec.md`.
 
@@ -53,7 +53,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 
 | Path | Contents |
 |---|---|
-| `index.html` | Markup only: left panel, canvas panel, overlays (their content is built by `ui/`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR from `package.json`). |
+| `index.html` | Markup only: left panel, canvas panel, overlays (their content is built by `ui/`), option controls. `%APP_VERSION%` is replaced at build time (MAJOR.MINOR.PATCH from `package.json`). |
 | `src/app.ts` | The page's `session` (`createSession()`) and `io` (browser LogoIO: console, trail canvas, `CW`/`CH`, speed slider, `requestAnimationFrame`). |
 | `src/main.ts` | Entry point: imports the CSS and the UI modules (which wire their DOM handlers on import), calls `resizeCanvas()`, repaints labels after the font loads, exposes the test hooks on `window`. |
 | `src/styles/app.css` | All CSS: design tokens (colours, font stacks, `--fs-base`), the VT323 `@font-face`. |
@@ -70,12 +70,12 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `render/background.ts` | `drawBackground` (flat fill), `canvasStyle`/`turtleStyle` + setters. |
 | `render/paint.ts` | `paintDrawing(ctx, drawing, hw, hh, minWidth?)`, `paintFillOn`, `paintLabelOn`, `drawingBounds`, `LABEL_FONT` — pure painters of a drawing onto any 2D context (trail layer and example pictures). |
 | `render/trail.ts` | `trailCanvas`, `toCanvas`, `paintLine`, `paintLabel`, `paintFill`, `rebuildTrailCanvas` (paints `session.drawing` with `paintDrawing`). |
-| `render/render.ts` | `render()` (background → trail → turtle; reads `session.turtle`, `walkTick`, `isMoving`, `background`). |
+| `render/render.ts` | `render()` (background → trail → turtle; reads `session.turtle`, `walkTick`, `isMoving`, `background`); `pictureCanvas()` (background + trail, no turtle, device resolution — for Save picture). |
 | **turtle/** | |
 | `turtle/state.ts` | `mkTurtle`, `resetTurtle(t)` (in place). |
 | `turtle/drawing.ts` | Drawing store: `createDrawing`, `clearDrawing`, `segment`, `trailPushIfRoom`, `trailPushQuiet`, `addLabel`, `beginFill` / `notePoint` / `endFill` (BEGINFILL … ENDFILL), `MAX_TRAIL_SEGS`, `MAX_LABELS`, `MAX_FILLS`, `MAX_FILL_POINTS`. |
 | `turtle/motion.ts` | `clipToCanvas`, `edgePath` (FENCE / WRAP / WINDOW), `wrapCoord`, `ouch`, `move`, `rotate`, `circle`, `arc`. |
-| `turtle/plot.ts` | SETPLOT graph range (§3.8): `PLOT_MARGIN`, `plotMapping`, `toCanvas` / `fromCanvas`, `inPlotArea`, `requirePlot`, `makePlotFrame`, `plotStep` (PLOT's line breaking), `drawAxes`. |
+| `turtle/plot.ts` | SETPLOT graph range (§3.8): `PLOT_MARGIN`, `plotMapping`, `toCanvas` / `fromCanvas`, `inPlotArea`, `requirePlot`, `makePlotFrame`, `plotStep` (PLOT's line breaking), `drawAxes`, `drawGrid`. |
 | **interpreter/** | |
 | `interpreter/session.ts` | `createSession`, `clearScreen(session, io, { keepSettings? })`, `clearProcs`. |
 | `interpreter/types.ts` | Shared types (no runtime code): `Token`, `Turtle`, `Label`, `Fill`, `Drawing`, `Proc`, `EdgeMode`, `FillPath`, `PlotFrame`, `ProcMap`, `RepeatInfo`, `Scope`, `Session`, `LogClass`, `LogoIO`, `RunContext`, `CommandHandler`. |
@@ -104,7 +104,7 @@ Direct mode (`runDirectCommand`) uses the same `parseProgram` / `registerProcs` 
 | `ui/thumbs.ts` | Example pictures: `runForThumbnail` (run headlessly), `exampleSession(n)` (queued, cached), `paintExample(canvas, n, w, h)` (`paintDrawing` scaled to fit). |
 | `ui/help-nav.ts` | `helpNav` — `showCommand`, `showExample`, `showExamplesUsing`: links between the two panels (and F1), filled in by each panel so they need not import each other. |
 | `ui/overlays.ts`, `ui/options.ts` | `openOverlay` (toggles) / `showOverlay` (opens) / `closeOverlay` / `OVERLAYS`, options panel. |
-| `ui/splitter.ts`, `ui/code-buttons.ts`, `ui/files.ts`, `ui/resize.ts` | Splitter + Console collapse toggle, copy / tidy buttons, file save/load, `resizeCanvas`. |
+| `ui/splitter.ts`, `ui/code-buttons.ts`, `ui/files.ts`, `ui/resize.ts` | Splitter + Console collapse toggle, copy / tidy buttons, file save/load and Save picture, `resizeCanvas`. |
 | `ui/autosave.ts` | `AUTOSAVE_KEY` (`blue-logo:program`; migrates the pre-v8.3 key `claude-logo:program` once), `AUTOSAVE_DELAY_MS` (500), `autosave` (`save`/`load`/`flush`), `restoreProgram`. Driven by `editor.onChange`; flushes on `pagehide` / hidden `visibilitychange`; restores with `editor.initValue` (no undo step). All localStorage access is guarded. |
 
 **State ownership.** Program state is in the session object; modules change its fields (`session.globals = {}`, `session.turtle.x = 0`) and never replace the object. `session.turtle` and `session.procs` are also never replaced (they are reset in place) so references held during a run stay valid. UI state that is a module-level variable is written only by the module that declares it, through a small setter (`setCanvasSize`, `setActiveRctx`, `setCanvasStyle`, `setTurtleStyle`, `setConsoleVisible`, `setShowConsole`) — an ES module cannot assign to a variable it imports; ESLint's `no-import-assign` catches violations.
@@ -308,7 +308,7 @@ Errors are plain `Error`s with Logo-level messages. `execute` logs `✗ message`
 
 ### 3.1 Coordinate System and HiDPI
 
-`CW`/`CH` are the logical canvas size in CSS pixels = Logo units. The backing store is `CW×DPR` by `CH×DPR` device pixels (`DPR = devicePixelRatio`, re-read on every resize, so browser zoom is handled). The main canvas and `trailCanvas` draw through `setTransform(DPR,0,0,DPR,0,0)`, so **all drawing code works in logical units — always use `CW`/`CH`, never `canvas.width/height`** for geometry. Saved PNGs are at device resolution.
+`CW`/`CH` are the logical canvas size in CSS pixels = Logo units. The backing store is `CW×DPR` by `CH×DPR` device pixels (`DPR = devicePixelRatio`, re-read on every resize, so browser zoom is handled). The main canvas and `trailCanvas` draw through `setTransform(DPR,0,0,DPR,0,0)`, so **all drawing code works in logical units — always use `CW`/`CH`, never `canvas.width/height`** for geometry. Saved pictures (`pictureCanvas()`) are at device resolution.
 
 ```
 canvas_x = CW / 2 + logo_x          dx = sin(heading) × dist
@@ -376,10 +376,11 @@ Both styles are centred on the pen position and show the pen state as a dot ther
 
 ### 3.8 Graph range (SETPLOT)
 
-`turtle/plot.ts`. `session.plot` is `null` or a `PlotFrame { xmin, xmax, ymin, ymax, equal, outside }`; it never changes the turtle's coordinates — only `PLOT`, `AXES`, `PLOTX` / `PLOTY` read it. `plotMapping(frame, io.canvasSize())` is worked out on every use: the plot area is the canvas minus `PLOT_MARGIN` (40) on each side (half-sizes `hw`, `hh`), `sx = 2hw / (xmax − xmin)`, `sy = 2hh / (ymax − ymin)` (both the smaller one when `equal`), and canvas = (graph − centre) × scale, snapped to 10⁻⁹. Because the area is centred on the canvas origin, a point inside it never meets the canvas edge (no OUCH).
+`turtle/plot.ts`. `session.plot` is `null` or a `PlotFrame { xmin, xmax, ymin, ymax, equal, outside }`; it never changes the turtle's coordinates — only `PLOT`, `AXES`, `GRID`, `PLOTX` / `PLOTY` read it. `plotMapping(frame, io.canvasSize())` is worked out on every use: the plot area is the canvas minus `PLOT_MARGIN` (40) on each side (half-sizes `hw`, `hh`), `sx = 2hw / (xmax − xmin)`, `sy = 2hh / (ymax − ymin)` (both the smaller one when `equal`), and canvas = (graph − centre) × scale, snapped to 10⁻⁹. Because the area is centred on the canvas origin, a point inside it never meets the canvas edge (no OUCH).
 
 - **`PLOT x y`** asks `plotStep` what to do, then uses `goTo` (so fills, logging and pacing are those of SETPOS). Inside the area: if the previous PLOT was outside (`frame.outside`) and the pen is down, the turtle first jumps (no line) to where the segment outside → here enters the area (`clipToCanvas` from the inside point towards the outside one); then `goTo` the point. Outside (or not finite): if the previous PLOT was inside and the turtle is in the area, `goTo` the point where the segment leaves the area; the turtle stays there and `frame.outside` remembers the canvas point. Two outside points in a row draw nothing — that is what keeps `1 / x` from drawing its asymptote. `SETPLOT` and `CS` reset `outside`.
-- **`AXES xstep ystep`** (`drawAxes`): the axes cross at (0, 0) when 0 is in the shown range, otherwise at its bottom / left edge; ticks at every multiple `k × step` (k from `ceil(lo / step)` to `floor(hi / step)`, the value rounded to 12 digits), labels every 1st, 2nd, 5th, 10th … tick so they are at least 45 (x) / 22 (y) steps apart, positioned with an estimated 7 steps per character; "0" once at the origin. All with `trailPushIfRoom` / `addLabel` in the pen colour and width, then one `tick()`. Steps ≤ 0, or ticks closer than 4 steps, are errors.
+- **`AXES xstep ystep`** (`drawAxes`): the axes cross at (0, 0) when 0 is in the shown range, otherwise at its bottom / left edge; ticks at every multiple `k × step` (k from `ceil(lo / step)` to `floor(hi / step)`, the value rounded to 12 digits), labels every 1st, 2nd, 5th, 10th … tick so they are at least 45 (x) / 22 (y) steps apart, positioned with an estimated 7 steps per character; "0" once at the origin. All with `trailPushIfRoom` / `addLabel` in the pen colour and width, then one `tick()`. Steps ≤ 0, or ticks closer than 4 steps, are errors (`checkSteps`, shared with GRID).
+- **`GRID xstep ystep`** (`drawGrid`): one full-height line per x multiple and one full-width line per y multiple of the range shown (`multiples`, as for the ticks), with `trailPushIfRoom` in the pen colour and width, no labels, then one `tick()`. Same step checks as AXES.
 - **`PLOTX` / `PLOTY`** (`QUERY_TOKENS`): `fromCanvas` of the turtle position, rounded to 12 digits.
 - **`(SETPLOT … "EQUAL)`** is a `PAREN_CMD` handler sharing `setPlot` with `SETPLOT`.
 
@@ -435,7 +436,7 @@ CodeMirror 6, created by an IIFE in `editor/editor.ts` and mounted in `#editor`.
 | STOP | `haltRun()` (sets `stopped`, ends a WAIT) and logs "■ Stopped." The run unwinds within a frame; `runProgram` re-enables RUN. |
 | Clear (CLR) | `resetAll()` (trail, labels, turtle, variables, procedures, console). While running: halt first, reset in `rctx.onFinish`. |
 | Direct | Toggles the terminal input. Enter / ↵ runs `runDirectCommand` (history with ↑/↓). Editor procedures are re-read each time; variables persist. While a program runs the command is refused and the text is kept. |
-| Toolbar above the editor (`#code-label`) | Left: **Commands** and **Examples** (icon + word; the icons drop out when the panel is at its narrowest). Right, icon buttons in groups: Tidy (beautify) and Copy — both flash a tick (`.tb-btn.done`) — then Open and Save `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes). `L:n` (current line) shows when the panel is wide enough (container query on `#split`). |
+| Toolbar above the editor (`#code-label`) | Left: **Commands** and **Examples** (icon + word; the icons drop out when the panel is at its narrowest). Right, icon buttons in groups: Tidy (beautify) and Copy — both flash a tick (`.tb-btn.done`) — then Open and Save `.logo` (File System Access API with `downloadBlob` / `pickFileWithInput` fallbacks, e.g. in cross-origin iframes) and Save picture (`pictureCanvas()` → PNG named like the program, same picker / download fallback; the turtle is left out). `L:n` (current line) shows when the panel is wide enough (container query on `#split`). |
 | Options (title row, right) | Opens the Options overlay. |
 | Icons | Inline SVG in `index.html` (`.ic`: 24-unit view box, 2 px stroke in `currentColor`, so hover / active / done colours apply). Every icon-only button has an `aria-label` and a `title`; the browser test checks that every toolbar button has a name and that the toolbar fits the 360 px panel. |
 
@@ -455,7 +456,6 @@ Options:
 
 | Section | Controls |
 |---|---|
-| Save | Save canvas as PNG (device resolution). |
 | Font size | Small / Medium / Large → `--fs-base` 1 / 1.25 / 1.5. Scales the reading text (editor, console, direct input, overlays), not the buttons or the panel width. |
 | Console log | Motion, Info, Status. (Errors are always shown.) |
 | Behaviour | Clear screen on run (on); Speed slider 0–4 (default 0). |

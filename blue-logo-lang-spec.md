@@ -1,5 +1,5 @@
 # Blue Logo — Language Specification
-## Version 8.15 — November 2026
+## Version 8.16.0 — November 2026
 
 Blue Logo is a subset of UCBLogo extended with several convenience features. It is case-insensitive. All keywords and command names in this document are shown in uppercase; lowercase equivalents are equally valid.
 
@@ -253,14 +253,16 @@ FOREVER [
 | `(SETPLOT xmin xmax ymin ymax "EQUAL)` | The same with one scale for x and y, so a circle stays round; the range is widened around its centre to fill the canvas (more of the longer side is shown). |
 | `PLOT x y` | Go to the graph point (x, y), like `SETPOS`: a line if the pen is down. A point outside the range (in `"EQUAL` mode: outside the area shown) breaks the line: the line is drawn up to the edge of the range, the turtle waits there, and the next point inside starts a new line where the curve comes back in. A line between two points that are both outside is not drawn. |
 | `AXES xstep ystep` | Draw both axes across the range, in the pen colour and width, with a tick mark at every multiple of the step and numbers beside them (only every 2nd, 5th, 10th … when they would crowd). An axis goes through 0, or along the bottom / left edge when 0 is not in the range. The pen may be up; the turtle does not move. A step whose ticks would be less than 4 steps apart is an error. |
+| `GRID xstep ystep` | Draw a line across the whole range at every multiple of the step (graph paper), in the pen colour and width, with no numbers. Choose a light colour first and draw `AXES` on top. The pen may be up; the turtle does not move. A step whose lines would be less than 4 steps apart is an error. |
 | `PLOTX` / `PLOTY` | The turtle's position in the graph range. |
 | `RESETPLOT` | Forget the range. |
 
-`CS` keeps the range; RUN (with "clear screen on run") and CLR remove it. `PLOT`, `AXES`, `PLOTX` and `PLOTY` without a range are an error.
+`CS` keeps the range; RUN (with "clear screen on run") and CLR remove it. `PLOT`, `AXES`, `GRID`, `PLOTX` and `PLOTY` without a range are an error.
 
 ```logo
 SETPLOT -2 2 -1 4
-AXES 0.5 1
+SETCOLOR 215 210 195 GRID 0.5 1     ; light graph paper
+SETCOLOR GRAY AXES 0.5 1
 SETCOLOR BLUE SETWIDTH 2
 PU                              ; jump to the first point
 FOR :X -2 2 0.01 [ PLOT :X :X * :X PD ]
@@ -353,7 +355,7 @@ Results that overflow to infinity are an error ("Number too large").
 
 ## 5. Coordinate System
 
-The origin (0, 0) is the centre of the canvas. X increases to the right, Y upward. One unit is one CSS pixel. (`SETPLOT` adds a separate graph range for `PLOT`, `AXES`, `PLOTX` / `PLOTY` — §2.8 — without changing these coordinates.) Headings: 0° = north, clockwise positive; `HEADING` is always in [0, 360).
+The origin (0, 0) is the centre of the canvas. X increases to the right, Y upward. One unit is one CSS pixel. (`SETPLOT` adds a separate graph range for `PLOT`, `AXES`, `GRID`, `PLOTX` / `PLOTY` — §2.8 — without changing these coordinates.) Headings: 0° = north, clockwise positive; `HEADING` is always in [0, 360).
 
 Turtle positions and headings are kept on a 10⁻⁹ grid (far below a pixel), so a closed shape ends exactly where it started: after `REPEAT 4 [FD 100 RT 90]`, `XCOR` is 0, not 1.4e-14.
 
@@ -422,7 +424,7 @@ A runtime error halts the program and shows the line of the statement or value b
 | Optional inputs in `TO` | `TO F: input :B comes after an optional input — required inputs go first` / `TO F: optional input :A needs a default value, e.g. [:A 0]` / `F: the default of :A must be one value, found …` |
 | `(` starting a statement | `Unexpected ( — a statement can start with ( only for (PRINT …), (LABEL …) or a procedure call with optional inputs` / `Missing ) — (PRINT … was opened but never closed` |
 | `ENDFILL` | `ENDFILL without BEGINFILL` |
-| Graphs | `PLOT: no graph range yet — start with SETPLOT xmin xmax ymin ymax` / `SETPLOT: xmin (1) must be less than xmax (-1)` / `SETPLOT: unknown option "ROUND — the only option is "EQUAL` / `AXES: a step must be a number > 0, got 0` / `AXES: a step of 0.001 puts the ticks too close together for this range — use a bigger step` |
+| Graphs | `PLOT: no graph range yet — start with SETPLOT xmin xmax ymin ymax` / `SETPLOT: xmin (1) must be less than xmax (-1)` / `SETPLOT: unknown option "ROUND — the only option is "EQUAL` / `AXES: a step must be a number > 0, got 0` / `AXES: a step of 0.001 puts the ticks too close together for this range — use a bigger step` / `GRID: a step of 1 puts the lines too close together for this range — use a bigger step` |
 | Word used as a number | `"red is a word, not a number — for a variable write :red` |
 | Unknown colour | `SETCOLOR: unknown colour name RDE (colours: RED ORANGE …)` (also `SETBG: …`) |
 | `IFELSE` value block | `IFELSE used as a value: a [ ] block must hold one value, found …` / `… a [ ] block is empty …` |

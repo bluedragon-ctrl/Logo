@@ -1,9 +1,11 @@
 ;; title: Graphs — Parabola and Hyperbola
-;; desc: SETPLOT chooses the range, AXES draws the axes, PLOT draws y = x² - 2 and y = 1 / x
+;; desc: SETPLOT chooses the range, GRID and AXES draw graph paper, PLOT draws y = x² - 2 and y = 1 / x
 ;; topic: Maths and curves
-;; shows: SETPLOT, AXES, PLOT
+;; shows: SETPLOT, GRID, AXES, PLOT
 SPEED 4
 SETPLOT -4 4 -3 5           ; x from -4 to 4, y from -3 to 5
+SETCOLOR 215 210 195        ; a light colour for the grid
+GRID 1 1                    ; a line every 1
 SETCOLOR GRAY
 AXES 1 1                    ; a tick and a number every 1
 

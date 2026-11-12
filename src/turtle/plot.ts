@@ -3,10 +3,10 @@ import { addLabel, trailPushIfRoom } from './drawing.ts';
 import { clipToCanvas } from './motion.ts';
 import type { PlotFrame, RunContext } from '../interpreter/types.ts';
 
-// ── Plot frame (SETPLOT / PLOT / AXES / PLOTX / PLOTY) ────────────────────────
+// ── Plot frame (SETPLOT / PLOT / AXES / GRID / PLOTX / PLOTY) ────────────────────────
 // SETPLOT xmin xmax ymin ymax stores a graph range in session.plot. It does not
 // change the turtle's own coordinates: FD, SETPOS, XCOR … stay in canvas steps.
-// Only PLOT (go to a graph point), AXES and PLOTX / PLOTY use the range.
+// Only PLOT (go to a graph point), AXES, GRID and PLOTX / PLOTY use the range.
 //
 // The range fills the plot area: the canvas minus PLOT_MARGIN steps on every side
 // (room for the axis labels). The mapping is worked out again on every use from
@@ -89,6 +89,47 @@ export function plotStep(rctx: RunContext, x: number, y: number): PlotStep {
   return {};
 }
 
+// ── AXES / GRID: shared parts ─────────────────────────────────────────────────
+// checkSteps: both steps must be numbers > 0, and not so small that the lines
+// (or ticks) fall closer than MIN_TICK_GAP steps on the canvas.
+function checkSteps(cmd: string, what: string, m: PlotMapping, xstep: number, ystep: number): void {
+  for(const s of [xstep, ystep]) if(!(s > 0) || !isFinite(s)) throw new Error(cmd + ': a step must be a number > 0, got ' + formatNum(s));
+  for(const [s, scale] of [[xstep, m.sx], [ystep, m.sy]])
+    if(s * scale < MIN_TICK_GAP) throw new Error(cmd + ': a step of ' + formatNum(s) + ' puts the ' + what + ' too close together for this range — use a bigger step');
+}
+// multiples(lo, hi, step): each k with k × step in [lo, hi], and that value (rounded to 12 digits).
+function multiples(lo: number, hi: number, step: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  const first = Math.ceil(lo / step - 1e-9), last = Math.floor(hi / step + 1e-9);
+  for(let k = first; k <= last; k++) out.push([k, Number((k * step).toPrecision(12))]);
+  return out;
+}
+// The graph range the plot area really shows (wider than SETPLOT's with "EQUAL).
+function shownRange(m: PlotMapping): { xlo: number; xhi: number; ylo: number; yhi: number } {
+  const [xlo, ylo] = fromCanvas(m, -m.hw, -m.hh), [xhi, yhi] = fromCanvas(m, m.hw, m.hh);
+  return { xlo, xhi, ylo, yhi };
+}
+
+// ── GRID xstep ystep ──────────────────────────────────────────────────────────
+// A line across the whole plot area at every multiple of the step, in the pen
+// colour and width (a light colour, then AXES on top, reads best). No numbers.
+// The turtle does not move; the pen may be up.
+export function drawGrid(rctx: RunContext, xstep: number, ystep: number): void {
+  const f = requirePlot(rctx, 'GRID'), t = rctx.session.turtle;
+  const m = plotMapping(f, rctx.io.canvasSize());
+  checkSteps('GRID', 'lines', m, xstep, ystep);
+  const { xlo, xhi, ylo, yhi } = shownRange(m);
+  const [r, g, b] = t.color, w = t.width;
+  for(const [, v] of multiples(xlo, xhi, xstep)) {
+    const [px] = toCanvas(m, v, 0);
+    trailPushIfRoom(rctx, px, -m.hh, px, m.hh, w, r, g, b);
+  }
+  for(const [, v] of multiples(ylo, yhi, ystep)) {
+    const [, py] = toCanvas(m, 0, v);
+    trailPushIfRoom(rctx, -m.hw, py, m.hw, py, w, r, g, b);
+  }
+}
+
 // ── AXES xstep ystep ──────────────────────────────────────────────────────────
 // Both axes across the plot area, in the pen colour and width, with a tick mark
 // at every multiple of the step and number labels (thinned to every 2nd, 5th,
@@ -97,12 +138,10 @@ export function plotStep(rctx: RunContext, x: number, y: number): PlotStep {
 // does not move; the pen may be up.
 export function drawAxes(rctx: RunContext, xstep: number, ystep: number): void {
   const f = requirePlot(rctx, 'AXES'), t = rctx.session.turtle;
-  for(const s of [xstep, ystep]) if(!(s > 0) || !isFinite(s)) throw new Error('AXES: a step must be a number > 0, got ' + formatNum(s));
   const m = plotMapping(f, rctx.io.canvasSize());
-  for(const [s, scale] of [[xstep, m.sx], [ystep, m.sy]])
-    if(s * scale < MIN_TICK_GAP) throw new Error('AXES: a step of ' + formatNum(s) + ' puts the ticks too close together for this range — use a bigger step');
+  checkSteps('AXES', 'ticks', m, xstep, ystep);
 
-  const [xlo, ylo] = fromCanvas(m, -m.hw, -m.hh), [xhi, yhi] = fromCanvas(m, m.hw, m.hh);
+  const { xlo, xhi, ylo, yhi } = shownRange(m);
   const gx0 = xlo <= 0 && 0 <= xhi ? 0 : xlo, gy0 = ylo <= 0 && 0 <= yhi ? 0 : ylo;   // where the axes cross
   const [ax, ay] = toCanvas(m, gx0, gy0);
   const [r, g, b] = t.color, w = t.width;
@@ -114,11 +153,7 @@ export function drawAxes(rctx: RunContext, xstep: number, ystep: number): void {
   const ticks = (lo: number, hi: number, step: number, scale: number, minGap: number, at: (v: number, text: string, showLabel: boolean) => void): void => {
     let every = 1;   // label every 1st, 2nd, 5th, 10th, 20th … tick
     search: for(let p = 1; p <= 1e6; p *= 10) for(const k of [1, 2, 5]) if(k * p * step * scale >= minGap){ every = k * p; break search; }
-    const first = Math.ceil(lo / step - 1e-9), last = Math.floor(hi / step + 1e-9);
-    for(let k = first; k <= last; k++) {
-      const v = Number((k * step).toPrecision(12));
-      at(v, formatNum(v), k % every === 0);
-    }
+    for(const [k, v] of multiples(lo, hi, step)) at(v, formatNum(v), k % every === 0);
   };
   ticks(xlo, xhi, xstep, m.sx, LABEL_GAP_X, (v, text, showLabel) => {
     const [px] = toCanvas(m, v, gy0);
